@@ -7,7 +7,7 @@
 			]
 		},
 		"browser-tools-server": {
-			"command": "npx",
+			"command": "bunx",
 			"args": ["@agentdeskai/browser-tools-mcp"]
 		},
 		"neon": {
