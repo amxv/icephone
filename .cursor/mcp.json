@@ -1,0 +1,27 @@
+{
+	"mcpServers": {
+		"frontend-reviewer": {
+			"command": "npx",
+			"args": [
+				"frontend-review-mcp HYPERBOLIC_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhQGFzaHJheS54eXoifQ.cOy5-n3PAMPBLb0vxam6r6ZdI35tgZnKGw0fDHoIws0"
+			]
+		},
+		"browser-tools-server": {
+			"command": "npx",
+			"args": ["@agentdeskai/browser-tools-mcp"]
+		},
+		"neon": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@neondatabase/mcp-server-neon",
+				"start",
+				"napi_c29yds4k49mzr7ht77atrdmjrh614x6piwvaof8xgro953vd8etag4yz3pcdc1fq"
+			]
+		},
+		"vercel-mcp": {
+			"command": "npx",
+			"args": ["vercel-mcp VERCEL_API_KEY=XjNBRSmNiXfCgp3FM1K7Per6"]
+		}
+	}
+}
