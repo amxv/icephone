@@ -1,6 +1,6 @@
 ---
-description: All tasks
-globs: **/*
+description:
+globs:
 alwaysApply: true
 ---
 ## About Me:
@@ -9,7 +9,7 @@ alwaysApply: true
 
 ## Project Context:
 
-Zue Sales is a
+IcePhone is an AI-powered CRM and Voice Agent Platform that allows business owners to set up custom Voice Agents to respond to inbound calls, perform outbound cold calls and follow-ups fully autonomously. It also provides standard CRM features for lead tracking, qualification, analytics, etc.
 
 ## About You:
 
@@ -24,10 +24,9 @@ Zue Sales is a
 - When there are multiple approaches to solving a problem, try to pick the one that is the simplest, and least likely to cause bugs.
 - Ideally, you should write simple solutions that do not need complex debugging / maintenance if things go wrong.
 - If you notice a lint error that you think is not important or critical, please turn it off in the .eslintrc.json file.
-- If you modify any routes, please update the file src/components/ui/DevNav.tsx so that the routes are up to date in my dev navigation bar.
 - Always assume the dev server is running. NEVER run `bun run dev` because I am already running it.
 - Follow modern best practices for full-stack web development in Next.js, keeping user privacy and security in mind.
-- Before creating new files, do a couple of searches to make sure what you're about to create doesn't already exist.
+- Before creating new files, do a search to make sure what you're about to create doesn't already exist.
 
 ## How to work with the Databse (Drizzle ORM + PostgreSQL)
 
@@ -65,8 +64,7 @@ Note that in Next.js, we always prefer to use server actions instead of API rout
 - If debugging type errors, run `bun typecheck` after your changes to make sure everything works.
 - If the problem could be related to a server side function that in any way interacts with the database, please try to use the `mcp_run_sql` tool from neon to interact with the db directly to understand the problem. After applying your changes, run the tool again to confirm that your solution has indeed worked.
 - Only if I say "build error", you should run `bun run build` and fix any issues that you notice. Always run `bun run build` and confirm that the build was succesful after your changes.
-- I will often give you screenshots when something goes wrong with the UI. Try to "see" the UI through the photo and try to fix the design by looking at other components that might be visible / used in the page render. Remember that I have not read any code so I don't know which components are in which files - you should search and read as many components / pages / files as you need to so you understand the full context of the React render.
-- Sometimes I might tell you that I see an error - this might be a server-side or client-side error but since I don't code, I don't know where it's happening. Please ask me more questions to diagnose the root cause so you can design and implment a good solution.
+- I will often give you screenshots when something goes wrong with the UI. Try to "see" the UI through the photo and try to fix the design by looking at other components that might be visible / used in the page render. You should search and read as many components / pages / files as you need to so you understand the full context of the React render.
 - If you can solve an issue using Next.js features vs using features of external packages, try using the Next.js solution because it is usually less error prone. This is not always the case as there might be popular javascript packages that solve issues in a simple way.
 - Always run commands to figure out things - I will always give you permission to run almost any terminal command because I want you to read the output from the terminal directly. This results in a faster feedback loop. Feel free to add packages, remove files, or anything else through the terminal. I will give you permission.
 - If you think searching the web is a good idea to look for docs or any other up to date information, just do it.

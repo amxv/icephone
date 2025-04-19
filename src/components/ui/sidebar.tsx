@@ -88,11 +88,11 @@ export const DesktopSidebar = ({
 	return (
 		<motion.div
 			className={cn(
-				"h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[220px] flex-shrink-0",
+				"h-full px-4 py-4 hidden md:flex md:flex-col bg-background dark:bg-neutral-800 w-[220px] flex-shrink-0",
 				className
 			)}
 			animate={{
-				width: animate ? (open ? "200px" : "60px") : "200px"
+				width: animate ? (open ? "200px" : "75px") : "200px"
 			}}
 			onMouseEnter={() => setOpen(true)}
 			onMouseLeave={() => setOpen(false)}
@@ -113,13 +113,13 @@ export const MobileSidebar = ({
 		<>
 			<div
 				className={cn(
-					"h-10 px-4 py-4 flex flex-row md:hidden items-center bg-neutral-100 dark:bg-neutral-800 w-full"
+					"h-10 px-4 py-4 flex flex-row md:hidden items-center bg-white dark:bg-neutral-800 w-full"
 				)}
 				{...props}
 			>
 				<div className="flex justify-start z-20 w-full">
 					<Menu
-						className="text-neutral-800 dark:text-neutral-200 cursor-pointer"
+						className="text-black dark:text-white cursor-pointer"
 						onClick={() => setOpen(!open)}
 					/>
 				</div>
@@ -140,7 +140,7 @@ export const MobileSidebar = ({
 						>
 							<button
 								type="button"
-								className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 cursor-pointer bg-transparent border-none p-0 m-0"
+								className="absolute right-10 top-10 z-50 text-black dark:text-white cursor-pointer bg-transparent border-none p-0 m-0"
 								onClick={() => setOpen(!open)}
 							>
 								<X />
@@ -168,7 +168,7 @@ export const SidebarLink = ({
 		<Link
 			href={link.href}
 			className={cn(
-				"flex items-center justify-start gap-4 group/sidebar py-2 ml-1",
+				"flex items-center justify-start gap-4 group/sidebar py-3 px-3 rounded-2xl transition-all duration-200 hover:bg-white hover:border hover:border-neutral-200 dark:hover:bg-neutral-700 dark:hover:border-neutral-600 border border-transparent",
 				className
 			)}
 			{...props}
@@ -183,7 +183,7 @@ export const SidebarLink = ({
 						: "inline-block",
 					opacity: animate ? (open ? 1 : 0) : 1
 				}}
-				className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+				className="text-black dark:text-white text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
 			>
 				{link.label}
 			</motion.span>

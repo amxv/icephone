@@ -1,10 +1,18 @@
 import React from "react"
 
-export function Logo({ lightMode }: { lightMode: boolean }) {
+export function Logo({
+	lightMode,
+	width = 105,
+	height = 60
+}: {
+	lightMode: boolean
+	width?: number
+	height?: number
+}) {
 	return (
 		<svg
-			width="105"
-			height="60"
+			width={width}
+			height={height}
 			viewBox="0 0 129.22279 44.841281"
 			version="1.1"
 			id="svg1"
