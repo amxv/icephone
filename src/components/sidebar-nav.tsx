@@ -4,7 +4,19 @@
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar"
 import { SignedIn, UserButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
-import { LayoutDashboard, LogOut, Settings, UserCog } from "lucide-react"
+import {
+	Book,
+	Calendar,
+	Funnel,
+	Headset,
+	LayoutDashboard,
+	Mail,
+	Megaphone,
+	MessagesSquare,
+	Phone,
+	Settings,
+	Users
+} from "lucide-react"
 import { useState } from "react"
 import { Logo as ZueLogo } from "./logo"
 
@@ -20,10 +32,66 @@ export function SidebarNav() {
 			)
 		},
 		{
-			label: "Profile",
-			href: "/profile",
+			label: "Leads",
+			href: "/leads",
 			icon: (
-				<UserCog className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+				<Users className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Pipelines",
+			href: "/pipelines",
+			icon: (
+				<Funnel className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Appointments",
+			href: "/appointments",
+			icon: (
+				<Calendar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Calls",
+			href: "/calls",
+			icon: (
+				<Headset className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Chats",
+			href: "/chats",
+			icon: (
+				<MessagesSquare className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Emails",
+			href: "/emails",
+			icon: (
+				<Mail className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Campaigns",
+			href: "/campaigns",
+			icon: (
+				<Megaphone className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Phone Numbers",
+			href: "/phone-numbers",
+			icon: (
+				<Phone className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Knowledge",
+			href: "/knowledge",
+			icon: (
+				<Book className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
 			)
 		},
 		{

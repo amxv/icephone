@@ -92,7 +92,7 @@ export const DesktopSidebar = ({
 				className
 			)}
 			animate={{
-				width: animate ? (open ? "200px" : "75px") : "200px"
+				width: animate ? (open ? "220px" : "75px") : "220px"
 			}}
 			onMouseEnter={() => setOpen(true)}
 			onMouseLeave={() => setOpen(false)}
@@ -168,7 +168,7 @@ export const SidebarLink = ({
 		<Link
 			href={link.href}
 			className={cn(
-				"flex items-center justify-start gap-4 group/sidebar py-3 px-3 rounded-2xl transition-all duration-200 hover:bg-white hover:border hover:border-neutral-200 dark:hover:bg-neutral-700 dark:hover:border-neutral-600 border border-transparent",
+				"flex items-center justify-start gap-4 group/sidebar py-3 px-3 rounded-2xl transition-all duration-200 hover:bg-white hover:border hover:border-primary/60 dark:hover:bg-neutral-700 dark:hover:border-neutral-600 border border-transparent",
 				className
 			)}
 			{...props}
@@ -183,7 +183,7 @@ export const SidebarLink = ({
 						: "inline-block",
 					opacity: animate ? (open ? 1 : 0) : 1
 				}}
-				className="text-black dark:text-white text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+				className="text-black dark:text-white text-sm whitespace-pre inline-block !p-0 !m-0"
 			>
 				{link.label}
 			</motion.span>
