@@ -30,13 +30,6 @@ export function SidebarNav() {
 			icon: (
 				<Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
 			)
-		},
-		{
-			label: "Logout",
-			href: "/auth/signout",
-			icon: (
-				<LogOut className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-			)
 		}
 	]
 
@@ -65,7 +58,7 @@ export function SidebarNav() {
 								}}
 							/>
 							{open && (
-								<span className="ml-2 text-sm text-neutral-700 dark:text-neutral-200">
+								<span className="ml-4 text-sm text-neutral-700 dark:text-neutral-200">
 									Account
 								</span>
 							)}

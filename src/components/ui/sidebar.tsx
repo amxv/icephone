@@ -88,11 +88,11 @@ export const DesktopSidebar = ({
 	return (
 		<motion.div
 			className={cn(
-				"h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[300px] flex-shrink-0",
+				"h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[220px] flex-shrink-0",
 				className
 			)}
 			animate={{
-				width: animate ? (open ? "300px" : "60px") : "300px"
+				width: animate ? (open ? "200px" : "60px") : "200px"
 			}}
 			onMouseEnter={() => setOpen(true)}
 			onMouseLeave={() => setOpen(false)}
@@ -113,11 +113,11 @@ export const MobileSidebar = ({
 		<>
 			<div
 				className={cn(
-					"h-10 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-neutral-100 dark:bg-neutral-800 w-full"
+					"h-10 px-4 py-4 flex flex-row md:hidden items-center bg-neutral-100 dark:bg-neutral-800 w-full"
 				)}
 				{...props}
 			>
-				<div className="flex justify-end z-20 w-full">
+				<div className="flex justify-start z-20 w-full">
 					<Menu
 						className="text-neutral-800 dark:text-neutral-200 cursor-pointer"
 						onClick={() => setOpen(!open)}
@@ -168,7 +168,7 @@ export const SidebarLink = ({
 		<Link
 			href={link.href}
 			className={cn(
-				"flex items-center justify-start gap-2 group/sidebar py-2",
+				"flex items-center justify-start gap-4 group/sidebar py-2 ml-1",
 				className
 			)}
 			{...props}

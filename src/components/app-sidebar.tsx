@@ -59,23 +59,6 @@ export function SidebarDemo() {
 							))}
 						</div>
 					</div>
-					<div>
-						<SidebarLink
-							link={{
-								label: "Manu Arora",
-								href: "#",
-								icon: (
-									<Image
-										src="https://assets.zue.ai/logo_yellow.svg"
-										className="h-7 w-7 flex-shrink-0 rounded-full"
-										width={50}
-										height={50}
-										alt="Avatar"
-									/>
-								)
-							}}
-						/>
-					</div>
 				</SidebarBody>
 			</Sidebar>
 			<Dashboard />
@@ -95,7 +78,7 @@ export const Logo = () => {
 				animate={{ opacity: 1 }}
 				className="font-medium text-black dark:text-white whitespace-pre"
 			>
-				Acet Labs
+				Zue
 			</motion.span>
 		</Link>
 	)

@@ -1,13 +1,103 @@
-[2025-04-19 21:47:10] Using vars defined in .dev.vars
-[2025-04-19 21:47:11] Using vars defined in .dev.vars
-[2025-04-19 21:47:11]    ▲ Next.js 15.2.3 (Turbopack)
-[2025-04-19 21:47:11]    - Local:        http://localhost:3000
-[2025-04-19 21:47:11]    - Network:      http://192.168.1.246:3000
-[2025-04-19 21:47:11]    - Environments: .env.local
-[2025-04-19 21:47:11] 
-[2025-04-19 21:47:11]  ✓ Starting...
-[2025-04-19 21:47:11] Using vars defined in .dev.vars
-[2025-04-19 21:47:12]  ✓ Compiled in 381ms
-[2025-04-19 21:47:12] Using vars defined in .dev.vars
-[2025-04-19 21:47:12]  ✓ Ready in 1608ms
-[2025-04-19 21:47:12] Using vars defined in .dev.vars
+[2025-04-19 21:50:30] Using vars defined in .dev.vars
+[2025-04-19 21:50:32] Using vars defined in .dev.vars
+[2025-04-19 21:50:32]    ▲ Next.js 15.2.3 (Turbopack)
+[2025-04-19 21:50:32]    - Local:        http://localhost:3000
+[2025-04-19 21:50:32]    - Network:      http://192.168.1.246:3000
+[2025-04-19 21:50:32]    - Environments: .env.local
+[2025-04-19 21:50:32] 
+[2025-04-19 21:50:32]  ✓ Starting...
+[2025-04-19 21:50:32] Using vars defined in .dev.vars
+[2025-04-19 21:50:33]  ✓ Compiled in 581ms
+[2025-04-19 21:50:33] Using vars defined in .dev.vars
+[2025-04-19 21:50:33]  ✓ Ready in 2s
+[2025-04-19 21:50:33] Using vars defined in .dev.vars
+[2025-04-19 21:50:38]  ○ Compiling / ...
+[2025-04-19 21:50:43]  ✓ Compiled / in 5.5s
+[2025-04-19 21:50:44]  GET / 200 in 5976ms
+[2025-04-19 21:50:45]  ○ Compiling /favicon.ico ...
+[2025-04-19 21:50:46]  ✓ Compiled /favicon.ico in 1241ms
+[2025-04-19 21:50:46]  GET /favicon.ico?favicon.45db1c09.ico 200 in 1369ms
+[2025-04-19 21:51:14]  ✓ Compiled in 1493ms
+[2025-04-19 21:51:19]  ✓ Compiled in 287ms
+[2025-04-19 21:51:24]  ✓ Compiled in 237ms
+[2025-04-19 21:51:46]  ✓ Compiled in 197ms
+[2025-04-19 21:51:48]  ✓ Compiled in 91ms
+[2025-04-19 21:52:38]  GET / 200 in 924ms
+[2025-04-19 21:52:39]  GET /favicon.ico?favicon.45db1c09.ico 200 in 963ms
+[2025-04-19 21:52:52]  GET / 200 in 323ms
+[2025-04-19 21:52:53]  GET /favicon.ico?favicon.45db1c09.ico 200 in 742ms
+[2025-04-19 21:53:46]  ✓ Compiled in 187ms
+[2025-04-19 21:54:35]  ✓ Compiled in 1146ms
+[2025-04-19 21:55:03]  ✓ Compiled in 250ms
+[2025-04-19 21:55:54]  ⚠ Fast Refresh had to perform a full reload when [turbopack]/browser/dev/hmr-client/hmr-client.ts changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+[2025-04-19 21:55:54]  ✓ Compiled in 1219ms
+[2025-04-19 21:55:54]  ✓ Compiled / in 22ms
+[2025-04-19 21:55:55]  GET / 200 in 424ms
+[2025-04-19 21:55:56]  GET / 200 in 1428ms
+[2025-04-19 21:55:56]  GET /favicon.ico?favicon.45db1c09.ico 200 in 399ms
+[2025-04-19 21:55:56]  GET /favicon.ico?favicon.45db1c09.ico 200 in 50ms
+[2025-04-19 21:56:19]  ✓ Compiled in 206ms
+[2025-04-19 21:56:59]  ✓ Compiled in 222ms
+[2025-04-19 21:56:59]  ✓ Compiled / in 36ms
+[2025-04-19 21:57:00]  GET / 200 in 1158ms
+[2025-04-19 21:57:00]  GET /favicon.ico?favicon.45db1c09.ico 200 in 70ms
+[2025-04-19 21:57:11]  GET / 200 in 346ms
+[2025-04-19 21:57:15]  GET / 200 in 51ms
+[2025-04-19 21:57:33]  GET / 200 in 119ms
+[2025-04-19 21:57:33]  GET /favicon.ico?favicon.45db1c09.ico 200 in 32ms
+[2025-04-19 21:58:59]  ✓ Compiled in 302ms
+[2025-04-19 21:59:44]  ✓ Compiled in 211ms
+[2025-04-19 22:00:37]  ✓ Compiled in 236ms
+[2025-04-19 22:01:09]  ✓ Compiled in 442ms
+[2025-04-19 22:01:09]  ✓ Compiled / in 19ms
+[2025-04-19 22:01:10]  GET / 200 in 314ms
+[2025-04-19 22:01:10]  GET /favicon.ico?favicon.45db1c09.ico 200 in 55ms
+[2025-04-19 22:01:14]  ✓ Compiled in 187ms
+[2025-04-19 22:01:14]  ✓ Compiled / in 43ms
+[2025-04-19 22:01:15]  GET / 200 in 228ms
+[2025-04-19 22:01:15]  GET /favicon.ico?favicon.45db1c09.ico 200 in 95ms
+[2025-04-19 22:01:22]  ✓ Compiled in 140ms
+[2025-04-19 22:01:22]  ✓ Compiled / in 38ms
+[2025-04-19 22:01:23]  GET / 200 in 396ms
+[2025-04-19 22:01:28]  ✓ Compiled in 160ms
+[2025-04-19 22:01:28]  ✓ Compiled / in 60ms
+[2025-04-19 22:01:28]  GET / 200 in 287ms
+[2025-04-19 22:01:35]  ✓ Compiled in 139ms
+[2025-04-19 22:01:35]  ✓ Compiled / in 17ms
+[2025-04-19 22:01:35]  GET / 200 in 204ms
+[2025-04-19 22:01:43]  ✓ Compiled in 101ms
+[2025-04-19 22:01:43]  ✓ Compiled / in 41ms
+[2025-04-19 22:01:43]  GET / 200 in 250ms
+[2025-04-19 22:01:47]  ✓ Compiled / in 19ms
+[2025-04-19 22:01:48]  GET / 200 in 236ms
+[2025-04-19 22:02:06]  ✓ Compiled in 146ms
+[2025-04-19 22:02:07]  ✓ Compiled / in 47ms
+[2025-04-19 22:02:07]  GET / 200 in 267ms
+[2025-04-19 22:02:12]  ✓ Compiled in 121ms
+[2025-04-19 22:02:12]  ✓ Compiled / in 16ms
+[2025-04-19 22:02:12]  GET / 200 in 225ms
+[2025-04-19 22:02:13]  ✓ Compiled in 133ms
+[2025-04-19 22:02:13]  ✓ Compiled / in 42ms
+[2025-04-19 22:02:14]  GET / 200 in 257ms
+[2025-04-19 22:02:17]  ✓ Compiled in 117ms
+[2025-04-19 22:02:17]  ✓ Compiled / in 18ms
+[2025-04-19 22:02:17]  GET / 200 in 196ms
+[2025-04-19 22:03:09]  ✓ Compiled in 228ms
+[2025-04-19 22:03:09]  ✓ Compiled / in 59ms
+[2025-04-19 22:03:09]  GET / 200 in 416ms
+[2025-04-19 22:03:28]  ✓ Compiled in 180ms
+[2025-04-19 22:03:28]  ✓ Compiled / in 47ms
+[2025-04-19 22:03:29]  GET / 200 in 485ms
+[2025-04-19 22:03:38]  ✓ Compiled in 171ms
+[2025-04-19 22:03:38]  ○ Compiling /_not-found/page ...
+[2025-04-19 22:03:39]  ✓ Compiled /_not-found/page in 1116ms
+[2025-04-19 22:03:39]  GET / 404 in 1173ms
+[2025-04-19 22:03:39]  ✓ Compiled / in 18ms
+[2025-04-19 22:03:40]  GET / 200 in 715ms
+[2025-04-19 22:04:03]  ✓ Compiled in 212ms
+[2025-04-19 22:04:03]  ✓ Compiled / in 50ms
+[2025-04-19 22:04:03]  GET / 200 in 422ms
+[2025-04-19 22:04:20]  ✓ Compiled in 159ms
+[2025-04-19 22:04:21]  GET / 404 in 63ms
+[2025-04-19 22:04:21]  ✓ Compiled / in 39ms
+[2025-04-19 22:04:22]  GET / 200 in 1185ms
