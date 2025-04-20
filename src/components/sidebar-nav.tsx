@@ -117,9 +117,9 @@ export function SidebarNav() {
 						))}
 					</div>
 				</div>
-				<div className="flex items-center">
+				<div className="flex items-center mb-2">
 					<SignedIn>
-						<div className="flex items-center justify-center gap-22">
+						<div className="flex items-center justify-center gap-28">
 							<ZueLogo lightMode={true} width={45} height={37} />
 							{open && (
 								<motion.div
