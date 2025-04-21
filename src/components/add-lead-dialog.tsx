@@ -71,7 +71,7 @@ interface AddLeadDialogProps {
 
 export function AddLeadDialog({
 	buttonText = "Add Lead",
-	variant = "default"
+	variant = "outline"
 }: AddLeadDialogProps) {
 	const router = useRouter()
 	const [open, setOpen] = useState(false)

@@ -24,10 +24,6 @@ import React from "react"
 function LeadsTableSkeleton() {
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-			<CardHeader className="px-6 pb-4">
-				<Skeleton className="h-6 w-1/4 mb-2" />
-				<Skeleton className="h-4 w-2/5" />
-			</CardHeader>
 			<CardContent className="px-6">
 				<div className="flex flex-col gap-4">
 					<div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
@@ -41,14 +37,17 @@ function LeadsTableSkeleton() {
 					<div className="overflow-x-auto rounded-2xl border">
 						<Skeleton className="h-[300px] w-full" />
 					</div>
-					<div className="flex items-center justify-end">
-						<div className="flex items-center gap-2">
-							<Skeleton className="h-8 w-24 rounded" />
-							<Skeleton className="h-8 w-32 rounded" />
+					<div className="flex flex-row items-center justify-end space-x-2 py-4">
+						<div className="hidden items-center space-x-2 lg:flex">
+							<Skeleton className="h-4 w-24 rounded" />
+							<Skeleton className="h-8 w-[70px] rounded" />
+						</div>
+						<Skeleton className="h-4 w-32 rounded" />
+						<div className="flex items-center space-x-2">
+							<Skeleton className="h-8 w-8 rounded hidden lg:block" />
 							<Skeleton className="h-8 w-8 rounded" />
 							<Skeleton className="h-8 w-8 rounded" />
-							<Skeleton className="h-8 w-8 rounded" />
-							<Skeleton className="h-8 w-8 rounded" />
+							<Skeleton className="h-8 w-8 rounded hidden lg:block" />
 						</div>
 					</div>
 				</div>
@@ -277,9 +276,6 @@ function LeadsContent() {
 
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-			<CardHeader className="px-6 pb-4">
-				<CardTitle className="text-xl font-medium">All Leads</CardTitle>
-			</CardHeader>
 			<CardContent className="px-6 pb-6">
 				<LeadsTableWithURLParams data={leadsData} />
 			</CardContent>
@@ -290,7 +286,7 @@ function LeadsContent() {
 // Main page component
 export default function LeadsPage() {
 	return (
-		<div className="container py-8">
+		<div className="container py-2">
 			<div className="flex flex-col gap-8">
 				<PageHeader />
 				<LeadsContent />

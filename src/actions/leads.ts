@@ -1,6 +1,6 @@
 "use server"
 
-import { db } from "@/db"
+import { db_ws } from "@/db"
 import { leads } from "@/db/schema"
 import { auth } from "@clerk/nextjs/server"
 import { type SQL, and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
@@ -55,7 +55,7 @@ export async function getLeads(filter: LeadFilter = {}) {
 		const condition = and(...whereConditions)
 
 		// Execute the query, handle sorting separately
-		let leadsData = await db.select().from(leads).where(condition)
+		let leadsData = await db_ws.select().from(leads).where(condition)
 
 		// Apply sorting in memory since we have all data
 		if (filter.orderBy) {
@@ -119,7 +119,7 @@ export async function getLeadById(id: number) {
 			return { error: "Unauthorized", success: false, data: null }
 		}
 
-		const data = await db
+		const data = await db_ws
 			.select()
 			.from(leads)
 			.where(and(eq(leads.id, id), eq(leads.userId, userId)))
@@ -149,7 +149,7 @@ export async function createLead(
 			return { error: "Unauthorized", success: false, data: null }
 		}
 
-		const result = await db
+		const result = await db_ws
 			.insert(leads)
 			.values({
 				...data,
@@ -177,7 +177,7 @@ export async function updateLead(
 			return { error: "Unauthorized", success: false, data: null }
 		}
 
-		const result = await db
+		const result = await db_ws
 			.update(leads)
 			.set({
 				...data,
@@ -209,7 +209,7 @@ export async function deleteLead(id: number) {
 			return { error: "Unauthorized", success: false, data: null }
 		}
 
-		const result = await db
+		const result = await db_ws
 			.delete(leads)
 			.where(and(eq(leads.id, id), eq(leads.userId, userId)))
 			.returning()

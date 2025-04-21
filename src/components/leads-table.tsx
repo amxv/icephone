@@ -18,6 +18,8 @@ import {
 } from "@tanstack/react-table"
 import { format } from "date-fns"
 import {
+	ArrowDownIcon,
+	ArrowUpIcon,
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -36,6 +38,7 @@ import { z } from "zod"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DataTablePagination } from "@/components/ui/data-table-pagination"
 import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
@@ -57,6 +60,7 @@ import {
 	SelectTrigger,
 	SelectValue
 } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
 import {
 	Table,
 	TableBody,
@@ -65,6 +69,7 @@ import {
 	TableHeader,
 	TableRow
 } from "@/components/ui/table"
+import { useSettings } from "@/contexts/settings-context"
 
 // Define a schema for our lead data
 export const leadSchema = z.object({
@@ -142,6 +147,8 @@ export function LeadsTable({
 	onFilterChange?: (filters: ColumnFiltersState) => void
 }) {
 	const [data, setData] = React.useState(() => initialData)
+	// Get global table rows per page setting
+	const { tableRowsPerPage } = useSettings()
 
 	// Process initial column filters to ensure arrays
 	const processedInitialFilters = React.useMemo(() => {
@@ -159,12 +166,12 @@ export function LeadsTable({
 	const [columnFilters, setColumnFilters] =
 		React.useState<ColumnFiltersState>(processedInitialFilters)
 	const [sorting, setSorting] = React.useState<SortingState>([
-		{ id: "updatedAt", desc: true }
+		{ id: "score", desc: true }
 	])
 	const [searchQuery, setSearchQuery] = React.useState("")
 	const [pagination, setPagination] = React.useState({
 		pageIndex: 0,
-		pageSize: 10
+		pageSize: tableRowsPerPage
 	})
 	const router = useRouter()
 
@@ -226,11 +233,30 @@ export function LeadsTable({
 		() => [
 			{
 				accessorKey: "name",
-				header: "Name",
+				header: ({ column }) => {
+					return (
+						<Button
+							variant="ghost"
+							onClick={() =>
+								column.toggleSorting(
+									column.getIsSorted() === "asc"
+								)
+							}
+							className="hover:bg-transparent p-0 font-medium"
+						>
+							Name
+							{column.getIsSorted() === "asc" ? (
+								<ArrowUpIcon className="ml-1.5 h-4 w-4" />
+							) : column.getIsSorted() === "desc" ? (
+								<ArrowDownIcon className="ml-1.5 h-4 w-4" />
+							) : null}
+						</Button>
+					)
+				},
 				cell: ({ row }) => (
 					<button
 						type="button"
-						className="font-medium cursor-pointer text-primary hover:underline text-left bg-transparent border-none"
+						className="font-medium cursor-pointer text-black hover:underline text-left bg-transparent border-none"
 						onClick={(e) => {
 							e.stopPropagation()
 							router.push(`/leads/${row.original.id}`)
@@ -242,7 +268,26 @@ export function LeadsTable({
 			},
 			{
 				accessorKey: "score",
-				header: "Score",
+				header: ({ column }) => {
+					return (
+						<Button
+							variant="ghost"
+							onClick={() =>
+								column.toggleSorting(
+									column.getIsSorted() === "asc"
+								)
+							}
+							className="hover:bg-transparent p-0 font-medium"
+						>
+							Score
+							{column.getIsSorted() === "asc" ? (
+								<ArrowUpIcon className="ml-1.5 h-4 w-4" />
+							) : column.getIsSorted() === "desc" ? (
+								<ArrowDownIcon className="ml-1.5 h-4 w-4" />
+							) : null}
+						</Button>
+					)
+				},
 				cell: ({ row }) => <ScoreBadge score={row.original.score} />,
 				filterFn: (row, id, filterValue) => {
 					if (
@@ -260,7 +305,26 @@ export function LeadsTable({
 			},
 			{
 				accessorKey: "status",
-				header: "Status",
+				header: ({ column }) => {
+					return (
+						<Button
+							variant="ghost"
+							onClick={() =>
+								column.toggleSorting(
+									column.getIsSorted() === "asc"
+								)
+							}
+							className="hover:bg-transparent p-0 font-medium"
+						>
+							Status
+							{column.getIsSorted() === "asc" ? (
+								<ArrowUpIcon className="ml-1.5 h-4 w-4" />
+							) : column.getIsSorted() === "desc" ? (
+								<ArrowDownIcon className="ml-1.5 h-4 w-4" />
+							) : null}
+						</Button>
+					)
+				},
 				cell: ({ row }) => <StatusBadge status={row.original.status} />,
 				filterFn: (row, id, filterValue) => {
 					if (
@@ -278,7 +342,26 @@ export function LeadsTable({
 			},
 			{
 				accessorKey: "email",
-				header: "Email",
+				header: ({ column }) => {
+					return (
+						<Button
+							variant="ghost"
+							onClick={() =>
+								column.toggleSorting(
+									column.getIsSorted() === "asc"
+								)
+							}
+							className="hover:bg-transparent p-0 font-medium"
+						>
+							Email
+							{column.getIsSorted() === "asc" ? (
+								<ArrowUpIcon className="ml-1.5 h-4 w-4" />
+							) : column.getIsSorted() === "desc" ? (
+								<ArrowDownIcon className="ml-1.5 h-4 w-4" />
+							) : null}
+						</Button>
+					)
+				},
 				cell: ({ row }) => (
 					<div>
 						{row.original.email || (
@@ -291,7 +374,26 @@ export function LeadsTable({
 			},
 			{
 				accessorKey: "phone",
-				header: "Phone",
+				header: ({ column }) => {
+					return (
+						<Button
+							variant="ghost"
+							onClick={() =>
+								column.toggleSorting(
+									column.getIsSorted() === "asc"
+								)
+							}
+							className="hover:bg-transparent p-0 font-medium"
+						>
+							Phone
+							{column.getIsSorted() === "asc" ? (
+								<ArrowUpIcon className="ml-1.5 h-4 w-4" />
+							) : column.getIsSorted() === "desc" ? (
+								<ArrowDownIcon className="ml-1.5 h-4 w-4" />
+							) : null}
+						</Button>
+					)
+				},
 				cell: ({ row }) => (
 					<div>
 						{row.original.phone || (
@@ -304,7 +406,26 @@ export function LeadsTable({
 			},
 			{
 				accessorKey: "source",
-				header: "Source",
+				header: ({ column }) => {
+					return (
+						<Button
+							variant="ghost"
+							onClick={() =>
+								column.toggleSorting(
+									column.getIsSorted() === "asc"
+								)
+							}
+							className="hover:bg-transparent p-0 font-medium"
+						>
+							Source
+							{column.getIsSorted() === "asc" ? (
+								<ArrowUpIcon className="ml-1.5 h-4 w-4" />
+							) : column.getIsSorted() === "desc" ? (
+								<ArrowDownIcon className="ml-1.5 h-4 w-4" />
+							) : null}
+						</Button>
+					)
+				},
 				cell: ({ row }) => (
 					<div>
 						{row.original.source || (
@@ -331,7 +452,26 @@ export function LeadsTable({
 			},
 			{
 				accessorKey: "updatedAt",
-				header: "Last Updated",
+				header: ({ column }) => {
+					return (
+						<Button
+							variant="ghost"
+							onClick={() =>
+								column.toggleSorting(
+									column.getIsSorted() === "asc"
+								)
+							}
+							className="hover:bg-transparent p-0 font-medium"
+						>
+							Last Updated
+							{column.getIsSorted() === "asc" ? (
+								<ArrowUpIcon className="ml-1.5 h-4 w-4" />
+							) : column.getIsSorted() === "desc" ? (
+								<ArrowDownIcon className="ml-1.5 h-4 w-4" />
+							) : null}
+						</Button>
+					)
+				},
 				cell: ({ row }) => (
 					<div className="font-medium">
 						{format(
@@ -389,7 +529,11 @@ export function LeadsTable({
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
-				)
+				),
+				enableSorting: false,
+				enableHiding: false,
+				size: 50,
+				maxSize: 50
 			}
 		],
 		[router]
@@ -422,8 +566,10 @@ export function LeadsTable({
 		return columnFilters.some(
 			(filter) =>
 				filter.id === columnId &&
-				Array.isArray(filter.value) &&
-				filter.value.length > 0
+				((Array.isArray(filter.value) && filter.value.length > 0) ||
+					(columnId === "score" &&
+						Array.isArray(filter.value) &&
+						filter.value.length === 2))
 		)
 	}
 
@@ -431,6 +577,87 @@ export function LeadsTable({
 	const getFilterValues = (columnId: string): string[] => {
 		const filter = columnFilters.find((filter) => filter.id === columnId)
 		return filter && Array.isArray(filter.value) ? filter.value : []
+	}
+
+	// Get score filter value
+	const getScoreFilterValue = (): [number, number] => {
+		const filter = columnFilters.find((filter) => filter.id === "score")
+		return filter &&
+			Array.isArray(filter.value) &&
+			filter.value.length === 2
+			? [filter.value[0] as number, filter.value[1] as number]
+			: [0, 100]
+	}
+
+	// Get score filter range as string
+	const getScoreFilterRange = (): string => {
+		const [min, max] = getScoreFilterValue()
+		return `${min}-${max}`
+	}
+
+	// Set score filter
+	const setScoreFilter = (value: [number, number]) => {
+		table.getColumn("score")?.setFilterValue(value)
+	}
+
+	// ScoreRangeSlider component
+	function ScoreRangeSlider({
+		value,
+		onChange
+	}: {
+		value: [number, number]
+		onChange: (value: [number, number]) => void
+	}) {
+		// Use local state to track slider values
+		const [sliderValue, setSliderValue] =
+			React.useState<[number, number]>(value)
+		// Track whether the value is being changed to avoid unnecessary updates
+		const [isChanging, setIsChanging] = React.useState(false)
+
+		// Update local state when external value changes
+		React.useEffect(() => {
+			// Only update local state if not currently changing
+			if (!isChanging) {
+				setSliderValue(value)
+			}
+		}, [value, isChanging])
+
+		// Debounce value changes before sending to parent
+		React.useEffect(() => {
+			// Skip the initial render
+			if (sliderValue === value) return
+
+			const timer = setTimeout(() => {
+				onChange(sliderValue)
+				setIsChanging(false)
+			}, 400) // 400ms debounce delay
+
+			return () => clearTimeout(timer)
+		}, [sliderValue, onChange, value])
+
+		// Handle value change without immediately updating parent
+		const handleValueChange = (newValue: number[]) => {
+			setIsChanging(true)
+			const typedValue: [number, number] = [newValue[0], newValue[1]]
+			setSliderValue(typedValue)
+		}
+
+		return (
+			<div className="space-y-2">
+				<div className="flex justify-between mb-1">
+					<div className="font-medium text-sm">{sliderValue[0]}</div>
+					<div className="font-medium text-sm">{sliderValue[1]}</div>
+				</div>
+				<Slider
+					min={0}
+					max={100}
+					step={1}
+					value={sliderValue}
+					onValueChange={handleValueChange}
+					className="w-full"
+				/>
+			</div>
+		)
 	}
 
 	// Handle toggling a filter value
@@ -528,7 +755,7 @@ export function LeadsTable({
 									return (
 										<div
 											key={status}
-											className="flex w-full items-center space-x-2 px-2 py-1 hover:bg-accent/50 rounded-md"
+											className="flex w-full items-center space-x-2 px-2 py-1 hover:bg-accent/50 rounded-2xl"
 										>
 											<div className="flex items-center gap-2 w-full">
 												<span className="flex items-center justify-center">
@@ -609,7 +836,7 @@ export function LeadsTable({
 									return (
 										<div
 											key={source}
-											className="flex w-full items-center space-x-2 px-2 py-1 hover:bg-accent/50 rounded-md"
+											className="flex w-full items-center space-x-2 px-2 py-1 hover:bg-accent/50 rounded-2xl"
 										>
 											<div className="flex items-center gap-2 w-full">
 												<span className="flex items-center justify-center">
@@ -640,6 +867,60 @@ export function LeadsTable({
 										</div>
 									)
 								})}
+							</div>
+						</PopoverContent>
+					</Popover>
+
+					{/* Score Filter */}
+					<Popover>
+						<PopoverTrigger asChild>
+							<Button
+								variant="outline"
+								size="sm"
+								className={`h-8 gap-1 ${isFilterActive("score") ? "bg-accent/30" : ""}`}
+							>
+								<FilterIcon className="h-3.5 w-3.5" />
+								<span>
+									{isFilterActive("score")
+										? `Score (${getScoreFilterRange()})`
+										: "Score"}
+								</span>
+								{isFilterActive("score") && (
+									<Badge
+										variant="secondary"
+										className="ml-1 px-1 font-normal"
+									>
+										{getScoreFilterRange()}
+									</Badge>
+								)}
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent className="w-64 p-0" align="end">
+							<div className="bg-muted py-2 px-3 border-b">
+								<div className="font-medium">Score Range</div>
+							</div>
+							<div className="p-4 space-y-4">
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-8 w-full justify-start font-normal text-xs"
+									onClick={() => clearFilter("score")}
+								>
+									Clear filter
+								</Button>
+
+								<div className="space-y-4">
+									<ScoreRangeSlider
+										value={getScoreFilterValue()}
+										onChange={(value) =>
+											setScoreFilter(value)
+										}
+									/>
+									<div className="flex justify-between text-xs text-muted-foreground mt-1">
+										<span>0</span>
+										<span>100</span>
+									</div>
+								</div>
 							</div>
 						</PopoverContent>
 					</Popover>
@@ -688,7 +969,7 @@ export function LeadsTable({
 									<TableHead
 										key={header.id}
 										colSpan={header.colSpan}
-										className={`py-3 ${index === 0 ? "pl-6" : ""} ${index === headerGroup.headers.length - 1 ? "pr-6" : ""}`}
+										className={`py-3 ${index === 0 ? "pl-6" : ""} ${index === headerGroup.headers.length - 1 ? "pr-6 w-[60px]" : ""}`}
 									>
 										{header.isPlaceholder
 											? null
@@ -717,7 +998,7 @@ export function LeadsTable({
 										.map((cell, index) => (
 											<TableCell
 												key={cell.id}
-												className={`${index === 0 ? "pl-6" : ""} ${index === row.getVisibleCells().length - 1 ? "pr-6" : ""}`}
+												className={`${index === 0 ? "pl-6" : ""} ${index === row.getVisibleCells().length - 1 ? "pr-6 w-[60px]" : ""}`}
 											>
 												{flexRender(
 													cell.column.columnDef.cell,
@@ -741,76 +1022,7 @@ export function LeadsTable({
 				</Table>
 			</div>
 
-			<div className="flex items-center justify-end">
-				<div className="flex w-full items-center gap-6 lg:w-fit">
-					<div className="hidden items-center gap-2 lg:flex">
-						<Select
-							value={`${table.getState().pagination.pageSize}`}
-							onValueChange={(value) => {
-								table.setPageSize(Number(value))
-							}}
-						>
-							<SelectTrigger className="w-[100px]">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent side="top">
-								{[10, 25, 50, 100].map((pageSize) => (
-									<SelectItem
-										key={pageSize}
-										value={`${pageSize}`}
-									>
-										{pageSize} rows
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-					<div className="flex w-fit items-center justify-center text-sm font-medium">
-						Page {table.getState().pagination.pageIndex + 1} of{" "}
-						{table.getPageCount()}
-					</div>
-					<div className="flex items-center gap-2">
-						<Button
-							variant="outline"
-							className="hidden h-8 w-8 p-0 lg:flex"
-							onClick={() => table.setPageIndex(0)}
-							disabled={!table.getCanPreviousPage()}
-						>
-							<span className="sr-only">Go to first page</span>
-							<ChevronsLeftIcon className="h-4 w-4" />
-						</Button>
-						<Button
-							variant="outline"
-							className="h-8 w-8 p-0"
-							onClick={() => table.previousPage()}
-							disabled={!table.getCanPreviousPage()}
-						>
-							<span className="sr-only">Go to previous page</span>
-							<ChevronLeftIcon className="h-4 w-4" />
-						</Button>
-						<Button
-							variant="outline"
-							className="h-8 w-8 p-0"
-							onClick={() => table.nextPage()}
-							disabled={!table.getCanNextPage()}
-						>
-							<span className="sr-only">Go to next page</span>
-							<ChevronRightIcon className="h-4 w-4" />
-						</Button>
-						<Button
-							variant="outline"
-							className="hidden h-8 w-8 p-0 lg:flex"
-							onClick={() =>
-								table.setPageIndex(table.getPageCount() - 1)
-							}
-							disabled={!table.getCanNextPage()}
-						>
-							<span className="sr-only">Go to last page</span>
-							<ChevronsRightIcon className="h-4 w-4" />
-						</Button>
-					</div>
-				</div>
-			</div>
+			<DataTablePagination table={table} />
 		</div>
 	)
 }

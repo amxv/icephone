@@ -20,5 +20,17 @@
 			"binding": "NEXT_INC_CACHE_R2_BUCKET",
 			"bucket_name": "next-cache-bucket"
 		}
+	],
+	"hyperdrive": [
+		{
+			"binding": "HYPERDRIVE_NOCACHE",
+			"id": "5821de7415cf4386be526e04bb6d9dc5",
+			"localConnectionString": "postgresql://icephone-db_owner:npg_arzSN9FtKRB4@ep-wandering-union-a63j9i6z-pooler.us-west-2.aws.neon.tech/icephone-db?sslmode=require"
+		},
+		{
+			"binding": "HYPERDRIVE_CACHE",
+			"id": "1a103fe872b74714be7234f1ca0f3968",
+			"localConnectionString": "postgresql://icephone-db_owner:npg_arzSN9FtKRB4@ep-wandering-union-a63j9i6z-pooler.us-west-2.aws.neon.tech/icephone-db?sslmode=require"
+		}
 	]
 }
