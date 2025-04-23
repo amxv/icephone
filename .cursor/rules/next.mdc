@@ -103,3 +103,6 @@ Note that in Next.js, we always prefer to use server actions instead of API rout
 - However, if some components need high interactivity then you can use client components for a good user experience.
 - It should react to user input quickly without any lag and feel "snappy" to use.
 - I might give you some images to add to the site - always run a zsh command to convert it to an optimized format like webp before adding it so that they load fast.
+
+## Making Design Edits
+Please use the takeScreenshot function from 'webdev-mcp' instead of 'browser-tools-server' when you want to "see" the changes you made. This tool captures a live screenshot of the dev server running in my browser. Always set the timeout to 0 and screenId to 2.

@@ -1,8 +1,8 @@
 "use server"
 
 import { db_ws } from "@/db"
-import { leads } from "@/db/schema"
-import { auth } from "@clerk/nextjs/server"
+import { appointments, calls, emails, leads, textMessages } from "@/db/schema"
+import { auth, currentUser } from "@clerk/nextjs/server"
 import { type SQL, and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
 import type { PgSelect } from "drizzle-orm/pg-core"
 
@@ -112,27 +112,75 @@ export async function getLeads(filter: LeadFilter = {}) {
 }
 
 // Get a single lead by ID
-export async function getLeadById(id: number) {
+export async function getLeadById(leadId: number) {
 	try {
 		const { userId } = await auth()
 		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
+			return { success: false, error: "Unauthorized" }
 		}
 
-		const data = await db_ws
+		// Get the lead
+		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, id), eq(leads.userId, userId)))
+			.where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
 			.limit(1)
 
-		if (!data || data.length === 0) {
-			return { error: "Lead not found", success: false, data: null }
+		if (!lead || lead.length === 0) {
+			return { success: false, error: "Lead not found" }
 		}
 
-		return { data: data[0], success: true, error: null }
+		// Get related appointments
+		const leadAppointments = await db_ws
+			.select()
+			.from(appointments)
+			.where(
+				and(
+					eq(appointments.leadId, leadId),
+					eq(appointments.userId, userId)
+				)
+			)
+			.orderBy(desc(appointments.startTime))
+
+		// Get related calls
+		const leadCalls = await db_ws
+			.select()
+			.from(calls)
+			.where(and(eq(calls.leadId, leadId), eq(calls.userId, userId)))
+			.orderBy(desc(calls.startTime))
+
+		// Get related text messages
+		const leadTextMessages = await db_ws
+			.select()
+			.from(textMessages)
+			.where(
+				and(
+					eq(textMessages.leadId, leadId),
+					eq(textMessages.userId, userId)
+				)
+			)
+			.orderBy(desc(textMessages.sentAt))
+
+		// Get related emails
+		const leadEmails = await db_ws
+			.select()
+			.from(emails)
+			.where(and(eq(emails.leadId, leadId), eq(emails.userId, userId)))
+			.orderBy(desc(emails.sentAt))
+
+		return {
+			success: true,
+			data: {
+				lead: lead[0],
+				appointments: leadAppointments,
+				calls: leadCalls,
+				textMessages: leadTextMessages,
+				emails: leadEmails
+			}
+		}
 	} catch (error) {
-		console.error("Error getting lead:", error)
-		return { error: "Failed to get lead", success: false, data: null }
+		console.error("Error getting lead details:", error)
+		return { success: false, error: "Failed to retrieve lead details" }
 	}
 }
 

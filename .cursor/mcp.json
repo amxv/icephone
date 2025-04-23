@@ -1,10 +1,8 @@
 {
 	"mcpServers": {
-		"frontend-reviewer": {
-			"command": "npx",
-			"args": [
-				"frontend-review-mcp HYPERBOLIC_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhQGFzaHJheS54eXoifQ.cOy5-n3PAMPBLb0vxam6r6ZdI35tgZnKGw0fDHoIws0"
-			]
+		"webdev-mcp": {
+			"command": "bunx",
+			"args": ["webdev-mcp"]
 		},
 		"browser-tools-server": {
 			"command": "bunx",
