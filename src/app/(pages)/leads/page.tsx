@@ -287,7 +287,7 @@ function LeadsContent() {
 export default function LeadsPage() {
 	return (
 		<div className="container py-2">
-			<div className="flex flex-col gap-8">
+			<div className="flex flex-col gap-8 p-2 md:p-10">
 				<PageHeader />
 				<LeadsContent />
 			</div>

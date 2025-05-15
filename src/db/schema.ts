@@ -45,14 +45,12 @@ export const leads = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
 	},
-	(table) => {
-		return {
-			nameIdx: index("lead_name_idx").on(table.name),
-			emailIdx: index("lead_email_idx").on(table.email),
-			statusIdx: index("lead_status_idx").on(table.status),
-			userIdIdx: index("lead_user_id_idx").on(table.userId)
-		}
-	}
+	(table) => [
+		index("lead_name_idx").on(table.name),
+		index("lead_email_idx").on(table.email),
+		index("lead_status_idx").on(table.status),
+		index("lead_user_id_idx").on(table.userId)
+	]
 )
 
 // Appointments table - stores appointments with leads
@@ -74,15 +72,11 @@ export const appointments = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
 	},
-	(table) => {
-		return {
-			leadIdIdx: index("appointment_lead_id_idx").on(table.leadId),
-			startTimeIdx: index("appointment_start_time_idx").on(
-				table.startTime
-			),
-			userIdIdx: index("appointment_user_id_idx").on(table.userId)
-		}
-	}
+	(table) => [
+		index("appointment_lead_id_idx").on(table.leadId),
+		index("appointment_start_time_idx").on(table.startTime),
+		index("appointment_user_id_idx").on(table.userId)
+	]
 )
 
 // Calls table - stores call records with leads
@@ -104,13 +98,11 @@ export const calls = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
 	},
-	(table) => {
-		return {
-			leadIdIdx: index("call_lead_id_idx").on(table.leadId),
-			startTimeIdx: index("call_start_time_idx").on(table.startTime),
-			userIdIdx: index("call_user_id_idx").on(table.userId)
-		}
-	}
+	(table) => [
+		index("call_lead_id_idx").on(table.leadId),
+		index("call_start_time_idx").on(table.startTime),
+		index("call_user_id_idx").on(table.userId)
+	]
 )
 
 // Text messages table - stores text message records with leads
@@ -130,13 +122,11 @@ export const textMessages = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
 	},
-	(table) => {
-		return {
-			leadIdIdx: index("text_lead_id_idx").on(table.leadId),
-			sentAtIdx: index("text_sent_at_idx").on(table.sentAt),
-			userIdIdx: index("text_user_id_idx").on(table.userId)
-		}
-	}
+	(table) => [
+		index("text_lead_id_idx").on(table.leadId),
+		index("text_sent_at_idx").on(table.sentAt),
+		index("text_user_id_idx").on(table.userId)
+	]
 )
 
 // Emails table - stores email records with leads
@@ -157,13 +147,11 @@ export const emails = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
 	},
-	(table) => {
-		return {
-			leadIdIdx: index("email_lead_id_idx").on(table.leadId),
-			sentAtIdx: index("email_sent_at_idx").on(table.sentAt),
-			userIdIdx: index("email_user_id_idx").on(table.userId)
-		}
-	}
+	(table) => [
+		index("email_lead_id_idx").on(table.leadId),
+		index("email_sent_at_idx").on(table.sentAt),
+		index("email_user_id_idx").on(table.userId)
+	]
 )
 
 // Relations definition

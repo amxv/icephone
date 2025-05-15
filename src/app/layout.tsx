@@ -40,7 +40,12 @@ export default function RootLayout({
 				>
 					<SettingsProvider>
 						{children}
-						<Toaster position="top-right" closeButton richColors />
+						<Toaster
+							position="top-right"
+							closeButton
+							richColors
+							duration={1000}
+						/>
 					</SettingsProvider>
 				</body>
 			</html>

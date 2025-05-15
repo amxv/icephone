@@ -82,6 +82,8 @@ Note that in Next.js, we always prefer to use server actions instead of API rout
 - Always use icons from lucide-react. It is already installed.
 - Try to create clean, sleek, modern, and minimal design that is responsive on both mobile and desktop browsers.
 - Follow the design patterns, conventions, and styling applied in the project to remain consistent.
+- Always use rounded corners (2xl or 3xl).
+- Prefer the 'outline' variant for most buttons.
 
 ## Tech Stack:
 
@@ -105,4 +107,4 @@ Note that in Next.js, we always prefer to use server actions instead of API rout
 - I might give you some images to add to the site - always run a zsh command to convert it to an optimized format like webp before adding it so that they load fast.
 
 ## Making Design Edits
-Please use the takeScreenshot function from 'webdev-mcp' instead of 'browser-tools-server' when you want to "see" the changes you made. This tool captures a live screenshot of the dev server running in my browser. Always set the timeout to 0 and screenId to 2.
+Please use the takeScreenshot function from 'webdev-mcp' instead of 'browser-tools-server' when you want to "see" the changes you made. This tool captures a live screenshot of the dev server running in my browser. Always set the timeout to 0 and screenId to 1.

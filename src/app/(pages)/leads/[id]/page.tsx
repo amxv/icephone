@@ -1,6 +1,6 @@
 "use client"
 
-import { getLeadById } from "@/actions/leads"
+import { getLeadById, updateLead } from "@/actions/leads"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 import type {
 	Appointment,
 	Call,
@@ -26,15 +27,18 @@ import {
 	CalendarIcon,
 	ClockIcon,
 	EditIcon,
+	Expand,
 	MailIcon,
 	MessageSquareIcon,
 	PhoneCallIcon,
 	PlusIcon,
+	SaveIcon,
 	UserIcon
 } from "lucide-react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 // Status badges with appropriate colors
 const StatusBadge = ({ status }: { status: string }) => {
@@ -270,7 +274,7 @@ const EmptyState = ({
 	buttonText: string
 }) => (
 	<div className="flex flex-col items-center justify-center py-8 text-center h-40">
-		<div className="rounded-full bg-background p-3 border border-border/40 shadow-sm">
+		<div className="rounded-full p-3 border border-border/40 shadow-sm">
 			<Icon className="h-6 w-6 text-muted-foreground" />
 		</div>
 		<h3 className="mt-3 text-sm font-medium">{title}</h3>
@@ -289,11 +293,13 @@ const SectionHeader = ({
 	icon: Icon,
 	title,
 	buttonText,
+	buttonLink = "#",
 	gradient = "from-primary to-primary/60"
 }: {
 	icon: React.ElementType
 	title: string
 	buttonText: string
+	buttonLink?: string
 	gradient?: string
 }) => (
 	<div className="flex items-center justify-between mb-4">
@@ -306,9 +312,16 @@ const SectionHeader = ({
 				<h2 className="text-lg font-medium">{title}</h2>
 			</div>
 		</div>
-		<Button size="sm" variant="outline" className="rounded-full">
-			<PlusIcon className="mr-1 h-3 w-3" />
-			{buttonText}
+		<Button
+			size="sm"
+			variant="outline"
+			className="text-xs text-muted-foreground hover:text-foreground"
+			asChild
+		>
+			<Link href={buttonLink}>
+				View All
+				<Expand className="ml-1 h-3 w-3" />
+			</Link>
 		</Button>
 	</div>
 )
@@ -322,31 +335,51 @@ function LeadDetailSkeleton() {
 				<Skeleton className="h-10 w-48" />
 			</div>
 
-			<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-				<CardHeader>
-					<Skeleton className="h-6 w-32" />
-				</CardHeader>
-				<CardContent className="p-6 pt-0">
-					<div className="flex flex-col md:flex-row gap-6">
-						<div className="flex-1">
-							<Skeleton className="h-5 w-32 mb-2" />
-							<Skeleton className="h-5 w-48 mb-2" />
-							<Skeleton className="h-5 w-36 mb-2" />
-							<Skeleton className="h-5 w-40" />
-						</div>
-						<div className="flex-1">
-							<Skeleton className="h-6 w-32 mb-4" />
-							<Skeleton className="h-24 w-full" />
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+			{/* Lead info skeleton */}
+			<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+				{/* Left column */}
+				<div className="lg:col-span-4">
+					<Skeleton className="h-72 w-full rounded-2xl" />
+				</div>
 
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-				<Skeleton className="h-64 w-full rounded-2xl" />
-				<Skeleton className="h-64 w-full rounded-2xl" />
-				<Skeleton className="h-64 w-full rounded-2xl" />
-				<Skeleton className="h-64 w-full rounded-2xl" />
+				{/* Right column sections */}
+				<div className="lg:col-span-8 space-y-6">
+					{/* Appointments skeleton */}
+					<div>
+						<div className="flex items-center justify-between mb-4">
+							<Skeleton className="h-8 w-48" />
+							<Skeleton className="h-8 w-32" />
+						</div>
+						<Skeleton className="h-48 w-full rounded-2xl" />
+					</div>
+
+					{/* Calls skeleton */}
+					<div>
+						<div className="flex items-center justify-between mb-4">
+							<Skeleton className="h-8 w-48" />
+							<Skeleton className="h-8 w-32" />
+						</div>
+						<Skeleton className="h-48 w-full rounded-2xl" />
+					</div>
+
+					{/* Texts skeleton */}
+					<div>
+						<div className="flex items-center justify-between mb-4">
+							<Skeleton className="h-8 w-48" />
+							<Skeleton className="h-8 w-32" />
+						</div>
+						<Skeleton className="h-48 w-full rounded-2xl" />
+					</div>
+
+					{/* Emails skeleton */}
+					<div>
+						<div className="flex items-center justify-between mb-4">
+							<Skeleton className="h-8 w-48" />
+							<Skeleton className="h-8 w-32" />
+						</div>
+						<Skeleton className="h-48 w-full rounded-2xl" />
+					</div>
+				</div>
 			</div>
 		</div>
 	)
@@ -359,6 +392,82 @@ export default function LeadDetailPage() {
 	const [loading, setLoading] = useState(true)
 	const [leadData, setLeadData] = useState<LeadDetailData | null>(null)
 	const [error, setError] = useState<string | null>(null)
+	const [notes, setNotes] = useState<string>("")
+	const [isEditingNotes, setIsEditingNotes] = useState(false)
+	const [isSavingNotes, setIsSavingNotes] = useState(false)
+
+	// Header component for consistent styling
+	const StickyHeader = ({ disabled = false }: { disabled?: boolean }) => (
+		<div
+			className="sticky top-0 py-4 z-50 border-b backdrop-blur-md rounded-t-3xl"
+			style={{
+				backgroundColor: "rgba(255, 251, 235, 0.7)"
+			}}
+		>
+			<div className="container max-w-7xl mx-auto">
+				<div className="flex items-center justify-between">
+					<Button
+						variant="outline"
+						onClick={() => router.push("/leads")}
+						className="gap-2"
+					>
+						<ArrowLeftIcon className="h-4 w-4" />
+						Back to Leads
+					</Button>
+
+					{!disabled && (
+						<div className="flex gap-2 justify-center">
+							<Button
+								size="sm"
+								className="w-28"
+								variant="outline"
+								disabled={disabled}
+							>
+								<PhoneCallIcon className="h-4 w-4" />
+								Call
+							</Button>
+							<Button
+								size="sm"
+								className="w-28"
+								variant="outline"
+								disabled={disabled}
+							>
+								<MessageSquareIcon className="h-4 w-4" />
+								Text
+							</Button>
+							<Button
+								size="sm"
+								className="w-28"
+								variant="outline"
+								disabled={disabled}
+							>
+								<MailIcon className="h-4 w-4" />
+								Email
+							</Button>
+							<Button
+								size="sm"
+								className="w-28"
+								variant="outline"
+								disabled={disabled}
+							>
+								<CalendarIcon className="h-4 w-4" />
+								Schedule
+							</Button>
+						</div>
+					)}
+
+					<Button
+						variant="outline"
+						className="gap-2 rounded-full"
+						disabled={disabled}
+					>
+						<EditIcon className="h-4 w-4" />
+						Edit Lead
+					</Button>
+				</div>
+			</div>
+		</div>
+	)
 
 	useEffect(() => {
 		async function fetchLeadData() {
@@ -375,6 +484,7 @@ export default function LeadDetailPage() {
 
 				if (result.success && result.data) {
 					setLeadData(result.data as unknown as LeadDetailData)
+					setNotes(result.data.lead.notes || "")
 				} else {
 					setError(result.error || "Failed to fetch lead data")
 				}
@@ -389,51 +499,81 @@ export default function LeadDetailPage() {
 		fetchLeadData()
 	}, [params.id])
 
+	const handleSaveNotes = async () => {
+		if (!leadData) return
+
+		setIsSavingNotes(true)
+		try {
+			const result = await updateLead(leadData.lead.id, {
+				notes: notes
+			})
+
+			if (result.success && result.data) {
+				// Update the lead data with the new notes
+				setLeadData({
+					...leadData,
+					lead: {
+						...leadData.lead,
+						notes: notes
+					}
+				})
+				setIsEditingNotes(false)
+				toast.success("Notes updated successfully")
+			} else {
+				console.error("Failed to update notes:", result.error)
+				toast.error(result.error || "Failed to save notes")
+			}
+		} catch (err) {
+			console.error("Error saving notes:", err)
+			toast.error("An unexpected error occurred while saving notes")
+		} finally {
+			setIsSavingNotes(false)
+		}
+	}
+
 	// Show loading skeleton
 	if (loading) {
 		return (
-			<div className="container py-6">
-				<LeadDetailSkeleton />
-			</div>
+			<>
+				<StickyHeader disabled />
+				<div className="container py-6">
+					<LeadDetailSkeleton />
+				</div>
+			</>
 		)
 	}
 
 	// Show error
 	if (error || !leadData) {
 		return (
-			<div className="container py-6">
-				<Button
-					variant="ghost"
-					className="mb-6"
-					onClick={() => router.back()}
-				>
-					<ArrowLeftIcon className="mr-2 h-4 w-4" />
-					Back to Leads
-				</Button>
-
-				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-					<CardContent className="py-16">
-						<div className="flex flex-col items-center justify-center text-center">
-							<div className="rounded-full bg-background p-3 border border-border/40 shadow-sm">
-								<UserIcon className="h-8 w-8 text-muted-foreground" />
+			<>
+				<StickyHeader disabled />
+				<div className="container py-6">
+					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+						<CardContent className="py-16">
+							<div className="flex flex-col items-center justify-center text-center">
+								<div className="rounded-full bg-background p-3 border border-border/40 shadow-sm">
+									<UserIcon className="h-8 w-8 text-muted-foreground" />
+								</div>
+								<h3 className="mt-4 text-lg font-medium">
+									Error Loading Lead
+								</h3>
+								<p className="mt-2 text-sm text-muted-foreground max-w-xs">
+									{error ||
+										"Could not load lead details. Please try again."}
+								</p>
+								<Button
+									className="mt-4"
+									variant="outline"
+									onClick={() => router.back()}
+								>
+									Back to Leads
+								</Button>
 							</div>
-							<h3 className="mt-4 text-lg font-medium">
-								Error Loading Lead
-							</h3>
-							<p className="mt-2 text-sm text-muted-foreground max-w-xs">
-								{error ||
-									"Could not load lead details. Please try again."}
-							</p>
-							<Button
-								className="mt-4"
-								onClick={() => router.back()}
-							>
-								Back to Leads
-							</Button>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
+						</CardContent>
+					</Card>
+				</div>
+			</>
 		)
 	}
 
@@ -458,203 +598,189 @@ export default function LeadDetailPage() {
 		)
 
 	return (
-		<div className="container max-w-7xl mx-auto py-6">
-			{/* Back button and edit button */}
-			<div className="flex justify-between items-center mb-6">
-				<Button
-					variant="ghost"
-					onClick={() => router.push("/leads")}
-					className="gap-2"
-				>
-					<ArrowLeftIcon className="h-4 w-4" />
-					Back to Leads
-				</Button>
+		<>
+			<StickyHeader />
+			<div className="container max-w-7xl mx-auto py-6">
+				{/* Lead profile header */}
+				<div className="mb-8">
+					<div className="flex items-center gap-4 mb-2">
+						<Avatar className="h-16 w-16">
+							<div className="bg-primary text-primary-foreground rounded-full h-16 w-16 flex items-center justify-center text-2xl font-semibold">
+								{lead.name.charAt(0).toUpperCase()}
+							</div>
+						</Avatar>
 
-				<Button variant="outline" className="gap-2 rounded-full">
-					<EditIcon className="h-4 w-4" />
-					Edit Lead
-				</Button>
-			</div>
-
-			{/* Lead profile header */}
-			<div className="mb-8">
-				<div className="flex items-center gap-4 mb-2">
-					<Avatar className="h-16 w-16">
-						<div className="bg-primary text-primary-foreground rounded-full h-16 w-16 flex items-center justify-center text-2xl font-semibold">
-							{lead.name.charAt(0).toUpperCase()}
-						</div>
-					</Avatar>
-
-					<div>
-						<h1 className="text-3xl font-semibold mb-1 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-500">
-							{lead.name}
-						</h1>
-						<div className="flex flex-wrap gap-2">
-							<StatusBadge status={lead.status} />
-							<ScoreBadge score={lead.score} />
-							{lead.source && (
-								<Badge className="bg-purple-100 text-purple-800 px-3 py-1">
-									{lead.source}
-								</Badge>
-							)}
+						<div>
+							<h1 className="text-3xl font-semibold mb-1 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-500">
+								{lead.name}
+							</h1>
+							<div className="flex flex-wrap gap-2">
+								<StatusBadge status={lead.status} />
+								<ScoreBadge score={lead.score} />
+								{lead.source && (
+									<Badge className="bg-purple-100 text-purple-800 px-3 py-1">
+										{lead.source}
+									</Badge>
+								)}
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
 
-			{/* Main content grid */}
-			<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-				{/* Left column - Contact info and actions */}
-				<div className="lg:col-span-4">
-					<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden h-full">
-						<CardContent className="p-5">
-							<div className="space-y-4">
-								<div className="space-y-2 text-sm">
-									{lead.email && (
+				{/* Main content grid */}
+				<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+					{/* Left column - Contact info and actions */}
+					<div className="lg:col-span-4">
+						<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden h-full">
+							<CardContent className="p-5">
+								<div className="space-y-4">
+									<div className="space-y-2 text-sm">
+										{lead.email && (
+											<div className="flex items-center gap-2">
+												<MailIcon className="h-4 w-4 text-muted-foreground" />
+												<a
+													href={`mailto:${lead.email}`}
+													className="hover:underline"
+												>
+													{lead.email}
+												</a>
+											</div>
+										)}
+
+										{lead.phone && (
+											<div className="flex items-center gap-2">
+												<PhoneCallIcon className="h-4 w-4 text-muted-foreground" />
+												<a
+													href={`tel:${lead.phone}`}
+													className="hover:underline"
+												>
+													{lead.phone}
+												</a>
+											</div>
+										)}
+
 										<div className="flex items-center gap-2">
-											<MailIcon className="h-4 w-4 text-muted-foreground" />
-											<a
-												href={`mailto:${lead.email}`}
-												className="hover:underline"
-											>
-												{lead.email}
-											</a>
+											<CalendarIcon className="h-4 w-4 text-muted-foreground" />
+											<span className="text-muted-foreground">
+												Added on{" "}
+												{format(
+													new Date(lead.createdAt),
+													"MMMM d, yyyy"
+												)}
+											</span>
 										</div>
-									)}
+									</div>
 
-									{lead.phone && (
-										<div className="flex items-center gap-2">
-											<PhoneCallIcon className="h-4 w-4 text-muted-foreground" />
-											<a
-												href={`tel:${lead.phone}`}
-												className="hover:underline"
-											>
-												{lead.phone}
-											</a>
-										</div>
-									)}
+									<Separator className="my-4" />
 
-									<div className="flex items-center gap-2">
-										<CalendarIcon className="h-4 w-4 text-muted-foreground" />
-										<span className="text-muted-foreground">
-											Added on{" "}
-											{format(
-												new Date(lead.createdAt),
-												"MMMM d, yyyy"
+									<div className="space-y-3">
+										<div className="flex items-center justify-between">
+											<h3 className="text-sm font-semibold">
+												Notes
+											</h3>
+											{!isEditingNotes ? (
+												<Button
+													variant="outline"
+													size="sm"
+													className="h-8 gap-1"
+													onClick={() =>
+														setIsEditingNotes(true)
+													}
+												>
+													<EditIcon className="h-3 w-3" />
+													Edit
+												</Button>
+											) : (
+												<Button
+													variant="outline"
+													size="sm"
+													className="h-8 gap-1"
+													onClick={() => {
+														setNotes(
+															lead.notes || ""
+														)
+														setIsEditingNotes(false)
+													}}
+												>
+													<ArrowLeftIcon className="h-3 w-3" />
+													Cancel
+												</Button>
 											)}
-										</span>
-									</div>
-								</div>
-
-								<Separator className="my-4" />
-
-								<div className="flex flex-col gap-2">
-									<h3 className="text-sm font-semibold">
-										Quick Actions
-									</h3>
-									<div className="grid grid-cols-2 gap-2">
-										<Button
-											size="sm"
-											className="w-full"
-											variant="default"
-										>
-											<PhoneCallIcon className="h-4 w-4 mr-2" />
-											Call
-										</Button>
-										<Button
-											size="sm"
-											className="w-full"
-											variant="outline"
-										>
-											<MessageSquareIcon className="h-4 w-4 mr-2" />
-											Text
-										</Button>
-										<Button
-											size="sm"
-											className="w-full"
-											variant="outline"
-										>
-											<MailIcon className="h-4 w-4 mr-2" />
-											Email
-										</Button>
-										<Button
-											size="sm"
-											className="w-full"
-											variant="outline"
-										>
-											<CalendarIcon className="h-4 w-4 mr-2" />
-											Schedule
-										</Button>
-									</div>
-								</div>
-
-								<Separator className="my-4" />
-
-								<div className="space-y-3">
-									<div className="flex items-center justify-between">
-										<h3 className="text-sm font-semibold">
-											Notes
-										</h3>
-										<Button
-											variant="ghost"
-											size="icon"
-											className="h-8 w-8"
-										>
-											<EditIcon className="h-4 w-4" />
-										</Button>
-									</div>
-									<div className="bg-card/30 backdrop-blur-sm p-3 rounded-xl min-h-[120px] text-sm">
-										{lead.notes ? (
-											<div className="whitespace-pre-wrap">
-												{lead.notes}
+										</div>
+										{!isEditingNotes ? (
+											<div className="bg-card/30 backdrop-blur-sm p-3 rounded-xl min-h-[120px] text-sm max-h-[200px] overflow-y-auto">
+												{lead.notes ? (
+													<div className="whitespace-pre-wrap">
+														{lead.notes}
+													</div>
+												) : (
+													<div className="text-muted-foreground text-sm h-full flex items-center justify-center">
+														No notes added yet
+													</div>
+												)}
 											</div>
 										) : (
-											<div className="text-muted-foreground text-sm h-full flex items-center justify-center">
-												No notes added yet
+											<div className="space-y-2">
+												<Textarea
+													value={notes}
+													onChange={(e) =>
+														setNotes(e.target.value)
+													}
+													placeholder="Add notes about this lead..."
+													className="min-h-[150px] max-h-[200px] overflow-y-auto bg-card/30 text-sm"
+												/>
+												<Button
+													onClick={handleSaveNotes}
+													className="w-full"
+													disabled={isSavingNotes}
+													variant="default"
+												>
+													{isSavingNotes ? (
+														<>
+															<div className="animate-spin mr-2 h-4 w-4 border-2 border-primary-foreground border-r-transparent rounded-full" />
+															Saving...
+														</>
+													) : (
+														<>
+															<SaveIcon className="h-4 w-4 mr-2" />
+															Save Notes
+														</>
+													)}
+												</Button>
 											</div>
 										)}
 									</div>
 								</div>
-							</div>
-						</CardContent>
-					</Card>
-				</div>
+							</CardContent>
+						</Card>
+					</div>
 
-				{/* Right column - Communication sections */}
-				<div className="lg:col-span-8 space-y-6">
-					{/* Appointments section */}
-					<div>
-						<SectionHeader
-							icon={CalendarIcon}
-							title="Appointments"
-							buttonText="Schedule"
-							gradient="from-blue-500 to-blue-500/60"
-						/>
+					{/* Right column - Communication sections */}
+					<div className="lg:col-span-8 space-y-6">
+						{/* Appointments section */}
+						<div>
+							<SectionHeader
+								icon={CalendarIcon}
+								title="Appointments"
+								buttonText="View all appointments"
+								buttonLink="/appointments"
+								gradient="from-blue-500 to-blue-500/60"
+							/>
 
-						{appointments.length === 0 ? (
-							<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-								<CardContent>
-									<EmptyState
-										icon={CalendarIcon}
-										title="No Appointments"
-										description="No appointments scheduled with this lead yet."
-										buttonText="Schedule Appointment"
-									/>
-								</CardContent>
-							</Card>
-						) : (
-							<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-								{upcomingAppointments
-									.slice(0, 2)
-									.map((appointment) => (
-										<AppointmentCard
-											key={appointment.id}
-											appointment={appointment}
+							{appointments.length === 0 ? (
+								<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+									<CardContent>
+										<EmptyState
+											icon={CalendarIcon}
+											title="No Appointments"
+											description="No appointments scheduled with this lead yet."
+											buttonText="Schedule Appointment"
 										/>
-									))}
-								{upcomingAppointments.length === 0 &&
-									pastAppointments.length > 0 &&
-									pastAppointments
+									</CardContent>
+								</Card>
+							) : (
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+									{upcomingAppointments
 										.slice(0, 2)
 										.map((appointment) => (
 											<AppointmentCard
@@ -662,47 +788,57 @@ export default function LeadDetailPage() {
 												appointment={appointment}
 											/>
 										))}
-							</div>
-						)}
-					</div>
+									{upcomingAppointments.length === 0 &&
+										pastAppointments.length > 0 &&
+										pastAppointments
+											.slice(0, 2)
+											.map((appointment) => (
+												<AppointmentCard
+													key={appointment.id}
+													appointment={appointment}
+												/>
+											))}
+								</div>
+							)}
+						</div>
 
-					{/* Calls section */}
-					<div>
-						<SectionHeader
-							icon={PhoneCallIcon}
-							title="Call History"
-							buttonText="Log Call"
-							gradient="from-emerald-500 to-emerald-500/60"
-						/>
+						{/* Calls section */}
+						<div>
+							<SectionHeader
+								icon={PhoneCallIcon}
+								title="Call History"
+								buttonText="View all calls"
+								buttonLink="/calls"
+								gradient="from-emerald-500 to-emerald-500/60"
+							/>
 
-						{calls.length === 0 ? (
-							<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-								<CardContent>
-									<EmptyState
-										icon={PhoneCallIcon}
-										title="No Calls"
-										description="No call history with this lead yet."
-										buttonText="Log a Call"
-									/>
-								</CardContent>
-							</Card>
-						) : (
-							<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-								{calls.slice(0, 4).map((call) => (
-									<CallCard key={call.id} call={call} />
-								))}
-							</div>
-						)}
-					</div>
+							{calls.length === 0 ? (
+								<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+									<CardContent>
+										<EmptyState
+											icon={PhoneCallIcon}
+											title="No Calls"
+											description="No call history with this lead yet."
+											buttonText="Log a Call"
+										/>
+									</CardContent>
+								</Card>
+							) : (
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+									{calls.slice(0, 4).map((call) => (
+										<CallCard key={call.id} call={call} />
+									))}
+								</div>
+							)}
+						</div>
 
-					{/* Messages section */}
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-						{/* Text Messages */}
+						{/* Text Messages section */}
 						<div>
 							<SectionHeader
 								icon={MessageSquareIcon}
 								title="Text Messages"
-								buttonText="Send Text"
+								buttonText="View all messages"
+								buttonLink="/chats"
 								gradient="from-violet-500 to-violet-500/60"
 							/>
 
@@ -718,8 +854,8 @@ export default function LeadDetailPage() {
 									</CardContent>
 								</Card>
 							) : (
-								<div className="space-y-3">
-									{textMessages.slice(0, 3).map((text) => (
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+									{textMessages.slice(0, 4).map((text) => (
 										<TextMessageCard
 											key={text.id}
 											text={text}
@@ -729,12 +865,13 @@ export default function LeadDetailPage() {
 							)}
 						</div>
 
-						{/* Emails */}
+						{/* Emails section */}
 						<div>
 							<SectionHeader
 								icon={MailIcon}
 								title="Emails"
-								buttonText="Send Email"
+								buttonText="View all emails"
+								buttonLink="/emails"
 								gradient="from-amber-500 to-amber-500/60"
 							/>
 
@@ -750,8 +887,8 @@ export default function LeadDetailPage() {
 									</CardContent>
 								</Card>
 							) : (
-								<div className="space-y-3">
-									{emails.slice(0, 3).map((email) => (
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+									{emails.slice(0, 4).map((email) => (
 										<EmailCard
 											key={email.id}
 											email={email}
@@ -763,6 +900,6 @@ export default function LeadDetailPage() {
 					</div>
 				</div>
 			</div>
-		</div>
+		</>
 	)
 }
