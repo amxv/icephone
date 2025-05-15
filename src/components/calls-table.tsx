@@ -210,6 +210,15 @@ export function CallsTable({
 	})
 	const router = useRouter()
 
+	// Update pagination pageSize when tableRowsPerPage from context changes
+	React.useEffect(() => {
+		setPagination((prev) => ({
+			...prev,
+			pageSize: tableRowsPerPage,
+			pageIndex: 0 // Reset to first page when page size changes
+		}))
+	}, [tableRowsPerPage])
+
 	// Update data when initialData changes
 	React.useEffect(() => {
 		setData(initialData)
@@ -223,10 +232,34 @@ export function CallsTable({
 		}
 	}, [initialColumnFilters, processedInitialFilters])
 
-	// Call onFilterChange when columnFilters change
+	const lastNotifiedColumnFiltersRef = React.useRef<
+		ColumnFiltersState | undefined
+	>(undefined)
+
+	// Call onFilterChange when columnFilters change, but only if they semantically changed
 	React.useEffect(() => {
-		if (onFilterChange) {
+		const currentFiltersString = JSON.stringify(columnFilters)
+		const lastNotifiedFiltersString = JSON.stringify(
+			lastNotifiedColumnFiltersRef.current
+		)
+
+		if (
+			onFilterChange &&
+			currentFiltersString !== lastNotifiedFiltersString
+		) {
 			onFilterChange(columnFilters)
+			try {
+				lastNotifiedColumnFiltersRef.current =
+					JSON.parse(currentFiltersString)
+			} catch (e) {
+				// Fallback for safety, though unlikely to be needed for this data structure
+				lastNotifiedColumnFiltersRef.current = columnFilters.map(
+					(f) => ({
+						...f,
+						value: Array.isArray(f.value) ? [...f.value] : f.value
+					})
+				)
+			}
 		}
 	}, [columnFilters, onFilterChange])
 

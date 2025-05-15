@@ -144,7 +144,7 @@ export function AddEditEventDialog({
 	}
 
 	return (
-		<Dialog open={isOpen} onOpenChange={onToggle} modal={false}>
+		<Dialog open={isOpen} onOpenChange={onToggle} modal={true}>
 			<DialogTrigger asChild>{children}</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>

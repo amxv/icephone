@@ -16,6 +16,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { ColumnFiltersState } from "@tanstack/react-table"
 import { format } from "date-fns"
 import {
+	ClockIcon,
+	FileTextIcon,
+	MessageSquareIcon,
 	PhoneCallIcon,
 	PhoneIcon,
 	PhoneIncomingIcon,
@@ -152,33 +155,50 @@ function StatusBadge({ status }: { status: string | null }) {
 // Call details component
 function CallDetails({ call }: { call: CallItem }) {
 	return (
-		<div className="h-full overflow-y-auto">
+		<div className="overflow-y-auto flex-1 max-h-[calc(100vh-200px)]">
 			<div className="p-4">
-				<div className="mb-6 flex flex-col gap-2">
-					<div className="flex items-center gap-2">
+				{/* Header with call info */}
+				<div className="mb-6">
+					<div className="flex items-center gap-2 mb-3">
+						<div className="rounded-full bg-card p-2 border border-border/40 shadow-sm">
+							{call.type === "incoming" ? (
+								<PhoneIncomingIcon className="h-5 w-5 text-green-600" />
+							) : (
+								<PhoneOutgoingIcon className="h-5 w-5 text-blue-600" />
+							)}
+						</div>
+						<div>
+							<h2 className="text-xl font-semibold">
+								{call.leadName || "Unknown Lead"}
+							</h2>
+							<div className="text-sm text-muted-foreground">
+								{format(
+									new Date(call.startTime),
+									"MMMM d, yyyy 'at' h:mm a"
+								)}
+							</div>
+						</div>
+					</div>
+
+					<div className="flex flex-wrap gap-2 mb-4">
 						<TypeBadge type={call.type} />
 						<StatusBadge status={call.status} />
 					</div>
-
-					<h2 className="text-xl font-semibold">
-						{call.leadName || "Unknown Lead"}
-					</h2>
-
-					<div className="text-sm text-muted-foreground">
-						{format(
-							new Date(call.startTime),
-							"MMMM d, yyyy 'at' h:mm a"
-						)}
-					</div>
 				</div>
 
+				{/* Call Recording */}
 				{call.recordingUrl && (
-					<div className="mb-6">
-						<h3 className="text-md font-medium mb-2">Recording</h3>
+					<div className="mb-6 bg-card/40 backdrop-blur-sm rounded-2xl p-4 border border-border/40 shadow-sm">
+						<div className="flex items-center gap-2 mb-2">
+							<div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+								<PhoneCallIcon className="h-4 w-4 text-blue-800" />
+							</div>
+							<h3 className="text-md font-medium">Recording</h3>
+						</div>
 						<audio
 							src={call.recordingUrl}
 							controls
-							className="w-full rounded-lg"
+							className="w-full rounded-lg mt-3"
 						>
 							<track kind="captions" src="" label="English" />
 							Your browser does not support the audio element.
@@ -186,36 +206,52 @@ function CallDetails({ call }: { call: CallItem }) {
 					</div>
 				)}
 
-				<div className="flex flex-col gap-4">
-					<div>
-						<h3 className="text-md font-medium mb-1">Duration</h3>
-						<div>{formatDuration(call.duration)}</div>
-					</div>
-
-					<div>
-						<h3 className="text-md font-medium mb-1">Summary</h3>
-						<div className="bg-muted p-3 rounded-lg">
-							{call.summary || (
-								<span className="text-muted-foreground italic">
-									No summary available
-								</span>
-							)}
+				{/* Call Duration */}
+				<div className="bg-card/40 backdrop-blur-sm rounded-2xl p-4 border border-border/40 shadow-sm mb-4">
+					<div className="flex items-center gap-2">
+						<div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
+							<ClockIcon className="h-4 w-4 text-purple-800" />
 						</div>
+						<h3 className="text-md font-medium">Duration</h3>
 					</div>
-
-					{call.transcript && (
-						<div>
-							<h3 className="text-md font-medium mb-1">
-								Transcript
-							</h3>
-							<div className="bg-muted p-3 rounded-lg max-h-56 overflow-y-auto">
-								<pre className="whitespace-pre-wrap text-sm font-normal">
-									{call.transcript}
-								</pre>
-							</div>
-						</div>
-					)}
+					<div className="mt-2 pl-10 text-lg font-medium">
+						{formatDuration(call.duration)}
+					</div>
 				</div>
+
+				{/* Call Summary */}
+				<div className="bg-card/40 backdrop-blur-sm rounded-2xl p-4 border border-border/40 shadow-sm mb-4">
+					<div className="flex items-center gap-2 mb-2">
+						<div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+							<FileTextIcon className="h-4 w-4 text-amber-800" />
+						</div>
+						<h3 className="text-md font-medium">Summary</h3>
+					</div>
+					<div className="pl-2 bg-background/60 p-3 rounded-xl">
+						{call.summary || (
+							<span className="text-muted-foreground italic">
+								No summary available
+							</span>
+						)}
+					</div>
+				</div>
+
+				{/* Call Transcript */}
+				{call.transcript && (
+					<div className="bg-card/40 backdrop-blur-sm rounded-2xl p-4 border border-border/40 shadow-sm">
+						<div className="flex items-center gap-2 mb-2">
+							<div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+								<MessageSquareIcon className="h-4 w-4 text-green-800" />
+							</div>
+							<h3 className="text-md font-medium">Transcript</h3>
+						</div>
+						<div className="pl-2 bg-background/60 p-3 rounded-xl max-h-56 overflow-y-auto">
+							<pre className="whitespace-pre-wrap text-sm font-normal">
+								{call.transcript}
+							</pre>
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	)
@@ -232,11 +268,38 @@ export function CallsPageClient() {
 	const [error, setError] = useState<string | null>(null)
 	const [selectedCall, setSelectedCall] = useState<CallItem | null>(null)
 	const [isMobile, setIsMobile] = useState(false)
+	const [searchQuery, setSearchQuery] = useState<string>(
+		searchParams.get("search") || ""
+	)
 
 	// Handle window resize
 	useEffect(() => {
 		const checkMobile = () => {
-			setIsMobile(window.innerWidth < 768)
+			const width = window.innerWidth
+			setIsMobile(width < 768)
+
+			// Dynamically adjust rows per page based on screen height
+			const height = window.innerHeight
+			let newRowsPerPage = 12 // Default value
+			if (height < 700) {
+				newRowsPerPage = 5
+			} else if (height < 900) {
+				newRowsPerPage = 8
+			} // Else it remains 12 (the default)
+
+			// Update localStorage. The table should react to tableRowsPerPage from useSettings context.
+			const currentStoredRows = Number.parseInt(
+				localStorage.getItem("tableRowsPerPage") || "12",
+				10
+			)
+			if (currentStoredRows !== newRowsPerPage) {
+				localStorage.setItem(
+					"tableRowsPerPage",
+					newRowsPerPage.toString()
+				)
+				// The useSettings context should pick up this localStorage change and update,
+				// which will then flow to CallsTable.
+			}
 		}
 
 		// Initial check
@@ -247,7 +310,7 @@ export function CallsPageClient() {
 
 		// Cleanup
 		return () => window.removeEventListener("resize", checkMobile)
-	}, [])
+	}, []) // Empty dependency array: runs on mount and cleans up on unmount
 
 	// Get the call ID from URL
 	const callIdParam = searchParams.get("callId")
@@ -255,6 +318,7 @@ export function CallsPageClient() {
 	// Get other filter params
 	const typeParam = searchParams.get("type")
 	const statusParam = searchParams.get("status")
+	const searchQueryParam = searchParams.get("search")
 
 	// Load call from URL param
 	useEffect(() => {
@@ -267,6 +331,13 @@ export function CallsPageClient() {
 			}
 		}
 	}, [callIdParam, callsData])
+
+	// Update search query state from URL
+	useEffect(() => {
+		if (searchQueryParam !== null) {
+			setSearchQuery(searchQueryParam)
+		}
+	}, [searchQueryParam])
 
 	// Create column filters
 	const initialColumnFilters = useState<ColumnFiltersState>(() => {
@@ -323,6 +394,38 @@ export function CallsPageClient() {
 				params.set("callId", selectedCall.id.toString())
 			}
 
+			// Keep search query
+			if (searchQuery) {
+				params.set("search", searchQuery)
+			} else {
+				params.delete("search")
+			}
+
+			router.replace(`${pathname}?${params.toString()}`, {
+				scroll: false
+			})
+		},
+		[searchParams, pathname, router, selectedCall, searchQuery]
+	)
+
+	// Handle search query change
+	const handleSearchChange = useCallback(
+		(query: string) => {
+			setSearchQuery(query)
+
+			const params = new URLSearchParams(searchParams.toString())
+
+			if (query) {
+				params.set("search", query)
+			} else {
+				params.delete("search")
+			}
+
+			// Keep other params
+			if (selectedCall) {
+				params.set("callId", selectedCall.id.toString())
+			}
+
 			router.replace(`${pathname}?${params.toString()}`, {
 				scroll: false
 			})
@@ -338,11 +441,17 @@ export function CallsPageClient() {
 			// Update URL
 			const params = new URLSearchParams(searchParams.toString())
 			params.set("callId", call.id.toString())
+
+			// Keep search query
+			if (searchQuery) {
+				params.set("search", searchQuery)
+			}
+
 			router.replace(`${pathname}?${params.toString()}`, {
 				scroll: false
 			})
 		},
-		[searchParams, pathname, router]
+		[searchParams, pathname, router, searchQuery]
 	)
 
 	// Handle closing the details panel
@@ -352,8 +461,14 @@ export function CallsPageClient() {
 		// Update URL
 		const params = new URLSearchParams(searchParams.toString())
 		params.delete("callId")
+
+		// Keep search query
+		if (searchQuery) {
+			params.set("search", searchQuery)
+		}
+
 		router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-	}, [searchParams, pathname, router])
+	}, [searchParams, pathname, router, searchQuery])
 
 	// Fetch calls data
 	useEffect(() => {
@@ -403,8 +518,8 @@ export function CallsPageClient() {
 	}, [])
 
 	return (
-		<div className="container py-2">
-			<div className="flex flex-col gap-8 p-2 md:p-10">
+		<div className="container flex flex-col h-full overflow-hidden">
+			<div className="flex flex-col gap-4 p-2 md:px-10 md:pt-6 h-full overflow-hidden">
 				<PageHeader />
 
 				{loading ? (
@@ -457,23 +572,25 @@ export function CallsPageClient() {
 									<DialogTitle>Call Details</DialogTitle>
 								</DialogHeader>
 								{selectedCall && (
-									<CallDetails call={selectedCall} />
+									<div className="max-h-[60vh] overflow-y-auto">
+										<CallDetails call={selectedCall} />
+									</div>
 								)}
 							</DialogContent>
 						</Dialog>
 
 						{/* Desktop Layout */}
-						<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-							<CardContent className="px-6 pb-6">
-								<div className="flex">
+						<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm flex-1 flex flex-col overflow-hidden">
+							<CardContent className="px-6 pb-3 h-full flex flex-col overflow-hidden">
+								<div className="flex h-full overflow-hidden">
 									<div
 										className={
 											selectedCall && !isMobile
-												? "w-2/3 pr-4"
-												: "w-full"
+												? "w-2/3 pr-4 flex flex-col overflow-hidden"
+												: "w-full flex flex-col overflow-hidden"
 										}
 									>
-										<div className="custom-calls-table">
+										<div className="custom-calls-table flex-1 flex flex-col overflow-hidden">
 											<CallsTable
 												data={callsData}
 												initialColumnFilters={
@@ -491,22 +608,26 @@ export function CallsPageClient() {
 									</div>
 
 									{selectedCall && !isMobile && (
-										<div className="w-1/3 border-l border-border pl-4">
-											<div className="flex items-center justify-between mb-4">
+										<div className="w-1/3 border-l border-border pl-4 h-full flex flex-col overflow-hidden">
+											<div className="flex items-center justify-between mb-2 py-1 sticky top-0 bg-card/80 backdrop-blur-sm z-10">
 												<h3 className="font-medium text-lg">
 													Call Details
 												</h3>
 												<Button
 													size="sm"
-													variant="ghost"
+													variant="outline"
 													onClick={handleClosePanel}
-													className="h-8 w-8 p-0"
+													className="h-8 w-8 p-0 rounded-full"
 													aria-label="Close panel"
 												>
 													<XIcon className="h-4 w-4" />
 												</Button>
 											</div>
-											<CallDetails call={selectedCall} />
+											<div className="overflow-y-auto flex-1">
+												<CallDetails
+													call={selectedCall}
+												/>
+											</div>
 										</div>
 									)}
 								</div>

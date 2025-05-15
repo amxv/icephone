@@ -9,15 +9,16 @@ IcePhone is an AI-powered CRM and Voice Agent Platform that allows business owne
 ## Coding Style:
 
 - Ideally, you should write simple solutions that do not need complex debugging / maintenance if things go wrong
-- If you notice a lint error that you think is not important or critical, please turn it off in the .eslintrc.json file.
+- If you notice a lint error that you think is not important or critical, please turn it off in the biome.json file.
 - Always assume the dev server is running.
 - Follow modern best practices for full-stack web development in Next.js, keeping user privacy and security in mind.
+- When editing a page to add new components, always make the components first and then add them to the page to avoid causing temporary errors.
 
 ## How to work with the Databse (Drizzle ORM + PostgreSQL)
 
-- The schema location is `src/db/schema.ts`.
-- Put all your server actions in `src/actions/(name).ts`
-- Put all the types in `src/types.ts`
+- The schema is at `src/db/schema.ts`.
+- Put your server actions in `src/actions/(name).ts`
+- Put types in `src/types.ts`
 - After making changes to the schema, run `bun db:dev:push` or `bun db:prod:push` to generate and apply migrations to our neon database.
 - Please try to use `mcp_run_sql_transaction` tool: wrap the commands that you are thinking of implementing in a transaction, and roll it back with a RETURNING clause to "preview" your changes before writing the drizzle code.
 - This tool call allows you to "dry run" and test changes easily.

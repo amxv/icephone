@@ -9,6 +9,7 @@ IcePhone is an AI-powered CRM and Voice Agent Platform that allows business owne
 - If you notice a lint error that you think is not important or critical, please turn it off in the .eslintrc.json file.
 - Always assume the dev server is running.
 - Follow modern best practices for full-stack web development in Next.js, keeping user privacy and security in mind.
+- When editing a page to add new components, always make the components first and then add them to the page to avoid causing temporary errors.
 
 ## How to work with the Databse (Drizzle ORM + PostgreSQL)
 

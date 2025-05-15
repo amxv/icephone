@@ -235,11 +235,11 @@ export function PipelineBoard() {
 		return (
 			<Card className="rounded-3xl bg-transparent shadow-none border-none">
 				<CardContent className="px-6 pb-6">
-					<div className="container py-2">
+					<div className="py-1">
 						<Skeleton className="h-10 w-28 mb-6" />
 					</div>
 
-					<div className="flex overflow-x-auto py-4 gap-4">
+					<div className="flex gap-2 items-start overflow-x-auto py-1 min-h-[calc(100vh-180px)]">
 						{/* Skeleton for each column */}
 						{pipelineStages.map((column) => (
 							<div
@@ -266,8 +266,8 @@ export function PipelineBoard() {
 
 	return (
 		<Card className="rounded-3xl bg-transparent shadow-none border-none">
-			<CardContent className="px-6 pb-6">
-				<div className="container py-2">
+			<CardContent className="px-2 pb-2">
+				<div className="py-1">
 					<Button variant="outline" size="sm" onClick={fetchLeads}>
 						<RefreshCcw className="h-4 w-4 mr-2" />
 						Refresh

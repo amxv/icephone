@@ -7,8 +7,8 @@ export const metadata = {
 
 export default function PipelinesPage() {
 	return (
-		<div className="container py-2 overflow-y-hidden h-screen">
-			<div className="flex flex-col gap-8 p-2 md:p-10">
+		<div className="container py-1 overflow-y-hidden h-screen">
+			<div className="flex flex-col gap-4 p-2 md:p-4">
 				<div>
 					<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-500">
 						Sales Pipeline

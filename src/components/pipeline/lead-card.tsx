@@ -66,17 +66,17 @@ export function LeadCard({ lead, isOverlay }: LeadCardProps) {
 						: undefined
 			})} hover:shadow-md transition-all hover:border-border/60`}
 		>
-			<CardContent className="p-3 flex flex-col gap-2">
+			<CardContent className="p-2 flex flex-col gap-1.5">
 				<div className="flex items-center justify-between gap-2">
-					<div className="flex items-center gap-1 flex-1 min-w-0">
+					<div className="flex items-center gap-0.5 flex-1 min-w-0">
 						<Button
 							variant="ghost"
 							{...attributes}
 							{...listeners}
-							className="p-1 text-muted-foreground -ml-1.5 h-auto cursor-grab hover:text-foreground/80"
+							className="p-0.5 text-muted-foreground -ml-1.5 h-auto cursor-grab hover:text-foreground/80"
 						>
 							<span className="sr-only">Move lead</span>
-							<GripVertical className="h-4 w-4" />
+							<GripVertical className="h-3.5 w-3.5" />
 						</Button>
 
 						<Link
@@ -92,7 +92,7 @@ export function LeadCard({ lead, isOverlay }: LeadCardProps) {
 					</Badge>
 				</div>
 
-				<div className="flex flex-col gap-1 text-xs text-muted-foreground">
+				<div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
 					{lead.email && (
 						<div className="flex items-center gap-2">
 							<Mail className="h-3 w-3" />
