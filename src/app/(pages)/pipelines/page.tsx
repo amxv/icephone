@@ -7,16 +7,12 @@ export const metadata = {
 
 export default function PipelinesPage() {
 	return (
-		<div className="container py-1 overflow-y-hidden h-screen">
-			<div className="flex flex-col gap-4 p-2 md:p-4">
+		<div className="container h-[calc(100vh-5rem)]">
+			<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
 				<div>
-					<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-500">
+					<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
 						Sales Pipeline
 					</h1>
-					<p className="text-sm md:text-base text-muted-foreground mt-2">
-						Manage your leads through the sales process with a
-						visual Kanban board.
-					</p>
 				</div>
 
 				<PipelineBoard />

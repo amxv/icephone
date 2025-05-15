@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 import { getLeads, updateLead } from "@/actions/leads"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { Lead } from "@/types"
 import {
@@ -233,13 +233,14 @@ export function PipelineBoard() {
 
 	if (isLoading) {
 		return (
-			<Card className="rounded-3xl bg-transparent shadow-none border-none">
-				<CardContent className="px-6 pb-6">
+			<Card className="rounded-3xl bg-transparent shadow-none border-none flex-grow flex flex-col">
+				<CardHeader className="border-b-0 p-0">
 					<div className="py-1">
-						<Skeleton className="h-10 w-28 mb-6" />
+						<Skeleton className="h-10 w-28" />
 					</div>
-
-					<div className="flex gap-2 items-start overflow-x-auto py-1 min-h-[calc(100vh-180px)]">
+				</CardHeader>
+				<CardContent className="px-0 pb-0 flex-grow">
+					<div className="flex gap-2 items-start overflow-x-auto py-1">
 						{/* Skeleton for each column */}
 						{pipelineStages.map((column) => (
 							<div
@@ -265,15 +266,16 @@ export function PipelineBoard() {
 	}
 
 	return (
-		<Card className="rounded-3xl bg-transparent shadow-none border-none">
-			<CardContent className="px-2 pb-2">
-				<div className="py-1">
+		<Card className="rounded-3xl bg-transparent shadow-none border-none flex-grow flex flex-col">
+			<CardHeader className="border-b-0 p-0 pt-2">
+				<div className="py-1 flex items-center justify-between">
 					<Button variant="outline" size="sm" onClick={fetchLeads}>
 						<RefreshCcw className="h-4 w-4 mr-2" />
 						Refresh
 					</Button>
 				</div>
-
+			</CardHeader>
+			<CardContent className="px-0 pb-0 flex-grow">
 				<DndContext
 					id={dndContextId}
 					sensors={sensors}

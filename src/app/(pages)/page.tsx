@@ -159,17 +159,14 @@ export default function Dashboard() {
 	}
 
 	return (
-		<div className="container py-2">
-			<div className="flex flex-col gap-8 p-2 md:p-10">
+		<div className="container h-[calc(100vh-5rem)]">
+			<div className="flex flex-col gap-8 p-2 md:px-8 md:py-4 h-full">
 				{/* Header - following the leads page style */}
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-500">
+						<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
 							{greeting}, {user?.firstName || "User"}
 						</h1>
-						<p className="text-sm md:text-base text-muted-foreground mt-2">
-							Here's an overview of your CRM activities
-						</p>
 					</div>
 					<div className="flex gap-2">
 						<button

@@ -69,12 +69,9 @@ function PageHeader() {
 	return (
 		<div className="flex items-center justify-between">
 			<div>
-				<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-500">
+				<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
 					Calls
 				</h1>
-				<p className="text-sm md:text-base text-muted-foreground mt-2">
-					View and manage all voice agent calls
-				</p>
 			</div>
 		</div>
 	)
@@ -519,7 +516,7 @@ export function CallsPageClient() {
 
 	return (
 		<div className="container flex flex-col h-full overflow-hidden">
-			<div className="flex flex-col gap-4 p-2 md:px-10 md:pt-6 h-full overflow-hidden">
+			<div className="flex flex-col gap-4 h-full overflow-hidden">
 				<PageHeader />
 
 				{loading ? (

@@ -25,12 +25,9 @@ function PageHeader() {
 	return (
 		<div className="flex items-center justify-between">
 			<div>
-				<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-500">
+				<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
 					Settings
 				</h1>
-				<p className="text-sm md:text-base text-muted-foreground mt-2">
-					Manage your application preferences and settings.
-				</p>
 			</div>
 		</div>
 	)
@@ -40,8 +37,8 @@ export default function SettingsPage() {
 	const { tableRowsPerPage, setTableRowsPerPage } = useSettings()
 
 	return (
-		<div className="container py-2">
-			<div className="flex flex-col gap-8">
+		<div className="container h-[calc(100vh-5rem)]">
+			<div className="flex flex-col gap-8 p-2 md:px-8 md:py-4 h-full">
 				<PageHeader />
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 					<CardContent className="px-6 py-2">

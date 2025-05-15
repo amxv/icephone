@@ -91,8 +91,8 @@ export function PipelineColumn({
 				</div>
 				<Badge variant="outline">{leads.length}</Badge>
 			</CardHeader>
-			<ScrollArea className="flex-grow">
-				<CardContent className="flex flex-col gap-2 p-2 min-h-[calc(100vh-220px)] bg-card/40">
+			<ScrollArea className="flex-grow flex flex-col">
+				<CardContent className="flex flex-col gap-2 p-2 flex-grow bg-card/40">
 					<SortableContext items={leadIds}>
 						{leads.length === 0 ? (
 							<div className="flex flex-grow items-center justify-center h-24">
@@ -128,11 +128,11 @@ export function PipelineBoardContainer({
 
 	return (
 		<ScrollArea
-			className={variations({
+			className={`${variations({
 				dragging: dndContext.active ? "active" : "default"
-			})}
+			})} flex-grow`}
 		>
-			<div className="flex gap-2 items-start overflow-x-auto py-1 min-h-[calc(100vh-180px)]">
+			<div className="flex gap-2 items-start py-1 flex-grow">
 				{children}
 			</div>
 			<ScrollBar orientation="horizontal" className="h-2" />
