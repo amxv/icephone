@@ -173,13 +173,17 @@ export function CallsTable({
 	initialColumnFilters = [],
 	onFilterChange,
 	onRowClick,
-	selectedCallId
+	selectedCallId,
+	searchQuery,
+	onSearchChange
 }: {
 	data: CallItem[]
 	initialColumnFilters?: ColumnFiltersState
 	onFilterChange?: (filters: ColumnFiltersState) => void
 	onRowClick: (call: CallItem) => void
 	selectedCallId?: number
+	searchQuery: string
+	onSearchChange: (query: string) => void
 }) {
 	const [data, setData] = React.useState(() => initialData)
 	// Get global table rows per page setting
@@ -203,7 +207,6 @@ export function CallsTable({
 	const [sorting, setSorting] = React.useState<SortingState>([
 		{ id: "startTime", desc: true }
 	])
-	const [searchQuery, setSearchQuery] = React.useState("")
 	const [pagination, setPagination] = React.useState({
 		pageIndex: 0,
 		pageSize: tableRowsPerPage
@@ -597,7 +600,7 @@ export function CallsTable({
 						placeholder="Search calls..."
 						className="pl-8 w-64"
 						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
+						onChange={(e) => onSearchChange(e.target.value)}
 					/>
 				</div>
 

@@ -93,6 +93,7 @@ export function AddEditEventDialog({
 			? {
 					title: event.title,
 					description: event.description,
+					location: event.location,
 					startDate: eventDates?.startDate,
 					endDate: eventDates?.endDate,
 					color: event.color
@@ -100,36 +101,37 @@ export function AddEditEventDialog({
 			: {
 					title: "",
 					description: "",
+					location: "",
 					startDate: initialDates.startDate,
 					endDate: initialDates.endDate,
 					color: "blue" as const
 				}
 	})
 
-	const onSubmit = (values: TEventFormData) => {
+	const onSubmit = async (values: TEventFormData) => {
 		try {
-			// Format event data for API
-			const formattedEvent: IEvent = {
-				...values,
+			const eventPayloadForServer = {
+				title: values.title,
 				startDate: format(values.startDate, "yyyy-MM-dd'T'HH:mm:ss"),
 				endDate: format(values.endDate, "yyyy-MM-dd'T'HH:mm:ss"),
-				id: isEditing ? event.id : Math.floor(Math.random() * 1000000),
-				user: isEditing
-					? event.user
-					: {
-							id: Math.floor(Math.random() * 1000000).toString(),
-							name: "Jeraidi Yassir",
-							picturePath: null
-						},
-				color: values.color
+				description: values.description,
+				location: values.location
 			}
 
-			if (isEditing) {
-				updateEvent(formattedEvent)
-				toast.success("Event updated successfully")
+			if (isEditing && event) {
+				const eventDataForContextUpdate: IEvent = {
+					id: event.id,
+					user: event.user,
+					color: values.color,
+					title: eventPayloadForServer.title,
+					startDate: eventPayloadForServer.startDate,
+					endDate: eventPayloadForServer.endDate,
+					description: eventPayloadForServer.description,
+					location: eventPayloadForServer.location
+				}
+				await updateEvent(eventDataForContextUpdate)
 			} else {
-				addEvent(formattedEvent)
-				toast.success("Event created successfully")
+				await addEvent(eventPayloadForServer)
 			}
 
 			onClose()
@@ -246,12 +248,34 @@ export function AddEditEventDialog({
 						/>
 						<FormField
 							control={form.control}
+							name="location"
+							render={({ field, fieldState }) => (
+								<FormItem>
+									<FormLabel htmlFor="location">
+										Where
+									</FormLabel>
+									<FormControl>
+										<Input
+											id="location"
+											placeholder="Enter a location or video meeting link"
+											{...field}
+											className={
+												fieldState.invalid
+													? "border-red-500"
+													: ""
+											}
+										/>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+						<FormField
+							control={form.control}
 							name="description"
 							render={({ field, fieldState }) => (
 								<FormItem>
-									<FormLabel className="required">
-										Description
-									</FormLabel>
+									<FormLabel>Description</FormLabel>
 									<FormControl>
 										<Textarea
 											{...field}

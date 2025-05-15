@@ -21,7 +21,6 @@ import {
 	SettingsIcon,
 	SunMediumIcon
 } from "lucide-react"
-import { useTheme } from "next-themes"
 
 export function Settings() {
 	const {
@@ -34,10 +33,12 @@ export function Settings() {
 		agendaModeGroupBy,
 		setAgendaModeGroupBy
 	} = useCalendar()
-	const { theme, setTheme } = useTheme()
 
-	const isDarkMode = theme === "dark"
 	const isDotVariant = badgeVariant === "dot"
+
+	const handleSelect = (event: Event) => {
+		event.preventDefault()
+	}
 
 	return (
 		<DropdownMenu>
@@ -50,25 +51,7 @@ export function Settings() {
 				<DropdownMenuLabel>Calendar settings</DropdownMenuLabel>
 				<DropdownMenuSeparator />
 				<DropdownMenuGroup>
-					<DropdownMenuItem>
-						Use dark mode
-						<DropdownMenuShortcut>
-							<Switch
-								icon={
-									isDarkMode ? (
-										<MoonIcon className="h-4 w-4" />
-									) : (
-										<SunMediumIcon className="h-4 w-4" />
-									)
-								}
-								checked={isDarkMode}
-								onCheckedChange={(checked) =>
-									setTheme(checked ? "dark" : "light")
-								}
-							/>
-						</DropdownMenuShortcut>
-					</DropdownMenuItem>
-					<DropdownMenuItem>
+					<DropdownMenuItem onSelect={handleSelect}>
 						Use dot badge
 						<DropdownMenuShortcut>
 							<Switch
@@ -86,7 +69,7 @@ export function Settings() {
 							/>
 						</DropdownMenuShortcut>
 					</DropdownMenuItem>
-					<DropdownMenuItem>
+					<DropdownMenuItem onSelect={handleSelect}>
 						Use 24 hour format
 						<DropdownMenuShortcut>
 							<Switch
@@ -157,19 +140,34 @@ export function Settings() {
 							setView(value as TCalendarView)
 						}
 					>
-						<DropdownMenuRadioItem value="day">
+						<DropdownMenuRadioItem
+							value="day"
+							onSelect={handleSelect}
+						>
 							Day
 						</DropdownMenuRadioItem>
-						<DropdownMenuRadioItem value="week">
+						<DropdownMenuRadioItem
+							value="week"
+							onSelect={handleSelect}
+						>
 							Week
 						</DropdownMenuRadioItem>
-						<DropdownMenuRadioItem value="month">
+						<DropdownMenuRadioItem
+							value="month"
+							onSelect={handleSelect}
+						>
 							Month
 						</DropdownMenuRadioItem>
-						<DropdownMenuRadioItem value="year">
+						<DropdownMenuRadioItem
+							value="year"
+							onSelect={handleSelect}
+						>
 							Year
 						</DropdownMenuRadioItem>
-						<DropdownMenuRadioItem value="agenda">
+						<DropdownMenuRadioItem
+							value="agenda"
+							onSelect={handleSelect}
+						>
 							Agenda
 						</DropdownMenuRadioItem>
 					</DropdownMenuRadioGroup>
@@ -183,10 +181,16 @@ export function Settings() {
 							setAgendaModeGroupBy(value as "date" | "color")
 						}
 					>
-						<DropdownMenuRadioItem value="date">
+						<DropdownMenuRadioItem
+							value="date"
+							onSelect={handleSelect}
+						>
 							Date
 						</DropdownMenuRadioItem>
-						<DropdownMenuRadioItem value="color">
+						<DropdownMenuRadioItem
+							value="color"
+							onSelect={handleSelect}
+						>
 							Color
 						</DropdownMenuRadioItem>
 					</DropdownMenuRadioGroup>

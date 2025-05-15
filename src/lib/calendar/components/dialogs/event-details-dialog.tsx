@@ -1,7 +1,7 @@
 "use client"
 
 import { format, parseISO } from "date-fns"
-import { Calendar, Clock, Text, User } from "lucide-react"
+import { Calendar, Clock, MapPin, Text, User } from "lucide-react"
 
 import {
 	Dialog,
@@ -31,12 +31,11 @@ export function EventDetailsDialog({ event, children }: IProps) {
 	const endDate = parseISO(event.endDate)
 	const { use24HourFormat, removeEvent } = useCalendar()
 
-	const deleteEvent = (eventId: number) => {
+	const deleteEvent = async (eventId: number) => {
 		try {
-			removeEvent(eventId)
-			toast.success("Event deleted successfully.")
+			await removeEvent(eventId)
 		} catch {
-			toast.error("Error deleting event.")
+			toast.error("Error processing delete request.")
 		}
 	}
 
@@ -94,6 +93,18 @@ export function EventDetailsDialog({ event, children }: IProps) {
 							</div>
 						</div>
 
+						{event.location && (
+							<div className="flex items-start gap-2">
+								<MapPin className="mt-1 size-4 shrink-0 text-muted-foreground" />
+								<div>
+									<p className="text-sm font-medium">Where</p>
+									<p className="text-sm text-muted-foreground">
+										{event.location}
+									</p>
+								</div>
+							</div>
+						)}
+
 						<div className="flex items-start gap-2">
 							<Text className="mt-1 size-4 shrink-0 text-muted-foreground" />
 							<div>
@@ -111,16 +122,17 @@ export function EventDetailsDialog({ event, children }: IProps) {
 					<AddEditEventDialog event={event}>
 						<Button variant="outline">Edit</Button>
 					</AddEditEventDialog>
-					<Button
-						variant="destructive"
-						onClick={() => {
-							deleteEvent(event.id)
-						}}
-					>
-						Delete
-					</Button>
+					<DialogClose asChild>
+						<Button
+							variant="destructive"
+							onClick={() => {
+								deleteEvent(event.id)
+							}}
+						>
+							Delete
+						</Button>
+					</DialogClose>
 				</div>
-				<DialogClose />
 			</DialogContent>
 		</Dialog>
 	)

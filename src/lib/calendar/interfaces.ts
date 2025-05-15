@@ -12,7 +12,8 @@ export interface IEvent {
 	endDate: string
 	title: string
 	color: TEventColor
-	description: string
+	description?: string
+	location?: string
 	user: IUser
 }
 

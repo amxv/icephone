@@ -58,9 +58,7 @@ export const appointments = pgTable(
 	"appointments",
 	{
 		id: serial("id").primaryKey(),
-		leadId: integer("lead_id")
-			.notNull()
-			.references(() => leads.id),
+		leadId: integer("lead_id").references(() => leads.id),
 		title: varchar("title", { length: 255 }).notNull(),
 		description: text("description"),
 		startTime: timestamp("start_time").notNull(),

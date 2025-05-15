@@ -151,11 +151,13 @@ function StatusBadge({ status }: { status: string | null }) {
 
 // Call details component
 function CallDetails({ call }: { call: CallItem }) {
+	const [showTranscript, setShowTranscript] = useState(false)
+
 	return (
-		<div className="overflow-y-auto flex-1 max-h-[calc(100vh-200px)]">
-			<div className="p-4">
+		<div className="flex-1 overflow-hidden flex flex-col">
+			<div className="p-4 overflow-y-auto h-full">
 				{/* Header with call info */}
-				<div className="mb-6">
+				<div className="mb-4">
 					<div className="flex items-center gap-2 mb-3">
 						<div className="rounded-full bg-card p-2 border border-border/40 shadow-sm">
 							{call.type === "incoming" ? (
@@ -177,78 +179,96 @@ function CallDetails({ call }: { call: CallItem }) {
 						</div>
 					</div>
 
-					<div className="flex flex-wrap gap-2 mb-4">
+					<div className="flex flex-wrap gap-2 mb-2">
 						<TypeBadge type={call.type} />
 						<StatusBadge status={call.status} />
 					</div>
 				</div>
 
-				{/* Call Recording */}
-				{call.recordingUrl && (
-					<div className="mb-6 bg-card/40 backdrop-blur-sm rounded-2xl p-4 border border-border/40 shadow-sm">
-						<div className="flex items-center gap-2 mb-2">
-							<div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-								<PhoneCallIcon className="h-4 w-4 text-blue-800" />
+				{/* Main content card with integrated sections */}
+				<div className="bg-card/40 backdrop-blur-sm rounded-3xl border border-border/40 shadow-sm overflow-hidden">
+					{/* Duration at the top */}
+					<div className="flex items-center justify-between p-4 border-b border-border/30 bg-background/50">
+						<div className="flex items-center gap-3">
+							<div className="h-9 w-9 rounded-full bg-purple-100 flex items-center justify-center">
+								<ClockIcon className="h-5 w-5 text-purple-800" />
 							</div>
-							<h3 className="text-md font-medium">Recording</h3>
-						</div>
-						<audio
-							src={call.recordingUrl}
-							controls
-							className="w-full rounded-lg mt-3"
-						>
-							<track kind="captions" src="" label="English" />
-							Your browser does not support the audio element.
-						</audio>
-					</div>
-				)}
-
-				{/* Call Duration */}
-				<div className="bg-card/40 backdrop-blur-sm rounded-2xl p-4 border border-border/40 shadow-sm mb-4">
-					<div className="flex items-center gap-2">
-						<div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
-							<ClockIcon className="h-4 w-4 text-purple-800" />
-						</div>
-						<h3 className="text-md font-medium">Duration</h3>
-					</div>
-					<div className="mt-2 pl-10 text-lg font-medium">
-						{formatDuration(call.duration)}
-					</div>
-				</div>
-
-				{/* Call Summary */}
-				<div className="bg-card/40 backdrop-blur-sm rounded-2xl p-4 border border-border/40 shadow-sm mb-4">
-					<div className="flex items-center gap-2 mb-2">
-						<div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
-							<FileTextIcon className="h-4 w-4 text-amber-800" />
-						</div>
-						<h3 className="text-md font-medium">Summary</h3>
-					</div>
-					<div className="pl-2 bg-background/60 p-3 rounded-xl">
-						{call.summary || (
-							<span className="text-muted-foreground italic">
-								No summary available
-							</span>
-						)}
-					</div>
-				</div>
-
-				{/* Call Transcript */}
-				{call.transcript && (
-					<div className="bg-card/40 backdrop-blur-sm rounded-2xl p-4 border border-border/40 shadow-sm">
-						<div className="flex items-center gap-2 mb-2">
-							<div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-								<MessageSquareIcon className="h-4 w-4 text-green-800" />
+							<div>
+								<h3 className="font-medium text-muted-foreground text-sm">Duration</h3>
+								<div className="text-2xl font-semibold tracking-tight">
+									{formatDuration(call.duration)}
+								</div>
 							</div>
-							<h3 className="text-md font-medium">Transcript</h3>
-						</div>
-						<div className="pl-2 bg-background/60 p-3 rounded-xl max-h-56 overflow-y-auto">
-							<pre className="whitespace-pre-wrap text-sm font-normal">
-								{call.transcript}
-							</pre>
 						</div>
 					</div>
-				)}
+
+					{/* Recording player */}
+					{call.recordingUrl && (
+						<div className="p-4 border-b border-border/30">
+							<div className="flex items-center gap-3 mb-3">
+								<div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center">
+									<PhoneCallIcon className="h-5 w-5 text-blue-800" />
+								</div>
+								<h3 className="font-medium">Recording</h3>
+							</div>
+							<audio
+								src={call.recordingUrl}
+								controls
+								className="w-full rounded-xl shadow-sm"
+							>
+								<track kind="captions" src="" label="English" />
+								Your browser does not support the audio element.
+							</audio>
+						</div>
+					)}
+
+					{/* Call Summary */}
+					<div className="p-4 border-b border-border/30">
+						<div className="flex items-center gap-3 mb-3">
+							<div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center">
+								<FileTextIcon className="h-5 w-5 text-amber-800" />
+							</div>
+							<h3 className="font-medium">Summary</h3>
+						</div>
+						<div className="bg-background/60 p-3 rounded-xl shadow-sm">
+							{call.summary || (
+								<span className="text-muted-foreground italic">
+									No summary available
+								</span>
+							)}
+						</div>
+					</div>
+
+					{/* Call Transcript with Collapsible Content */}
+					{call.transcript && (
+						<div className="p-4">
+							<div className="flex items-center justify-between mb-3">
+								<div className="flex items-center gap-3">
+									<div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center">
+										<MessageSquareIcon className="h-5 w-5 text-green-800" />
+									</div>
+									<h3 className="font-medium">Transcript</h3>
+								</div>
+								<Button
+									variant="outline"
+									size="sm"
+									className="rounded-xl"
+									onClick={() => setShowTranscript(!showTranscript)}
+								>
+									{showTranscript ? "Hide Transcript" : "Show Transcript"}
+								</Button>
+							</div>
+
+							{showTranscript && (
+								<div className="bg-background/60 p-3 rounded-xl shadow-sm max-h-64 overflow-y-auto">
+									<pre className="whitespace-pre-wrap text-sm font-normal">
+										{call.transcript}
+									</pre>
+								</div>
+							)}
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	)
@@ -587,7 +607,7 @@ export function CallsPageClient() {
 												: "w-full flex flex-col overflow-hidden"
 										}
 									>
-										<div className="custom-calls-table flex-1 flex flex-col overflow-hidden">
+										<div className="custom-calls-table flex-1 flex flex-col overflow-y-auto">
 											<CallsTable
 												data={callsData}
 												initialColumnFilters={
@@ -599,6 +619,10 @@ export function CallsPageClient() {
 												onRowClick={handleRowClick}
 												selectedCallId={
 													selectedCall?.id
+												}
+												searchQuery={searchQuery}
+												onSearchChange={
+													handleSearchChange
 												}
 											/>
 										</div>
@@ -620,11 +644,7 @@ export function CallsPageClient() {
 													<XIcon className="h-4 w-4" />
 												</Button>
 											</div>
-											<div className="overflow-y-auto flex-1">
-												<CallDetails
-													call={selectedCall}
-												/>
-											</div>
+											<CallDetails call={selectedCall} />
 										</div>
 									)}
 								</div>

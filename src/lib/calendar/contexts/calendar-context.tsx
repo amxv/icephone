@@ -1,11 +1,17 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 
+import {
+	createAppointment,
+	deleteAppointment,
+	updateAppointment
+} from "@/actions/appointmentActions"
 import { useLocalStorage } from "@/lib/calendar/hooks"
 import type { IEvent, IUser } from "@/lib/calendar/interfaces"
 import type { TCalendarView, TEventColor } from "@/lib/calendar/types"
+import { toast } from "sonner"
 
 interface ICalendarContext {
 	selectedDate: Date
@@ -25,9 +31,11 @@ interface ICalendarContext {
 	filterEventsBySelectedUser: (userId: IUser["id"] | "all") => void
 	users: IUser[]
 	events: IEvent[]
-	addEvent: (event: IEvent) => void
-	updateEvent: (event: IEvent) => void
-	removeEvent: (eventId: number) => void
+	addEvent: (
+		eventData: Omit<IEvent, "id" | "user" | "color">
+	) => Promise<void>
+	updateEvent: (eventData: IEvent) => Promise<void>
+	removeEvent: (eventId: number) => Promise<void>
 	clearFilter: () => void
 }
 
@@ -88,6 +96,11 @@ export function CalendarProvider({
 	)
 	const [selectedColors, setSelectedColors] = useState<TEventColor[]>([])
 	const [data, setData] = useState(events || [])
+	const [isLoading, setIsLoading] = useState(false)
+
+	useEffect(() => {
+		setData(events || [])
+	}, [events])
 
 	const updateSettings = (newPartialSettings: Partial<CalendarSettings>) => {
 		setSettings({
@@ -151,32 +164,71 @@ export function CalendarProvider({
 		setSelectedDate(date)
 	}
 
-	const addEvent = (event: IEvent) => {
-		setData((prevEvents) => [...prevEvents, event])
-	}
-
-	const updateEvent = (event: IEvent) => {
-		const newEvent: IEvent = {
-			...event,
-			startDate: new Date(event.startDate).toISOString(),
-			endDate: new Date(event.endDate).toISOString()
-		}
-
-		setData((prevEvents) => {
-			const index = prevEvents.findIndex((e) => e.id === event.id)
-			if (index !== -1) {
-				const updatedEvents = [...prevEvents]
-				updatedEvents[index] = newEvent
-				return updatedEvents
+	const addEvent = async (
+		eventData: Omit<IEvent, "id" | "user" | "color">
+	) => {
+		setIsLoading(true)
+		try {
+			const payload = {
+				title: eventData.title,
+				startDate: eventData.startDate,
+				endDate: eventData.endDate,
+				description: eventData.description,
+				location: eventData.location
 			}
-			return prevEvents
-		})
+			const result = await createAppointment(payload)
+			if ("error" in result) {
+				toast.error(result.error)
+			} else {
+				toast.success("Event added successfully.")
+			}
+		} catch (error) {
+			toast.error("Failed to add event.")
+			console.error("addEvent error:", error)
+		} finally {
+			setIsLoading(false)
+		}
 	}
 
-	const removeEvent = (eventId: number) => {
-		setData((prevEvents) =>
-			prevEvents.filter((event) => event.id !== eventId)
-		)
+	const updateEvent = async (eventData: IEvent) => {
+		setIsLoading(true)
+		try {
+			const payload = {
+				title: eventData.title,
+				startDate: new Date(eventData.startDate).toISOString(),
+				endDate: new Date(eventData.endDate).toISOString(),
+				description: eventData.description,
+				location: eventData.location
+			}
+			const result = await updateAppointment(eventData.id, payload)
+			if ("error" in result) {
+				toast.error(result.error)
+			} else {
+				toast.success("Event updated successfully.")
+			}
+		} catch (error) {
+			toast.error("Failed to update event.")
+			console.error("updateEvent error:", error)
+		} finally {
+			setIsLoading(false)
+		}
+	}
+
+	const removeEvent = async (eventId: number) => {
+		setIsLoading(true)
+		try {
+			const result = await deleteAppointment(eventId)
+			if (result.success) {
+				toast.success("Event deleted successfully.")
+			} else {
+				toast.error(result.error || "Failed to delete event.")
+			}
+		} catch (error) {
+			toast.error("Failed to delete event.")
+			console.error("removeEvent error:", error)
+		} finally {
+			setIsLoading(false)
+		}
 	}
 
 	const clearFilter = () => {

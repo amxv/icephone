@@ -112,7 +112,7 @@ export function MonthEventBadge({
 	// Apply fixed width and consistent sizing
 	const eventBadgeClasses = cn(
 		eventBadgeVariants({ color, multiDayPosition: position, className }),
-		"overflow-hidden box-border h-[26px]"
+		"overflow-hidden box-border h-[26px] cursor-pointer"
 	)
 
 	// Truncate long event titles to a maximum length
