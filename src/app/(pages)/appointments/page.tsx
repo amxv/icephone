@@ -17,7 +17,6 @@ function PageHeader() {
 				<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
 					Appointments
 				</h1>
-				
 			</div>
 		</div>
 	)

@@ -267,7 +267,7 @@ export function PipelineBoard() {
 
 	return (
 		<Card className="rounded-3xl bg-transparent shadow-none border-none flex-grow flex flex-col">
-			<CardHeader className="border-b-0 p-0 pt-2">
+			<CardHeader className="border-b-0 p-0">
 				<div className="py-1 flex items-center justify-between">
 					<Button variant="outline" size="sm" onClick={fetchLeads}>
 						<RefreshCcw className="h-4 w-4 mr-2" />

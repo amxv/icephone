@@ -182,25 +182,16 @@ function CallDetails({ call }: { call: CallItem }) {
 					<div className="flex flex-wrap gap-2 mb-2">
 						<TypeBadge type={call.type} />
 						<StatusBadge status={call.status} />
+						<Badge variant="outline" className="bg-purple-50 text-purple-800 hover:bg-purple-50 border-purple-200">
+							<ClockIcon className="h-3.5 w-3.5 mr-1" />
+							{formatDuration(call.duration)}
+						</Badge>
 					</div>
 				</div>
 
 				{/* Main content card with integrated sections */}
 				<div className="bg-card/40 backdrop-blur-sm rounded-3xl border border-border/40 shadow-sm overflow-hidden">
-					{/* Duration at the top */}
-					<div className="flex items-center justify-between p-4 border-b border-border/30 bg-background/50">
-						<div className="flex items-center gap-3">
-							<div className="h-9 w-9 rounded-full bg-purple-100 flex items-center justify-center">
-								<ClockIcon className="h-5 w-5 text-purple-800" />
-							</div>
-							<div>
-								<h3 className="font-medium text-muted-foreground text-sm">Duration</h3>
-								<div className="text-2xl font-semibold tracking-tight">
-									{formatDuration(call.duration)}
-								</div>
-							</div>
-						</div>
-					</div>
+
 
 					{/* Recording player */}
 					{call.recordingUrl && (
@@ -253,9 +244,13 @@ function CallDetails({ call }: { call: CallItem }) {
 									variant="outline"
 									size="sm"
 									className="rounded-xl"
-									onClick={() => setShowTranscript(!showTranscript)}
+									onClick={() =>
+										setShowTranscript(!showTranscript)
+									}
 								>
-									{showTranscript ? "Hide Transcript" : "Show Transcript"}
+									{showTranscript
+										? "Hide Transcript"
+										: "Show Transcript"}
 								</Button>
 							</div>
 

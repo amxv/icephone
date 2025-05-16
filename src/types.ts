@@ -74,6 +74,20 @@ export interface Email {
 	userId: string
 }
 
+// Email thread types
+export interface EmailThreadMessage {
+	content: string
+	role: "user" | "assistant"
+	timestamp: string | Date
+}
+
+export interface EmailThread {
+	thread_id: string
+	name: string | null
+	email: string | null
+	messages: EmailThreadMessage[]
+}
+
 // Lead detail data
 export interface LeadDetailData {
 	lead: Lead
@@ -81,4 +95,27 @@ export interface LeadDetailData {
 	calls: Call[]
 	textMessages: TextMessage[]
 	emails: Email[]
+}
+
+// Chat message types
+export interface ChatMessage {
+	id: number
+	chatId: number
+	content: string
+	role: "user" | "assistant"
+	timestamp: string | Date
+	userId?: string
+}
+
+// Chat types
+export interface Chat {
+	id: number
+	leadId: number | null
+	leadName: string | null
+	summary: string | null
+	timestamp: string | Date
+	createdAt?: string | Date
+	updatedAt?: string | Date
+	userId?: string
+	messages?: ChatMessage[]
 }

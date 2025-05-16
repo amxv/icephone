@@ -20,7 +20,6 @@ export function EventUpdateHandler() {
 				}
 
 				updateEvent(updatedEvent)
-				toast.success("Event updated successfully")
 			} catch {
 				toast.error("Failed to update event")
 			}

@@ -60,26 +60,17 @@ export function CalendarHeader() {
 			>
 				<div className="options flex-wrap flex items-center gap-4 md:gap-2">
 					<FilterEvents />
-					<MotionButton
-						variant="outline"
-						onClick={() => setView("agenda")}
-						asChild
-						variants={buttonHover}
-						whileHover="hover"
-						whileTap="tap"
-					>
-						<Toggle className="relative">
-							{view === "agenda" ? (
-								<>
-									<CalendarRange />
-									<span className="absolute -top-1 -right-1 size-3 rounded-full bg-green-400" />
-								</>
-							) : (
-								<LayoutList />
-							)}
-						</Toggle>
-					</MotionButton>
 					<ButtonGroup className="flex">
+						<MotionButton
+							variant={view === "agenda" ? "default" : "outline"}
+							aria-label="View as agenda"
+							onClick={() => setView("agenda")}
+							variants={buttonHover}
+							whileHover="hover"
+							whileTap="tap"
+						>
+							<LayoutList className="h-4 w-4" />
+						</MotionButton>
 						<MotionButton
 							variant={view === "day" ? "default" : "outline"}
 							aria-label="View by day"
@@ -131,14 +122,10 @@ export function CalendarHeader() {
 					<UserSelect />
 
 					<AddEditEventDialog>
-						<MotionButton
-							variants={buttonHover}
-							whileHover="hover"
-							whileTap="tap"
-						>
+						<Button>
 							<Plus className="h-4 w-4 mr-2" />
 							Add Event
-						</MotionButton>
+						</Button>
 					</AddEditEventDialog>
 				</div>
 				<Settings />

@@ -58,7 +58,7 @@ export function DateNavigator({ view, events }: IProps) {
 						exit={{ scale: 0.8, opacity: 0 }}
 						transition={transition}
 					>
-						{eventCount} events
+						{eventCount} {eventCount === 1 ? 'event' : 'events'}
 					</MotionBadge>
 				</AnimatePresence>
 			</div>

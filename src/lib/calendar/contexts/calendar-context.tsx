@@ -181,6 +181,13 @@ export function CalendarProvider({
 				toast.error(result.error)
 			} else {
 				toast.success("Event added successfully.")
+				if (result && typeof result === "object" && "id" in result) {
+					setData((currentData) => [...currentData, result as IEvent])
+				} else {
+					console.warn(
+						"CreateAppointment did not return the new event object. UI might not update correctly without a refresh."
+					)
+				}
 			}
 		} catch (error) {
 			toast.error("Failed to add event.")
@@ -201,10 +208,26 @@ export function CalendarProvider({
 				location: eventData.location
 			}
 			const result = await updateAppointment(eventData.id, payload)
+
 			if ("error" in result) {
 				toast.error(result.error)
 			} else {
 				toast.success("Event updated successfully.")
+				if (result && typeof result === "object" && "id" in result) {
+					setData((currentData) =>
+						currentData.map((event) =>
+							event.id === (result as IEvent).id
+								? (result as IEvent)
+								: event
+						)
+					)
+				} else {
+					setData((currentData) =>
+						currentData.map((event) =>
+							event.id === eventData.id ? eventData : event
+						)
+					)
+				}
 			}
 		} catch (error) {
 			toast.error("Failed to update event.")
@@ -220,6 +243,9 @@ export function CalendarProvider({
 			const result = await deleteAppointment(eventId)
 			if (result.success) {
 				toast.success("Event deleted successfully.")
+				setData((currentData) =>
+					currentData.filter((event) => event.id !== eventId)
+				)
 			} else {
 				toast.error(result.error || "Failed to delete event.")
 			}

@@ -152,12 +152,32 @@ export const emails = pgTable(
 	]
 )
 
+// Chats table - stores chat conversations or summaries with leads
+export const chats = pgTable(
+	"chats",
+	{
+		id: serial("id").primaryKey(),
+		leadId: integer("lead_id").references(() => leads.id),
+		summary: text("summary"), // Stores the main content or summary of the chat
+		timestamp: timestamp("timestamp").notNull(), // When the chat occurred/was last updated
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("chat_lead_id_idx").on(table.leadId),
+		index("chat_timestamp_idx").on(table.timestamp),
+		index("chat_user_id_idx").on(table.userId)
+	]
+)
+
 // Relations definition
 export const leadsRelations = relations(leads, ({ one, many }) => ({
 	appointments: many(appointments),
 	calls: many(calls),
 	textMessages: many(textMessages),
-	emails: many(emails)
+	emails: many(emails),
+	chats: many(chats)
 }))
 
 export const appointmentsRelations = relations(appointments, ({ one }) => ({
@@ -185,5 +205,38 @@ export const emailsRelations = relations(emails, ({ one }) => ({
 	lead: one(leads, {
 		fields: [emails.leadId],
 		references: [leads.id]
+	})
+}))
+
+// Chat messages table - stores individual messages in a chat conversation
+export const chatMessages = pgTable(
+	"chat_messages",
+	{
+		id: serial("id").primaryKey(),
+		chatId: integer("chat_id").references(() => chats.id).notNull(),
+		content: text("content").notNull(),
+		role: varchar("role", { length: 50 }).notNull(), // 'user' or 'assistant'
+		timestamp: timestamp("timestamp").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("chat_message_chat_id_idx").on(table.chatId),
+		index("chat_message_timestamp_idx").on(table.timestamp),
+		index("chat_message_user_id_idx").on(table.userId)
+	]
+)
+
+export const chatsRelations = relations(chats, ({ one, many }) => ({
+	lead: one(leads, {
+		fields: [chats.leadId],
+		references: [leads.id]
+	}),
+	messages: many(chatMessages)
+}))
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+	chat: one(chats, {
+		fields: [chatMessages.chatId],
+		references: [chats.id]
 	})
 }))

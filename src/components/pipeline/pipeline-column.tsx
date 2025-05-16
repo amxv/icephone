@@ -55,7 +55,7 @@ export function PipelineColumn({
 	}
 
 	const variants = cva(
-		"h-full w-[280px] bg-card flex flex-col flex-shrink-0 snap-center rounded-3xl border border-border/40 backdrop-blur-sm shadow-sm",
+		"h-full w-[calc(100vw-2rem)] sm:w-[220px] md:w-[17vw] lg:w-[18vw] xl:w-[20vw] bg-card flex flex-col flex-shrink-0 snap-center rounded-2xl border border-border/40 backdrop-blur-sm shadow-sm",
 		{
 			variants: {
 				dragging: {
@@ -79,7 +79,7 @@ export function PipelineColumn({
 						: undefined
 			})}
 		>
-			<CardHeader className="py-1 px-4 font-medium border-b flex flex-row items-center justify-between bg-muted/30">
+			<CardHeader className="px-4 font-medium border-b flex flex-row items-center justify-between bg-white">
 				<div className="flex items-center gap-2">
 					{column.color && (
 						<div
@@ -117,7 +117,7 @@ export function PipelineBoardContainer({
 }: { children: React.ReactNode }) {
 	const dndContext = useDndContext()
 
-	const variations = cva("px-0 flex justify-start lg:justify-center pb-2", {
+	const variations = cva("px-0 flex justify-start pb-2 overflow-x-auto", {
 		variants: {
 			dragging: {
 				default: "snap-x snap-mandatory",
@@ -132,7 +132,7 @@ export function PipelineBoardContainer({
 				dragging: dndContext.active ? "active" : "default"
 			})} flex-grow`}
 		>
-			<div className="flex gap-2 items-start py-1 flex-grow">
+			<div className="flex gap-2 items-start py-1 flex-grow px-4">
 				{children}
 			</div>
 			<ScrollBar orientation="horizontal" className="h-2" />

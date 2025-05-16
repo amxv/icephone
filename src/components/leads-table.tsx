@@ -134,7 +134,10 @@ function StatusBadge({ status }: { status: string }) {
 			variant = "outline"
 	}
 
-	return <Badge variant={variant}>{status}</Badge>
+	// Capitalize the first letter of the status
+	const displayStatus = status.charAt(0).toUpperCase() + status.slice(1)
+
+	return <Badge variant={variant}>{displayStatus}</Badge>
 }
 
 export function LeadsTable({
