@@ -213,7 +213,9 @@ export const chatMessages = pgTable(
 	"chat_messages",
 	{
 		id: serial("id").primaryKey(),
-		chatId: integer("chat_id").references(() => chats.id).notNull(),
+		chatId: integer("chat_id")
+			.references(() => chats.id)
+			.notNull(),
 		content: text("content").notNull(),
 		role: varchar("role", { length: 50 }).notNull(), // 'user' or 'assistant'
 		timestamp: timestamp("timestamp").defaultNow().notNull(),

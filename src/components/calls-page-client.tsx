@@ -182,7 +182,10 @@ function CallDetails({ call }: { call: CallItem }) {
 					<div className="flex flex-wrap gap-2 mb-2">
 						<TypeBadge type={call.type} />
 						<StatusBadge status={call.status} />
-						<Badge variant="outline" className="bg-purple-50 text-purple-800 hover:bg-purple-50 border-purple-200">
+						<Badge
+							variant="outline"
+							className="bg-purple-50 text-purple-800 hover:bg-purple-50 border-purple-200"
+						>
 							<ClockIcon className="h-3.5 w-3.5 mr-1" />
 							{formatDuration(call.duration)}
 						</Badge>
@@ -191,8 +194,6 @@ function CallDetails({ call }: { call: CallItem }) {
 
 				{/* Main content card with integrated sections */}
 				<div className="bg-card/40 backdrop-blur-sm rounded-3xl border border-border/40 shadow-sm overflow-hidden">
-
-
 					{/* Recording player */}
 					{call.recordingUrl && (
 						<div className="p-4 border-b border-border/30">

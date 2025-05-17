@@ -53,7 +53,9 @@ export function EmailThreadModal({
 								<span className="font-semibold text-sm">
 									{message.role === "assistant"
 										? "AI Receptionist"
-										: thread.name || thread.email || "Contact"}
+										: thread.name ||
+											thread.email ||
+											"Contact"}
 								</span>
 								<span className="text-xs text-foreground/60">
 									{format(
@@ -69,7 +71,9 @@ export function EmailThreadModal({
 					))}
 				</div>
 				<DialogFooter className="flex flex-row items-center w-full mt-6 pt-4 border-t">
-					<p className="text-xs text-foreground/70">{thread.thread_id}</p>
+					<p className="text-xs text-foreground/70">
+						{thread.thread_id}
+					</p>
 					<div className="ml-auto">
 						{thread.email && (
 							<Link href={`mailto:${thread.email}`}>

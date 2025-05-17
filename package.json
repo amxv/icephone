@@ -7,7 +7,7 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",
-		"check": "bunx biome check --write .",
+		"check": "bun typecheck && bunx biome check --write .",
 		"clean-next": "rm -rf .next",
 		"reinstall-deps": "rm -rf node_modules && bun install",
 		"db:seed": "bun scripts/seed-db.ts",

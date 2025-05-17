@@ -212,6 +212,9 @@ export function ChatsPageClient() {
 		(ChatItem & { messages?: ChatMessage[] }) | null
 	>(null)
 	const [isLoadingChat, setIsLoadingChat] = useState(false)
+	const [currentFetchingChatId, setCurrentFetchingChatId] = useState<
+		number | null
+	>(null)
 	const [isMobile, setIsMobile] = useState(false)
 	const [searchQuery, setSearchQuery] = useState<string>(
 		searchParams.get("search") || ""
@@ -252,44 +255,119 @@ export function ChatsPageClient() {
 	const searchQueryParam = searchParams.get("search")
 
 	// Define fetchChatDetails before using it
-	const fetchChatDetails = useCallback(async (chatId: number) => {
-		setIsLoadingChat(true)
-		try {
-			const result = await getChatById(chatId)
-			if (result.success && result.data) {
-				setSelectedChat(
-					result.data as unknown as
-						| (ChatItem & { messages?: ChatMessage[] })
-						| null
-				)
-			} else {
-				console.error("Error fetching chat details:", result.error)
+	const fetchChatDetails = useCallback(
+		async (chatId: number) => {
+			// Prevent concurrent fetches for the same chat ID or if already selected with messages
+			if (selectedChat?.id === chatId && selectedChat.messages) {
+				// Already have this chat with messages, no need to re-fetch.
+				// Ensure loading is false if somehow set.
+				if (isLoadingChat) setIsLoadingChat(false)
+				return
 			}
-		} catch (err) {
-			console.error("Error fetching chat details:", err)
-		} finally {
-			setIsLoadingChat(false)
-		}
-	}, [])
+			if (isLoadingChat && currentFetchingChatId === chatId) {
+				return
+			}
+
+			setIsLoadingChat(true)
+			setCurrentFetchingChatId(chatId)
+			try {
+				const result = await getChatById(chatId)
+				if (result.success && result.data) {
+					setSelectedChat(
+						result.data as unknown as
+							| (ChatItem & { messages?: ChatMessage[] })
+							| null
+					)
+				} else {
+					console.error("Error fetching chat details:", result.error)
+					// Clear selectedChat only if the failed fetch was for the currently intended selection
+					setSelectedChat((prev) =>
+						prev && prev.id === chatId ? null : prev
+					)
+				}
+			} catch (err) {
+				console.error("Error fetching chat details:", err)
+				setSelectedChat((prev) =>
+					prev && prev.id === chatId ? null : prev
+				)
+			} finally {
+				setIsLoadingChat(false)
+				setCurrentFetchingChatId(null)
+			}
+		},
+		[selectedChat, isLoadingChat, currentFetchingChatId]
+	)
 
 	// Load chat from URL param
 	useEffect(() => {
-		if (chatIdParam && chatsData.length > 0) {
+		if (chatIdParam) {
 			const chatId = Number.parseInt(chatIdParam, 10)
-			const chat = chatsData.find((c) => c.id === chatId)
 
-			if (chat) {
-				// Set the basic chat info
-				setSelectedChat(
-					chat as
-						| (ChatItem & { messages?: ChatMessage[] | undefined })
-						| null
-				)
-				// Fetch detailed chat info including messages
+			// If this chat is already selected and has messages, do nothing.
+			if (selectedChat?.id === chatId && selectedChat.messages) {
+				// If loading was true for some reason, set it to false.
+				if (isLoadingChat && currentFetchingChatId !== chatId)
+					setIsLoadingChat(false)
+				return
+			}
+
+			// If a fetch is in progress for a *different* chat, don't interrupt,
+			// but if it's for *this* chat, let it continue (the check in fetchChatDetails will handle it).
+			if (
+				isLoadingChat &&
+				currentFetchingChatId !== null &&
+				currentFetchingChatId !== chatId
+			) {
+				return
+			}
+
+			const chatFromList = chatsData.find((c) => c.id === chatId)
+
+			if (chatFromList) {
+				// Set basic info immediately if not already set or if it's a different chat,
+				// and messages are not yet present.
+				if (selectedChat?.id !== chatId || !selectedChat?.messages) {
+					setSelectedChat(
+						// Keep existing messages if we are just updating basic info for the same chat
+						// This case should ideally be handled by the `selectedChat.messages` check above.
+						// For safety, retain messages if switching to a chat that was already fully loaded.
+						(prev) =>
+							prev?.id === chatId && prev?.messages
+								? prev
+								: (chatFromList as ChatItem & {
+										messages?: ChatMessage[]
+									})
+					)
+				}
 				fetchChatDetails(chatId)
+			} else if (chatsData.length > 0 && !chatFromList) {
+				// Chat ID in URL but not found in loaded chatsData (and chatsData is loaded), likely an invalid ID
+				setSelectedChat(null)
+				// Optionally, remove invalid chatId from URL
+				const params = new URLSearchParams(searchParams.toString())
+				params.delete("chatId")
+				router.replace(`${pathname}?${params.toString()}`, {
+					scroll: false
+				})
+			}
+			// If chatsData is not yet loaded, this effect will re-run when it is.
+		} else {
+			// No chatIdParam, so no chat selected, unless one is actively being fetched.
+			if (!isLoadingChat) {
+				setSelectedChat(null)
 			}
 		}
-	}, [chatIdParam, chatsData, fetchChatDetails])
+	}, [
+		chatIdParam,
+		chatsData,
+		fetchChatDetails,
+		selectedChat,
+		isLoadingChat,
+		currentFetchingChatId,
+		pathname,
+		router,
+		searchParams
+	])
 
 	useEffect(() => {
 		if (searchQueryParam !== null) {
@@ -352,23 +430,19 @@ export function ChatsPageClient() {
 
 	const handleRowClick = useCallback(
 		(chat: ChatItem) => {
-			// Set the basic chat info first for immediate UI feedback
-			setSelectedChat(chat)
-
-			// Update URL params
+			// Update URL params - this will trigger the useEffect above to handle loading
 			const params = new URLSearchParams(searchParams.toString())
-			params.set("chatId", chat.id.toString()) // Changed from callId
+			params.set("chatId", chat.id.toString())
 			if (searchQuery) {
 				params.set("search", searchQuery)
 			}
 			router.replace(`${pathname}?${params.toString()}`, {
 				scroll: false
 			})
-
-			// Fetch detailed chat info including messages
-			fetchChatDetails(chat.id)
+			// No direct call to setSelectedChat or fetchChatDetails here.
+			// The useEffect listening to chatIdParam will handle it.
 		},
-		[searchParams, pathname, router, searchQuery, fetchChatDetails]
+		[searchParams, pathname, router, searchQuery] // Removed fetchChatDetails from dependencies
 	)
 
 	const handleClosePanel = useCallback(() => {

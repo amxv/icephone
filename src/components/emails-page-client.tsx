@@ -1,9 +1,9 @@
 "use client"
 
-import { getEmails, getEmailById } from "@/actions/emails" // Changed from getCalls
+import { getEmailById, getEmails } from "@/actions/emails" // Changed from getCalls
+import { EmailThreadModal } from "@/components/email-thread-modal" // Added new import
 import { EmailsTable } from "@/components/emails-table" // Changed from CallsTable
 import type { EmailItem } from "@/components/emails-table" // Changed from CallItem
-import { EmailThreadModal } from "@/components/email-thread-modal" // Added new import
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,9 +14,9 @@ import {
 	DialogTitle
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import type { EmailThread, EmailThreadMessage } from "@/types" // Added new import
 // ColumnFiltersState might not be strictly needed if not implementing type/status filters from URL for emails yet
 import type { ColumnFiltersState } from "@tanstack/react-table"
-import type { EmailThread } from "@/types" // Added new import
 import { format } from "date-fns"
 import {
 	ClockIcon,
@@ -160,7 +160,9 @@ export function EmailsPageClient() {
 	const [emailsData, setEmailsData] = useState<EmailItem[]>([]) // Changed from callsData
 	const [error, setError] = useState<string | null>(null)
 	const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null) // Changed from selectedCall
-	const [selectedThread, setSelectedThread] = useState<EmailThread | null>(null) // Added for email thread modal
+	const [selectedThread, setSelectedThread] = useState<EmailThread | null>(
+		null
+	) // Added for email thread modal
 	const [isMobile, setIsMobile] = useState(false)
 	const [searchQuery, setSearchQuery] = useState<string>(
 		searchParams.get("search") || ""
@@ -214,7 +216,7 @@ export function EmailsPageClient() {
 			router.replace(`${pathname}?${params.toString()}`, {
 				scroll: false
 			})
-            
+
 			// Load detailed email for modal
 			try {
 				const emailDetail = await getEmailById(email.id)
@@ -223,19 +225,36 @@ export function EmailsPageClient() {
 					const thread: EmailThread = {
 						thread_id: `thread_${email.id}`,
 						name: email.leadName,
-						email: emailDetail.data.leadId ? 'user@example.com' : null, // Placeholder for demo
+						email: emailDetail.data.leadId
+							? "user@example.com"
+							: null, // Placeholder for demo
 						messages: [
 							{
-								content: emailDetail.data.content || emailDetail.data.subject || "No content available",
-								role: emailDetail.data.type === "incoming" ? "user" : "assistant",
+								content:
+									emailDetail.data.content ||
+									emailDetail.data.subject ||
+									"No content available",
+								role:
+									emailDetail.data.type === "incoming"
+										? "user"
+										: "assistant",
 								timestamp: emailDetail.data.sentAt
-							},
+							} as EmailThreadMessage,
 							// For demo purposes, add a response if it's an incoming email
-							...(emailDetail.data.type === "incoming" ? [{
-								content: "Thank you for your email. Your request has been received and our team will process it shortly.",
-								role: "assistant",
-								timestamp: new Date(new Date(emailDetail.data.sentAt).getTime() + 3600000).toISOString() // 1 hour later
-							}] : [])
+							...(emailDetail.data.type === "incoming"
+								? [
+										{
+											content:
+												"Thank you for your email. Your request has been received and our team will process it shortly.",
+											role: "assistant",
+											timestamp: new Date(
+												new Date(
+													emailDetail.data.sentAt
+												).getTime() + 3600000
+											).toISOString() // 1 hour later
+										} as EmailThreadMessage
+									]
+								: [])
 						]
 					}
 					setSelectedThread(thread)
@@ -326,8 +345,6 @@ export function EmailsPageClient() {
 		[searchParams, pathname, router, selectedEmail]
 	)
 
-	
-
 	// Fetch emails data
 	useEffect(() => {
 		async function fetchData() {
@@ -377,9 +394,9 @@ export function EmailsPageClient() {
 
 				{/* Render the EmailThreadModal when we have thread data */}
 				{selectedThread && (
-					<EmailThreadModal 
-						thread={selectedThread} 
-						onClose={handleClosePanel} 
+					<EmailThreadModal
+						thread={selectedThread}
+						onClose={handleClosePanel}
 					/>
 				)}
 
@@ -429,13 +446,9 @@ export function EmailsPageClient() {
 											data={emailsData}
 											// initialColumnFilters={initialColumnFilters} // Removed for now
 											onRowClick={handleRowClick}
-											selectedEmailId={
-												selectedEmail?.id
-											} // Changed from selectedCallId
+											selectedEmailId={selectedEmail?.id} // Changed from selectedCallId
 											searchQuery={searchQuery}
-											onSearchChange={
-												handleSearchChange
-											}
+											onSearchChange={handleSearchChange}
 										/>
 									</div>
 								</div>
