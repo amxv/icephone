@@ -14,6 +14,7 @@ type CallFilter = {
 	endDate?: Date
 	orderBy?: string
 	orderDir?: "asc" | "desc"
+	campaignId?: number
 }
 
 // Mock data for development and demonstration
@@ -182,6 +183,11 @@ export async function getCalls(filter: CallFilter = {}) {
 		// Collect where conditions
 		const whereConditions: SQL[] = [eq(calls.userId, userId)]
 
+		// Filter by campaignId if provided
+		if (filter.campaignId !== undefined) {
+			whereConditions.push(eq(calls.campaignId, filter.campaignId))
+		}
+
 		// Apply search filter
 		if (filter.search) {
 			const searchPattern = `%${filter.search}%`
@@ -239,26 +245,14 @@ export async function getCalls(filter: CallFilter = {}) {
 			.orderBy(desc(calls.startTime))
 
 		// For development/testing, create some mock data if no calls exist
-		if (callsData.length === 0) {
-			const mockData = Array.from({ length: 15 }, (_, i) => ({
-				id: i + 1,
-				leadId: 1,
-				leadName: `Test Lead ${(i % 5) + 1}`,
-				type: i % 2 === 0 ? "incoming" : "outgoing",
-				duration: Math.floor(Math.random() * 600) + 30, // 30 to 630 seconds
-				startTime: new Date(
-					Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
-				), // Random date within last 30 days
-				summary: `Mock call summary ${i + 1}. This is an automated test entry for development purposes.`,
-				transcript: `Mock transcript for call ${i + 1}. The customer and agent discussed various topics related to the product. This is a long placeholder text to simulate an actual transcript.`,
-				recordingUrl:
-					i % 3 === 0 ? "https://example.com/recording.mp3" : null,
-				status: ["answered", "voicemail", "missed", "completed"][i % 4],
-				createdAt: new Date(),
-				updatedAt: new Date()
+		// AND if no campaignId filter is active (to avoid showing all mocks for a specific campaign)
+		if (callsData.length === 0 && filter.campaignId === undefined) {
+			const mockDataWithCampaign = MOCK_CALLS.map((call, index) => ({
+				...call,
+				campaignId: (index % 2) + 1, // Assign mock calls to campaign 1 or 2
+				campaignName: `Mock Campaign ${(index % 2) + 1}` // Also add campaignName for potential use
 			}))
-
-			return { data: mockData, success: true, error: null }
+			return { data: mockDataWithCampaign, success: true, error: null }
 		}
 
 		return { data: callsData, success: true, error: null }

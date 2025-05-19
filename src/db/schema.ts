@@ -77,6 +77,27 @@ export const appointments = pgTable(
 	]
 )
 
+// Campaigns table - stores information about marketing/calling campaigns
+export const campaigns = pgTable(
+	"campaigns",
+	{
+		id: serial("id").primaryKey(),
+		name: varchar("name", { length: 255 }).notNull(),
+		description: text("description"),
+		startDate: timestamp("start_date"),
+		endDate: timestamp("end_date"),
+		status: varchar("status", { length: 50 }).default("draft"), // e.g., draft, active, completed, archived
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("campaign_name_idx").on(table.name),
+		index("campaign_status_idx").on(table.status),
+		index("campaign_user_id_idx").on(table.userId)
+	]
+)
+
 // Calls table - stores call records with leads
 export const calls = pgTable(
 	"calls",
@@ -85,6 +106,7 @@ export const calls = pgTable(
 		leadId: integer("lead_id")
 			.notNull()
 			.references(() => leads.id),
+		campaignId: integer("campaign_id").references(() => campaigns.id),
 		type: communicationTypeEnum("type").notNull(),
 		duration: integer("duration"), // in seconds
 		startTime: timestamp("start_time").notNull(),
@@ -98,6 +120,7 @@ export const calls = pgTable(
 	},
 	(table) => [
 		index("call_lead_id_idx").on(table.leadId),
+		index("call_campaign_id_idx").on(table.campaignId),
 		index("call_start_time_idx").on(table.startTime),
 		index("call_user_id_idx").on(table.userId)
 	]
@@ -191,6 +214,10 @@ export const callsRelations = relations(calls, ({ one }) => ({
 	lead: one(leads, {
 		fields: [calls.leadId],
 		references: [leads.id]
+	}),
+	campaign: one(campaigns, {
+		fields: [calls.campaignId],
+		references: [campaigns.id]
 	})
 }))
 
@@ -241,4 +268,9 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
 		fields: [chatMessages.chatId],
 		references: [chats.id]
 	})
+}))
+
+// Add campaign relations
+export const campaignsRelations = relations(campaigns, ({ many }) => ({
+	calls: many(calls)
 }))

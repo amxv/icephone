@@ -33,6 +33,7 @@ import {
 	SearchIcon,
 	UsersIcon // For leads count
 } from "lucide-react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 import { z } from "zod"
@@ -241,18 +242,23 @@ export function CampaignsTable({
 						onClick={() =>
 							column.toggleSorting(column.getIsSorted() === "asc")
 						}
-						className="hover:bg-transparent p-0 font-medium"
+						className="hover:bg-muted/50 pl-0"
 					>
-						Campaign Name
+						Name
 						{column.getIsSorted() === "asc" ? (
-							<ArrowUpIcon className="ml-1.5 h-4 w-4" />
+							<ArrowUpIcon className="ml-2 h-4 w-4" />
 						) : column.getIsSorted() === "desc" ? (
-							<ArrowDownIcon className="ml-1.5 h-4 w-4" />
+							<ArrowDownIcon className="ml-2 h-4 w-4" />
 						) : null}
 					</Button>
 				),
 				cell: ({ row }) => (
-					<div className="font-medium">{row.original.name}</div>
+					<Link
+						href={`/campaigns/${row.original.id}`}
+						className="hover:underline"
+					>
+						{row.getValue("name")}
+					</Link>
 				),
 				size: 300
 			},
