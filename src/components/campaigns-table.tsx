@@ -143,16 +143,14 @@ export function CampaignsTable({
 	data: initialData,
 	initialColumnFilters = [],
 	onFilterChange,
-	// onRowClick, // Removed as per requirement
-	// selectedCampaignId, // Removed
+	onRowClick,
 	searchQuery,
 	onSearchChange
 }: {
 	data: CampaignItem[]
 	initialColumnFilters?: ColumnFiltersState
 	onFilterChange?: (filters: ColumnFiltersState) => void
-	// onRowClick?: (campaign: CampaignItem) => void; // Removed
-	// selectedCampaignId?: number; // Removed
+	onRowClick?: (campaign: CampaignItem) => void
 	searchQuery: string
 	onSearchChange: (query: string) => void
 }) {
@@ -397,7 +395,6 @@ export function CampaignsTable({
 							onClick={(e) => e.stopPropagation()} // Prevent row click if any
 						>
 							<DropdownMenuItem
-								// onClick={() => onRowClick && onRowClick(row.original)} // Removed
 								onClick={() =>
 									router.push(`/campaigns/${row.original.id}`)
 								} // Navigate to campaign details page
@@ -418,7 +415,7 @@ export function CampaignsTable({
 				maxSize: 50
 			}
 		],
-		[router /*, onRowClick*/] // Removed onRowClick
+		[router]
 	)
 
 	const table = useReactTable({
@@ -652,9 +649,13 @@ export function CampaignsTable({
 								table.getRowModel().rows.map((row) => (
 									<TableRow
 										key={row.id}
-										// onClick={() => onRowClick && onRowClick(row.original)} // Removed
-										className="hover:bg-accent/20 transition-colors cursor-pointer"
-										// selectedCampaignId === row.original.id ? "bg-accent/40" : "" // Removed
+										data-state={
+											row.getIsSelected() && "selected"
+										}
+										className="cursor-pointer"
+										onClick={() =>
+											onRowClick?.(row.original)
+										}
 									>
 										{row
 											.getVisibleCells()

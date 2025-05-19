@@ -19,8 +19,8 @@ export default async function CampaignDetailsPage({
 	const params = await paramsPromise // Await the promise
 	const campaignId = params.id
 	return (
-		<div className="container h-[calc(100vh-5rem)]">
-			<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
+		<div className="container">
+			<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4">
 				<CampaignDetailsPageClient campaignId={campaignId} />
 			</div>
 		</div>

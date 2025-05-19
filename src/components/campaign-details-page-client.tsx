@@ -1,7 +1,9 @@
 "use client"
 
 import { getCalls } from "@/actions/calls"
+import { AddLeadsModal } from "@/components/add-leads-modal"
 import { type CallItem, CallsTable } from "@/components/calls-table"
+import { CampaignStatsDashboard } from "@/components/campaign-stats-dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -21,6 +23,7 @@ import {
 	PhoneCallIcon,
 	PhoneIncomingIcon,
 	PhoneOutgoingIcon,
+	PlusCircleIcon,
 	XIcon
 } from "lucide-react"
 import Link from "next/link"
@@ -48,17 +51,98 @@ type RawCallFromGetCalls = {
 }
 
 // --- Re-scoped Helper Components ---
-function CampaignPageHeader({ campaignId }: { campaignId: string }) {
+
+// Format duration in seconds to MM:SS format
+function formatDuration(seconds: number | null): string {
+	if (seconds === null) return "N/A"
+
+	const minutes = Math.floor(seconds / 60)
+	const remainingSeconds = seconds % 60
+	return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`
+}
+
+// Type Badge Component
+function TypeBadge({ type }: { type: "incoming" | "outgoing" }) {
+	if (type === "incoming") {
+		return (
+			<Badge
+				variant="outline"
+				className="bg-green-100 text-green-800 border-green-200"
+			>
+				<PhoneIncomingIcon className="h-3 w-3 mr-1" /> Incoming
+			</Badge>
+		)
+	}
+
 	return (
-		<div className="flex items-center justify-between">
+		<Badge
+			variant="outline"
+			className="bg-blue-100 text-blue-800 border-blue-200"
+		>
+			<PhoneOutgoingIcon className="h-3 w-3 mr-1" /> Outgoing
+		</Badge>
+	)
+}
+
+// Status Badge Component
+function StatusBadge({ status }: { status: string | null }) {
+	if (!status)
+		return <span className="text-muted-foreground italic">Unknown</span>
+
+	const statusConfig: Record<string, { color: string; label: string }> = {
+		answered: {
+			color: "bg-green-100 text-green-800 border-green-200",
+			label: "Answered"
+		},
+		voicemail: {
+			color: "bg-orange-100 text-orange-800 border-orange-200",
+			label: "Voicemail"
+		},
+		missed: {
+			color: "bg-red-100 text-red-800 border-red-200",
+			label: "Missed"
+		},
+		busy: {
+			color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+			label: "Busy"
+		},
+		failed: {
+			color: "bg-red-100 text-red-800 border-red-200",
+			label: "Failed"
+		}
+	}
+
+	const config = statusConfig[status.toLowerCase()] || {
+		color: "bg-gray-100 text-gray-800 border-gray-200",
+		label: status
+	}
+
+	return (
+		<Badge variant="outline" className={config.color}>
+			{config.label}
+		</Badge>
+	)
+}
+
+function CampaignPageHeader({
+	campaignId,
+	onAddLeadsClick
+}: { campaignId: string; onAddLeadsClick: () => void }) {
+	return (
+		<div className="flex items-center justify-between mb-6">
 			<div>
 				<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
 					Campaign Calls
 				</h1>
-				<p className="text-muted-foreground">
-					Displaying calls for Campaign ID: {campaignId}
-				</p>
 			</div>
+			<Button
+				onClick={onAddLeadsClick}
+				variant="outline"
+				className="rounded-xl"
+			>
+				<PlusCircleIcon className="h-4 w-4 mr-2" />
+				Add Leads
+			</Button>
 		</div>
 	)
 }
@@ -90,6 +174,7 @@ function CampaignCallDetailsPanel({ call }: { call: CallItem }) {
 	return (
 		<div className="flex-1 overflow-hidden flex flex-col">
 			<div className="p-4 overflow-y-auto h-full">
+				{/* Header with call info */}
 				<div className="mb-4">
 					<div className="flex items-center gap-2 mb-3">
 						<div className="rounded-full bg-card p-2 border border-border/40 shadow-sm">
@@ -119,12 +204,29 @@ function CampaignCallDetailsPanel({ call }: { call: CallItem }) {
 							</div>
 						</div>
 					</div>
+
+					<div className="flex flex-wrap gap-2 mb-2">
+						<TypeBadge type={call.type} />
+						<StatusBadge status={call.status} />
+						<Badge
+							variant="outline"
+							className="bg-purple-50 text-purple-800 hover:bg-purple-50 border-purple-200"
+						>
+							<ClockIcon className="h-3.5 w-3.5 mr-1" />
+							{formatDuration(call.duration)}
+						</Badge>
+					</div>
 				</div>
+
+				{/* Main content card with integrated sections */}
 				<div className="bg-card/40 backdrop-blur-sm rounded-3xl border border-border/40 shadow-sm overflow-hidden">
+					{/* Recording player */}
 					{call.recordingUrl && (
 						<div className="p-4 border-b border-border/30">
-							<div className="flex items-center gap-3 mb-2">
-								<PhoneCallIcon className="h-5 w-5 text-blue-700" />
+							<div className="flex items-center gap-3 mb-3">
+								<div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center">
+									<PhoneCallIcon className="h-5 w-5 text-blue-800" />
+								</div>
 								<h3 className="font-medium">Recording</h3>
 							</div>
 							<audio
@@ -137,27 +239,36 @@ function CampaignCallDetailsPanel({ call }: { call: CallItem }) {
 									srcLang="en"
 									label="English"
 								/>
+								Your browser does not support the audio element.
 							</audio>
 						</div>
 					)}
+
+					{/* Call Summary */}
 					<div className="p-4 border-b border-border/30">
-						<div className="flex items-center gap-3 mb-2">
-							<FileTextIcon className="h-5 w-5 text-amber-700" />
+						<div className="flex items-center gap-3 mb-3">
+							<div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center">
+								<FileTextIcon className="h-5 w-5 text-amber-800" />
+							</div>
 							<h3 className="font-medium">Summary</h3>
 						</div>
-						<div className="bg-background/60 p-3 rounded-xl shadow-sm text-sm">
+						<div className="bg-background/60 p-3 rounded-xl shadow-sm">
 							{call.summary || (
 								<span className="text-muted-foreground italic">
-									No summary.
+									No summary available.
 								</span>
 							)}
 						</div>
 					</div>
+
+					{/* Call Transcript with Collapsible Content */}
 					{call.transcript && (
 						<div className="p-4">
-							<div className="flex items-center justify-between mb-2">
+							<div className="flex items-center justify-between mb-3">
 								<div className="flex items-center gap-3">
-									<MessageSquareIcon className="h-5 w-5 text-green-700" />
+									<div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center">
+										<MessageSquareIcon className="h-5 w-5 text-green-800" />
+									</div>
 									<h3 className="font-medium">Transcript</h3>
 								</div>
 								<Button
@@ -168,12 +279,15 @@ function CampaignCallDetailsPanel({ call }: { call: CallItem }) {
 										setShowTranscript(!showTranscript)
 									}
 								>
-									{showTranscript ? "Hide" : "Show"}
+									{showTranscript
+										? "Hide Transcript"
+										: "Show Transcript"}
 								</Button>
 							</div>
+
 							{showTranscript && (
-								<div className="bg-background/60 p-3 rounded-xl shadow-sm max-h-80 overflow-y-auto text-sm">
-									<pre className="whitespace-pre-wrap">
+								<div className="bg-background/60 p-3 rounded-xl shadow-sm max-h-64 overflow-y-auto text-sm">
+									<pre className="whitespace-pre-wrap font-normal">
 										{call.transcript}
 									</pre>
 								</div>
@@ -264,6 +378,7 @@ export function CampaignDetailsPageClient({
 	const [error, setError] = useState<string | null>(null)
 	const [selectedCall, setSelectedCall] = useState<CallItem | null>(null)
 	const [isMobile, setIsMobile] = useState(false)
+	const [isAddLeadsModalOpen, setIsAddLeadsModalOpen] = useState(false)
 
 	// Simplified state for CallsTable interaction
 	const [currentSearchQuery, setCurrentSearchQuery] = useState<string>(
@@ -412,15 +527,27 @@ export function CampaignDetailsPageClient({
 	if (isLoading && calls.length === 0) {
 		return (
 			<>
-				<CampaignPageHeader campaignId={campaignId} />
+				<CampaignPageHeader
+					campaignId={campaignId}
+					onAddLeadsClick={() => setIsAddLeadsModalOpen(true)}
+				/>
 				<CampaignCallsTableSkeleton />
+				<AddLeadsModal
+					open={isAddLeadsModalOpen}
+					onOpenChange={setIsAddLeadsModalOpen}
+					campaignId={campaignId}
+				/>
 			</>
 		)
 	}
 
 	return (
 		<>
-			<CampaignPageHeader campaignId={campaignId} />
+			<CampaignPageHeader
+				campaignId={campaignId}
+				onAddLeadsClick={() => setIsAddLeadsModalOpen(true)}
+			/>
+			<CampaignStatsDashboard />
 			{error ? (
 				<Card className="rounded-3xl border-destructive bg-destructive/10 p-6 text-center">
 					<h3 className="text-lg font-semibold text-destructive">
@@ -541,6 +668,11 @@ export function CampaignDetailsPageClient({
 					</Card>
 				</div>
 			)}
+			<AddLeadsModal
+				open={isAddLeadsModalOpen}
+				onOpenChange={setIsAddLeadsModalOpen}
+				campaignId={campaignId}
+			/>
 		</>
 	)
 }

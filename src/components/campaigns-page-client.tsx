@@ -301,21 +301,17 @@ export function CampaignsPageClient() {
 				) : (
 					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm flex-1 flex flex-col overflow-hidden">
 						<CardContent className="px-6 pb-3 h-full flex flex-col overflow-hidden">
-							<div className="flex h-full overflow-hidden">
-								<div className="w-full flex flex-col overflow-hidden">
-									<div className="custom-campaigns-table flex-1 flex flex-col overflow-y-auto">
-										<CampaignsTable
-											data={campaignsData}
-											initialColumnFilters={
-												initialColumnFilters
-											}
-											onFilterChange={handleFilterChange}
-											// onRowClick will be implemented later for campaign details
-											searchQuery={searchQuery}
-											onSearchChange={handleSearchChange}
-										/>
-									</div>
-								</div>
+							<div className="custom-campaigns-table overflow-y-auto">
+								<CampaignsTable
+									data={campaignsData}
+									initialColumnFilters={initialColumnFilters}
+									onFilterChange={handleFilterChange}
+									onRowClick={(row: CampaignItem) => {
+										router.push(`/campaigns/${row.id}`)
+									}}
+									searchQuery={searchQuery}
+									onSearchChange={handleSearchChange}
+								/>
 							</div>
 						</CardContent>
 					</Card>
