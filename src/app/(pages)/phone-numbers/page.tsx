@@ -2,7 +2,8 @@ import type { Metadata } from "next"
 
 export const metadata: Metadata = {
 	title: "Phone Numbers | IcePhone",
-	description: "Manage your inbound and outbound phone numbers for AI voice agents"
+	description:
+		"Manage your inbound and outbound phone numbers for AI voice agents"
 }
 
 import { PhoneNumbersPageClient } from "@/components/phone-numbers-page-client"

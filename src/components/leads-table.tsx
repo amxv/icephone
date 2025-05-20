@@ -140,6 +140,66 @@ function StatusBadge({ status }: { status: string }) {
 	return <Badge variant={variant}>{displayStatus}</Badge>
 }
 
+// ScoreRangeSlider component
+function ScoreRangeSlider({
+	value,
+	onChange
+}: {
+	value: [number, number]
+	onChange: (value: [number, number]) => void
+}) {
+	// Use local state to track slider values
+	const [sliderValue, setSliderValue] =
+		React.useState<[number, number]>(value)
+	// Track whether the value is being changed to avoid unnecessary updates
+	const [isChanging, setIsChanging] = React.useState(false)
+
+	// Update local state when external value changes
+	React.useEffect(() => {
+		// Only update local state if not currently changing
+		if (!isChanging) {
+			setSliderValue(value)
+		}
+	}, [value, isChanging])
+
+	// Debounce value changes before sending to parent
+	React.useEffect(() => {
+		// Skip the initial render
+		if (sliderValue === value) return
+
+		const timer = setTimeout(() => {
+			onChange(sliderValue)
+			setIsChanging(false)
+		}, 400) // 400ms debounce delay
+
+		return () => clearTimeout(timer)
+	}, [sliderValue, onChange, value])
+
+	// Handle value change without immediately updating parent
+	const handleValueChange = (newValue: number[]) => {
+		setIsChanging(true)
+		const typedValue: [number, number] = [newValue[0], newValue[1]]
+		setSliderValue(typedValue)
+	}
+
+	return (
+		<div className="space-y-2">
+			<div className="flex justify-between mb-1">
+				<div className="font-medium text-sm">{sliderValue[0]}</div>
+				<div className="font-medium text-sm">{sliderValue[1]}</div>
+			</div>
+			<Slider
+				min={0}
+				max={100}
+				step={1}
+				value={sliderValue}
+				onValueChange={handleValueChange}
+				className="w-full"
+			/>
+		</div>
+	)
+}
+
 export function LeadsTable({
 	data: initialData,
 	initialColumnFilters = [],
@@ -601,66 +661,6 @@ export function LeadsTable({
 	// Set score filter
 	const setScoreFilter = (value: [number, number]) => {
 		table.getColumn("score")?.setFilterValue(value)
-	}
-
-	// ScoreRangeSlider component
-	function ScoreRangeSlider({
-		value,
-		onChange
-	}: {
-		value: [number, number]
-		onChange: (value: [number, number]) => void
-	}) {
-		// Use local state to track slider values
-		const [sliderValue, setSliderValue] =
-			React.useState<[number, number]>(value)
-		// Track whether the value is being changed to avoid unnecessary updates
-		const [isChanging, setIsChanging] = React.useState(false)
-
-		// Update local state when external value changes
-		React.useEffect(() => {
-			// Only update local state if not currently changing
-			if (!isChanging) {
-				setSliderValue(value)
-			}
-		}, [value, isChanging])
-
-		// Debounce value changes before sending to parent
-		React.useEffect(() => {
-			// Skip the initial render
-			if (sliderValue === value) return
-
-			const timer = setTimeout(() => {
-				onChange(sliderValue)
-				setIsChanging(false)
-			}, 400) // 400ms debounce delay
-
-			return () => clearTimeout(timer)
-		}, [sliderValue, onChange, value])
-
-		// Handle value change without immediately updating parent
-		const handleValueChange = (newValue: number[]) => {
-			setIsChanging(true)
-			const typedValue: [number, number] = [newValue[0], newValue[1]]
-			setSliderValue(typedValue)
-		}
-
-		return (
-			<div className="space-y-2">
-				<div className="flex justify-between mb-1">
-					<div className="font-medium text-sm">{sliderValue[0]}</div>
-					<div className="font-medium text-sm">{sliderValue[1]}</div>
-				</div>
-				<Slider
-					min={0}
-					max={100}
-					step={1}
-					value={sliderValue}
-					onValueChange={handleValueChange}
-					className="w-full"
-				/>
-			</div>
-		)
 	}
 
 	// Handle toggling a filter value

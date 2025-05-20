@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { FileTextIcon, UploadCloudIcon, UserPlusIcon } from "lucide-react"
 import { useState } from "react"
+import FileUpload from "./ui/file-upload"
 
 interface AddLeadsModalProps {
 	open: boolean
@@ -30,15 +31,36 @@ export function AddLeadsModal({
 }: AddLeadsModalProps) {
 	const [activeTab, setActiveTab] = useState("single")
 	const [csvFile, setCsvFile] = useState<File | null>(null)
+	const [uploadedFiles, setUploadedFiles] = useState<
+		Array<{
+			id: string
+			preview: string
+			progress: number
+			name: string
+			size: number
+			type: string
+			lastModified?: number
+			file?: File
+		}>
+	>([])
 	const [leadName, setLeadName] = useState("")
 	const [leadPhone, setLeadPhone] = useState("")
 	const [leadEmail, setLeadEmail] = useState("")
 	const [leadNotes, setLeadNotes] = useState("")
 
-	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		if (event.target.files?.[0]) {
-			setCsvFile(event.target.files[0])
-		}
+	const handleFiles = (fileList: FileList) => {
+		const newFiles = Array.from(fileList).map((file) => ({
+			id: `${URL.createObjectURL(file)}-${Date.now()}`,
+			preview: URL.createObjectURL(file),
+			progress: 0,
+			name: file.name,
+			size: file.size,
+			type: file.type,
+			lastModified: file.lastModified,
+			file
+		}))
+		setUploadedFiles((prev) => [...prev, ...newFiles])
+		setCsvFile(fileList[0]) // Keep the first file for backward compatibility
 	}
 
 	const handleAddSingleLead = () => {
@@ -178,20 +200,7 @@ export function AddLeadsModal({
 						<TabsContent value="csv">
 							<div className="space-y-4">
 								<div>
-									<Label htmlFor="csv-file">CSV File</Label>
-									<Input
-										id="csv-file"
-										type="file"
-										accept=".csv"
-										onChange={handleFileChange}
-										className="rounded-lg mt-1.5"
-									/>
-									{csvFile && (
-										<p className="text-sm text-muted-foreground mt-2 flex items-center">
-											<FileTextIcon className="h-4 w-4 mr-1.5 text-primary" />
-											Selected: {csvFile.name}
-										</p>
-									)}
+									<FileUpload />
 								</div>
 								<div className="text-xs text-muted-foreground p-3 bg-slate-50 rounded-xl border border-slate-200">
 									<p className="font-medium mb-1 text-slate-700">

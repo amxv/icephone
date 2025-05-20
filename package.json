@@ -6,8 +6,8 @@
 		"dev": "( : > logs/server.log && FORCE_COLOR=1 next dev --turbopack 2>&1 ) | tee >(perl -pe 's/\\x1B\\[[0-9;]*[a-zA-Z]//g; $|=1' | while IFS= read -r line; do printf \"[%s] %s\\n\" \"$(date +'%Y-%m-%d %H:%M:%S')\" \"$line\" >> logs/server.log; done)",
 		"build": "next build",
 		"start": "next start",
-		"lint": "next lint",
-		"check": "bun typecheck && bunx biome check --write .",
+		"lint": "eslint \"src/**/*.{jsx,tsx}\"",
+		"check": "bun typecheck && bunx biome check --write . && bun run lint",
 		"clean-next": "rm -rf .next",
 		"reinstall-deps": "rm -rf node_modules && bun install",
 		"db:seed": "bun scripts/seed-db.ts",
@@ -62,8 +62,9 @@
 		"dotenv": "^16.5.0",
 		"drizzle-orm": "^0.42.0",
 		"framer-motion": "^12.12.1",
-		"lucide-react": "^0.501.0",
+		"lucide-react": "^0.511.0",
 		"markdown-to-jsx": "^7.7.6",
+		"motion": "^12.12.1",
 		"next": "^15.3.2",
 		"next-themes": "^0.4.6",
 		"pg": "^8.16.0",
@@ -77,19 +78,28 @@
 		"tw-animate-css": "^1.3.0",
 		"vaul": "^1.1.2",
 		"wrangler": "^4.15.2",
-		"zod": "^3.25.3"
+		"zod": "^3.25.6"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
+		"@eslint/js": "^9.27.0",
+		"@next/eslint-plugin-next": "^15.3.2",
 		"@opennextjs/aws": "^3.6.2",
 		"@tailwindcss/postcss": "^4.1.7",
 		"@types/node": "^22.15.19",
 		"@types/react": "^19.1.4",
 		"@types/react-dom": "^19.1.5",
+		"babel-plugin-react-compiler": "^19.1.0-rc.2",
 		"drizzle-kit": "^0.31.1",
+		"eslint": "^9.27.0",
+		"eslint-plugin-react": "^7.37.5",
+		"eslint-plugin-react-compiler": "^19.1.0-rc.2",
+		"eslint-plugin-react-hooks": "6.0.0-rc.1",
+		"globals": "^16.1.0",
 		"husky": "^9.1.7",
 		"postcss": "^8.5.3",
 		"tailwindcss": "^4.1.7",
-		"typescript": "^5.8.3"
+		"typescript": "^5.8.3",
+		"typescript-eslint": "^8.32.1"
 	}
 }
