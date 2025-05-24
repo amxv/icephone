@@ -9,11 +9,20 @@ import {
 	TooltipProvider,
 	TooltipTrigger
 } from "@/components/ui/tooltip"
+import { CALL_STATUS, useVapi } from "@/hooks/useVapi"
+import {
+	type Message,
+	MessageTypeEnum,
+	type TranscriptMessage,
+	TranscriptMessageTypeEnum
+} from "@/lib/types/conversation"
+import { createVapiAssistant } from "@/lib/vapi-assistant"
 import type { VoiceAgentWithPhoneNumber } from "@/types"
 import {
 	Activity,
 	Circle,
 	Clock,
+	ExternalLink,
 	Mic,
 	MicOff,
 	Phone,
@@ -48,11 +57,6 @@ interface VoiceCallWidgetProps {
 	className?: string
 }
 
-// Type for Millis SDK client
-type MillisClient = ReturnType<
-	typeof import("@millisai/web-sdk").default.createClient
->
-
 export function VoiceCallWidget({
 	agent,
 	onCallEnd,
@@ -73,9 +77,92 @@ export function VoiceCallWidget({
 		"excellent" | "good" | "poor"
 	>("excellent")
 
-	const millennisRef = useRef<MillisClient | null>(null)
 	const intervalRef = useRef<NodeJS.Timeout | null>(null)
 	const startTimeRef = useRef<number | null>(null)
+
+	// Use Vapi hook
+	const {
+		callStatus,
+		isSpeechActive,
+		audioLevel,
+		messages,
+		activeTranscript,
+		webCallUrl,
+		start,
+		stop,
+		sendMessage,
+		joinCall
+	} = useVapi()
+
+	// Convert Vapi status to our internal status
+	useEffect(() => {
+		switch (callStatus) {
+			case CALL_STATUS.INACTIVE:
+				if (
+					callState.status !== "idle" &&
+					callState.status !== "ended"
+				) {
+					setCallState((prev) => ({ ...prev, status: "ended" }))
+				}
+				break
+			case CALL_STATUS.LOADING:
+				setCallState((prev) => ({ ...prev, status: "connecting" }))
+				break
+			case CALL_STATUS.ACTIVE:
+				if (callState.status === "connecting") {
+					setCallState((prev) => ({ ...prev, status: "connected" }))
+					startTimeRef.current = Date.now()
+					startDurationTimer()
+					toast.success("Connected to voice agent")
+				}
+				break
+		}
+	}, [callStatus, callState.status])
+
+	// Handle speech activity
+	useEffect(() => {
+		if (callStatus === CALL_STATUS.ACTIVE) {
+			if (isSpeechActive) {
+				setCallState((prev) => ({ ...prev, status: "listening" }))
+			} else {
+				setCallState((prev) => ({ ...prev, status: "speaking" }))
+			}
+		}
+	}, [isSpeechActive, callStatus])
+
+	// Handle audio level for volume indicator
+	useEffect(() => {
+		const volumePercentage = Math.round(audioLevel * 100)
+		setCallState((prev) => ({ ...prev, volume: volumePercentage }))
+	}, [audioLevel])
+
+	// Handle messages and transcripts
+	useEffect(() => {
+		// Handle active transcript (partial)
+		if (activeTranscript?.transcript) {
+			setCurrentTranscript(activeTranscript.transcript)
+		}
+
+		// Handle completed messages
+		const latestMessage = messages[messages.length - 1]
+		if (latestMessage) {
+			if (latestMessage.type === MessageTypeEnum.TRANSCRIPT) {
+				const transcriptMsg = latestMessage as TranscriptMessage
+				if (
+					transcriptMsg.transcriptType ===
+					TranscriptMessageTypeEnum.FINAL
+				) {
+					if (transcriptMsg.role === "user") {
+						setCurrentTranscript(transcriptMsg.transcript)
+						onTranscript?.(transcriptMsg.transcript, false)
+					} else if (transcriptMsg.role === "assistant") {
+						setAgentResponse(transcriptMsg.transcript)
+						onTranscript?.(transcriptMsg.transcript, true)
+					}
+				}
+			}
+		}
+	}, [activeTranscript, messages, onTranscript])
 
 	// Format call duration
 	const formatDuration = (seconds: number) => {
@@ -112,7 +199,7 @@ export function VoiceCallWidget({
 				return {
 					color: "bg-blue-100 text-blue-700",
 					icon: Mic,
-					label: "Speaking",
+					label: "User Speaking",
 					description: "You are talking"
 				}
 			case "listening":
@@ -139,240 +226,19 @@ export function VoiceCallWidget({
 		}
 	}
 
-	// Initialize Millis AI SDK
-	const initializeMillis = async () => {
-		try {
-			// Get public key from environment variables
-			let publicKey: string | undefined =
-				process.env.NEXT_PUBLIC_MILLIS_PUBLIC_KEY
-
-			// If not available, try Cloudflare context (for production)
-			if (!publicKey) {
-				try {
-					const { getCloudflareContext } = await import(
-						"@opennextjs/cloudflare"
-					)
-					const { env } = getCloudflareContext()
-					publicKey = env.NEXT_PUBLIC_MILLIS_PUBLIC_KEY
-				} catch (error) {
-					console.log(
-						"Cloudflare context not available, running in development mode"
-					)
-				}
-			}
-
-			if (!publicKey) {
-				throw new Error(
-					"NEXT_PUBLIC_MILLIS_PUBLIC_KEY is not configured. Please check your environment variables."
-				)
-			}
-
-			// Dynamic import of Millis SDK
-			const { default: Millis } = await import("@millisai/web-sdk")
-
-			// Get endpoint from environment variables (optional)
-			let endPoint: string | undefined =
-				process.env.NEXT_PUBLIC_MILLIS_ENDPOINT
-
-			// If not available, try Cloudflare context (for production)
-			if (!endPoint) {
-				try {
-					const { getCloudflareContext } = await import(
-						"@opennextjs/cloudflare"
-					)
-					const { env } = getCloudflareContext()
-					endPoint = env.NEXT_PUBLIC_MILLIS_ENDPOINT
-				} catch (error) {
-					// No endpoint specified, use default
-				}
-			}
-
-			// Create client with public key and optional endpoint
-			const millisClient = Millis.createClient({
-				publicKey,
-				...(endPoint && { endPoint })
-			})
-
-			console.log("Millis AI client initialized successfully")
-			return millisClient
-		} catch (error) {
-			console.error("Failed to initialize Millis SDK:", error)
-			const errorMessage =
-				error instanceof Error ? error.message : "Unknown error"
-
-			if (errorMessage.includes("WebSocket")) {
-				toast.error(
-					"WebSocket connection failed. Please check your network connection."
-				)
-			} else if (
-				errorMessage.includes("publicKey") ||
-				errorMessage.includes("configuration")
-			) {
-				toast.error(
-					"Voice service configuration error. Please contact support."
-				)
-			} else {
-				toast.error(
-					"Failed to initialize voice service. Please try again."
-				)
-			}
-			throw error
-		}
-	}
-
 	// Start voice call
 	const startCall = async () => {
 		try {
 			setCallState((prev) => ({ ...prev, status: "connecting" }))
 
-			const millisClient = await initializeMillis()
-			millennisRef.current = millisClient
-
 			// Request microphone permission
 			await navigator.mediaDevices.getUserMedia({ audio: true })
 
-			// Start the call with dynamic temporary voice agent configuration
-			// This creates a temporary agent with custom configurations per the Millis AI docs
-			// https://docs.millis.ai/integration/web-sdk#dynamically-creating-a-temporary-voice-agent
-			await millisClient.start({
-				agent: {
-					agent_config: {
-						prompt:
-							agent.prompt ||
-							"You're a helpful AI assistant. Be friendly and conversational in your responses. You can help with general questions and conversation.",
-						voice: {
-							provider: "elevenlabs",
-							voice_id: "EXAVITQu4vr4xnSDxMaL" // Default voice, can be customized
-						},
-						language: agent.language || "en",
-						llm: "gpt-4o-mini",
-						tools: [] // Can be extended with custom functions later
-					}
-				},
-				metadata: {
-					agent_name: agent.name,
-					phone_number: agent.phoneNumber?.number || "unknown",
-					agent_id: agent.id.toString(),
-					session_type: "test_call",
-					created_at: new Date().toISOString()
-				},
-				include_metadata_in_prompt: true
-			})
+			// Create Vapi assistant configuration from our agent data
+			const vapiAssistant = createVapiAssistant(agent)
 
-			// Set up event handlers using .on() method
-			millennisRef.current.on("onready", () => {
-				setCallState((prev) => ({ ...prev, status: "connected" }))
-				startTimeRef.current = Date.now()
-				startDurationTimer()
-				toast.success("Connected to voice agent")
-			})
-
-			millennisRef.current.on(
-				"ontranscript",
-				(text: string, payload: { is_final?: boolean }) => {
-					if (payload.is_final) {
-						setCurrentTranscript(text)
-						onTranscript?.(text, false)
-						setCallState((prev) => ({
-							...prev,
-							status: "speaking"
-						}))
-					}
-				}
-			)
-
-			millennisRef.current.on(
-				"onresponsetext",
-				(text: string, payload: { is_final?: boolean }) => {
-					if (payload.is_final) {
-						setAgentResponse(text)
-						onTranscript?.(text, true)
-						setCallState((prev) => ({
-							...prev,
-							status: "listening"
-						}))
-					}
-				}
-			)
-
-			millennisRef.current.on("onlatency", (latency: number) => {
-				setCallState((prev) => ({ ...prev, latency }))
-
-				// Update connection quality based on latency
-				if (latency < 200) {
-					setConnectionQuality("excellent")
-				} else if (latency < 500) {
-					setConnectionQuality("good")
-				} else {
-					setConnectionQuality("poor")
-				}
-			})
-
-			millennisRef.current.on("onsessionended", () => {
-				console.log("Millis AI session ended")
-				endCall()
-			})
-
-			millennisRef.current.on("onerror", (error: Event) => {
-				console.error("Millis AI error:", error)
-				setCallState((prev) => ({ ...prev, status: "error" }))
-				toast.error("Voice call error occurred")
-			})
-
-			// Additional event handlers for testing and debugging
-			millennisRef.current.on("onopen", () => {
-				console.log("Millis AI WebSocket connection opened")
-			})
-
-			millennisRef.current.on("onclose", (event: CloseEvent) => {
-				console.log("Millis AI WebSocket connection closed:", event)
-
-				// Check for validation errors in the close reason
-				if (event.reason?.includes("validation error")) {
-					console.error("Millis AI validation error:", event.reason)
-					toast.error(
-						"Voice configuration error. Please check agent settings."
-					)
-				}
-			})
-
-			millennisRef.current.on(
-				"onfunction",
-				(text: string, payload: { name: string; params: object }) => {
-					console.log("Millis AI function call:", { text, payload })
-				}
-			)
-
-			millennisRef.current.on(
-				"useraudioready",
-				(data: { analyser: AnalyserNode; stream: MediaStream }) => {
-					console.log("User audio ready:", data)
-				}
-			)
-
-			millennisRef.current.on("analyzer", (analyzer: AnalyserNode) => {
-				// Set up volume monitoring
-				const dataArray = new Uint8Array(analyzer.frequencyBinCount)
-				const updateVolume = () => {
-					analyzer.getByteFrequencyData(dataArray)
-					const volume =
-						dataArray.reduce((sum, value) => sum + value, 0) /
-						dataArray.length
-					setCallState((prev) => ({
-						...prev,
-						volume: Math.round(volume)
-					}))
-
-					if (
-						callState.status === "connected" ||
-						callState.status === "speaking" ||
-						callState.status === "listening"
-					) {
-						requestAnimationFrame(updateVolume)
-					}
-				}
-				updateVolume()
-			})
+			// Start the call with Vapi
+			await start(vapiAssistant)
 		} catch (error) {
 			console.error("Failed to start call:", error)
 			setCallState((prev) => ({ ...prev, status: "error" }))
@@ -394,10 +260,7 @@ export function VoiceCallWidget({
 				toast.error(
 					"Failed to connect to voice service. Please check your internet connection."
 				)
-			} else if (
-				errorMessage.includes("publicKey") ||
-				errorMessage.includes("MILLIS")
-			) {
+			} else if (errorMessage.includes("VAPI")) {
 				toast.error(
 					"Voice service configuration error. Please contact support."
 				)
@@ -409,11 +272,7 @@ export function VoiceCallWidget({
 
 	// End voice call
 	const endCall = () => {
-		if (millennisRef.current) {
-			millennisRef.current.stop()
-			millennisRef.current = null
-		}
-
+		stop()
 		stopDurationTimer()
 
 		const finalDuration = callState.duration
@@ -427,17 +286,18 @@ export function VoiceCallWidget({
 		toast.success(`Call ended. Duration: ${formatDuration(finalDuration)}`)
 	}
 
-	// Toggle mute
+	// Toggle mute (placeholder - Vapi doesn't expose mute functionality directly)
 	const toggleMute = () => {
-		if (millennisRef.current) {
-			const newMutedState = !callState.isMuted
-			setCallState((prev) => ({ ...prev, isMuted: newMutedState }))
+		const newMutedState = !callState.isMuted
+		setCallState((prev) => ({ ...prev, isMuted: newMutedState }))
 
-			// TODO: Implement actual mute functionality with Millis SDK
-			toast.info(
-				newMutedState ? "Microphone muted" : "Microphone unmuted"
-			)
-		}
+		// Note: Vapi doesn't currently support mute functionality
+		// This is a UI state change only
+		toast.info(
+			newMutedState
+				? "Microphone muted (UI only - feature coming soon)"
+				: "Microphone unmuted"
+		)
 	}
 
 	// Start duration timer
@@ -463,12 +323,12 @@ export function VoiceCallWidget({
 	// Cleanup on unmount
 	useEffect(() => {
 		return () => {
-			if (millennisRef.current) {
-				millennisRef.current.stop()
+			if (callStatus === CALL_STATUS.ACTIVE) {
+				stop()
 			}
 			stopDurationTimer()
 		}
-	}, [stopDurationTimer])
+	}, [callStatus, stop, stopDurationTimer])
 
 	const statusConfig = getStatusConfig()
 	const StatusIcon = statusConfig.icon
@@ -612,6 +472,16 @@ export function VoiceCallWidget({
 								<Phone className="h-4 w-4 mr-2" />
 								Start Call
 							</Button>
+						) : callState.status === "connecting" ? (
+							<Button
+								disabled
+								className="flex-1 rounded-2xl bg-muted hover:bg-muted"
+								size="lg"
+								variant="outline"
+							>
+								<div className="animate-spin mr-2 h-4 w-4 border-2 border-muted-foreground border-r-transparent rounded-full" />
+								Connecting...
+							</Button>
 						) : (
 							<>
 								<Button
@@ -623,10 +493,7 @@ export function VoiceCallWidget({
 									}
 									size="lg"
 									className="rounded-2xl"
-									disabled={
-										callState.status === "connecting" ||
-										callState.status === "ended"
-									}
+									disabled={callState.status === "ended"}
 								>
 									{callState.isMuted ? (
 										<MicOff className="h-4 w-4" />
@@ -634,6 +501,18 @@ export function VoiceCallWidget({
 										<Mic className="h-4 w-4" />
 									)}
 								</Button>
+								{webCallUrl &&
+									callState.status === "connected" && (
+										<Button
+											onClick={joinCall}
+											variant="outline"
+											size="lg"
+											className="rounded-2xl"
+											title="Open call in new window"
+										>
+											<ExternalLink className="h-4 w-4" />
+										</Button>
+									)}
 								<Button
 									onClick={endCall}
 									variant="destructive"

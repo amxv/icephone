@@ -30,24 +30,27 @@ import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
-// Define the type for the raw call data from getCalls
+// Define the type for the raw call data from getCalls - updated to match actual API response
 type RawCallFromGetCalls = {
-	id: number
+	id: string // Changed from number to string to match prefixed IDs like 'call_123' or 'voice_456'
 	leadId: number | null
 	leadName: string | null
 	type: "incoming" | "outgoing"
 	duration: number | null
-	startTime: Date // From schema: NOT NULL, and MOCK_CALLS provide Date
+	startTime: Date
 	summary: string | null
 	transcript: string | null
 	recordingUrl: string | null
-	status: string | null // Adjusted to string | null to align with linter feedback on source data
-	createdAt: Date // From schema: NOT NULL, and MOCK_CALLS provide Date
-	updatedAt: Date // From schema: NOT NULL, and MOCK_CALLS provide Date
-	// Optional fields from MOCK_CALLS or its derivatives, not strictly part of CallItem mapping
-	userId?: string
-	campaignId?: number
-	campaignName?: string
+	status: string | null
+	createdAt: Date
+	updatedAt: Date
+	source: string // Change to string since SQL returns literals as string type
+	campaignId: number | null
+	agentId: number | null
+	agentName: string | null
+	sessionId: string | null
+	cost: string | null
+	sentiment: string | null
 }
 
 // --- Re-scoped Helper Components ---
@@ -305,67 +308,6 @@ interface CampaignDetailsPageClientProps {
 	campaignId: string
 }
 
-// Define a few mock CallItem objects for design purposes
-const MOCK_CAMPAIGN_CALL_ITEMS: CallItem[] = [
-	{
-		id: 1001,
-		leadId: 201,
-		leadName: "Mock Lead Alice",
-		type: "outgoing",
-		duration: 125,
-		startTime: new Date("2024-07-28T10:30:00Z").toISOString(),
-		summary:
-			"Discussed upcoming features and gathered feedback. Alice is interested.",
-		transcript: "Agent: Hi Alice, ... Alice: Oh, that sounds great!...",
-		recordingUrl: "https://example.com/mock_recording_alice.mp3",
-		status: "answered",
-		createdAt: new Date().toISOString(),
-		updatedAt: new Date().toISOString()
-	},
-	{
-		id: 1002,
-		leadId: 202,
-		leadName: "Mock Lead Bob",
-		type: "incoming",
-		duration: 75,
-		startTime: new Date("2024-07-28T11:15:00Z").toISOString(),
-		summary: "Bob called back with a few questions about the pricing plan.",
-		transcript: "Bob: Hi, I had a question... Agent: Certainly, Bob...",
-		recordingUrl: null,
-		status: "answered",
-		createdAt: new Date().toISOString(),
-		updatedAt: new Date().toISOString()
-	},
-	{
-		id: 1003,
-		leadId: 203,
-		leadName: "Mock Lead Carol",
-		type: "outgoing",
-		duration: 0,
-		startTime: new Date("2024-07-28T12:00:00Z").toISOString(),
-		summary: "Attempted to reach Carol, went to voicemail.",
-		transcript: null,
-		recordingUrl: "https://example.com/mock_voicemail_carol.mp3",
-		status: "voicemail",
-		createdAt: new Date().toISOString(),
-		updatedAt: new Date().toISOString()
-	},
-	{
-		id: 1004,
-		leadId: 204,
-		leadName: "Mock Lead Dave (No Summary)",
-		type: "incoming",
-		duration: 30,
-		startTime: new Date("2024-07-28T14:00:00Z").toISOString(),
-		summary: null,
-		transcript: "Dave: Quick question... Agent: Answer...",
-		recordingUrl: null,
-		status: "answered",
-		createdAt: new Date().toISOString(),
-		updatedAt: new Date().toISOString()
-	}
-]
-
 export function CampaignDetailsPageClient({
 	campaignId
 }: CampaignDetailsPageClientProps) {
@@ -431,25 +373,24 @@ export function CampaignDetailsPageClient({
 
 	const fetchData = useCallback(async () => {
 		setIsLoading(true)
-		setError(null) // Clear previous errors at the start
+		setError(null)
 		try {
-			// TODO: Update getCalls to accept pagination, search, filters
 			const result = await getCalls({
-				campaignId: Number(campaignId) // Pass campaignId (ensure it's a number)
-				// MOCK PARAMS FOR NOW UNTIL getCalls is updated
-				// search: currentSearchQuery,
-				// filters: currentColumnFilters,
+				campaignId: Number(campaignId),
+				search: currentSearchQuery || undefined
+				// Note: column filters would need to be mapped to the filter format
 			})
 
-			// Check if we have actual data and no error from the API
-			if (result.data && result.data.length > 0 && !result.error) {
+			// Handle successful response with real data
+			if (result.success && result.data) {
 				const rawCallsData = Array.isArray(result.data)
 					? result.data
 					: []
 				const formattedCalls: CallItem[] = rawCallsData.map(
 					(call: RawCallFromGetCalls) => ({
-						id: Number(call.id),
-						leadId: call.leadId !== null ? Number(call.leadId) : 0,
+						id: call.id, // Keep as string - no need to convert to number
+						leadId:
+							call.leadId !== null ? Number(call.leadId) : null,
 						leadName: call.leadName || null,
 						type: call.type as "incoming" | "outgoing",
 						duration:
@@ -463,49 +404,50 @@ export function CampaignDetailsPageClient({
 						recordingUrl: call.recordingUrl || null,
 						status: call.status || null,
 						createdAt: new Date(call.createdAt).toISOString(),
-						updatedAt: new Date(call.updatedAt).toISOString()
+						updatedAt: new Date(call.updatedAt).toISOString(),
+						// Include additional fields from enhanced API
+						source: call.source || "calls",
+						campaignId: call.campaignId || null,
+						agentId: call.agentId || null,
+						agentName: call.agentName || null,
+						sessionId: call.sessionId || null,
+						cost: call.cost || null,
+						sentiment: call.sentiment || null
 					})
 				)
 				setCalls(formattedCalls)
-				// TODO: getCalls needs to return total count for pagination
 			} else {
-				// Fallback to mock data if API returned an error or no data
+				// Handle API errors properly without fallback to mock data
 				if (result.error) {
-					console.warn(
-						`API error from getCalls: "${result.error}". Falling back to MOCK_CAMPAIGN_CALL_ITEMS for campaignId: ${campaignId}.`
-					)
+					console.error(`API error from getCalls: "${result.error}"`)
+					setError(result.error)
 				} else {
-					// No result.error, but also no data or empty data
-					console.warn(
-						`No data from getCalls or data array is empty. Falling back to MOCK_CAMPAIGN_CALL_ITEMS for campaignId: ${campaignId}.`
-					)
+					// No error but no data - this is a valid state (empty campaign)
+					setCalls([])
 				}
-				setCalls(MOCK_CAMPAIGN_CALL_ITEMS)
-				// setError(null) was called at the beginning of fetchData, so error state remains null.
-				// This prevents the error UI from showing when mock data is intentionally used.
 			}
 		} catch (e) {
 			console.error("Exception during fetchData:", e)
-			setError("An unexpected error occurred. Displaying mock data.")
-			setCalls(MOCK_CAMPAIGN_CALL_ITEMS) // Fallback to mock data on true exception
+			setError("Failed to load campaign calls. Please try again.")
+			setCalls([]) // Set empty array instead of mock data
 		} finally {
 			setIsLoading(false)
 		}
-	}, [campaignId]) // campaignId is already a dependency
+	}, [campaignId, currentSearchQuery]) // Add currentSearchQuery as dependency
 
 	useEffect(() => {
 		fetchData()
 	}, [fetchData])
 
-	// Effect to handle initial call selection from URL
+	// Effect to handle initial call selection from URL - updated for string IDs
 	useEffect(() => {
 		const callIdParam = searchParams.get("callId")
 		if (callIdParam && calls.length > 0) {
 			const callToSelect = calls.find(
-				(c) => c.id === Number.parseInt(callIdParam, 10)
+				(c) => c.id === callIdParam // Direct string comparison instead of parseInt
 			)
 			if (callToSelect) setSelectedCall(callToSelect)
-			else setSelectedCall(null) // Deselect if not found or invalid
+			else setSelectedCall(null)
 		} else if (!callIdParam) {
 			setSelectedCall(null)
 		}

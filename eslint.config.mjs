@@ -44,7 +44,10 @@ export default defineConfig([
 		rules: {
 			"react-hooks/rules-of-hooks": "error",
 			"react-hooks/exhaustive-deps": "warn",
-			"react-compiler/react-compiler": "error"
+			"react-compiler/react-compiler": "error",
+			// Disable jsx-a11y/prefer-tag-over-role when we intentionally use div with role="button"
+			// to avoid nested button issues
+			"jsx-a11y/prefer-tag-over-role": "off"
 		}
 	}
 ])

@@ -12,9 +12,12 @@
 			"command": "bunx",
 			"args": ["-y", "mcp-remote", "https://mcp.neon.tech/sse"]
 		},
-		"vercel-mcp": {
-			"command": "npx",
-			"args": ["vercel-mcp VERCEL_API_KEY=XjNBRSmNiXfCgp3FM1K7Per6"]
+		"vapi-mcp-server": {
+			"command": "bunx",
+			"args": ["-y", "@vapi-ai/mcp-server"],
+			"env": {
+				"VAPI_TOKEN": "e4c4f6b4-f839-41a4-ab2d-fd7b95cb4641"
+			}
 		}
 	}
 }

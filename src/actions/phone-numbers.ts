@@ -18,6 +18,9 @@ import type {
 	PhoneNumberUsage
 } from "@/types"
 
+// Export PhoneNumber type for use in other components
+export type { PhoneNumber }
+
 // Database return types (with possible null values)
 type DbPhoneNumber = {
 	id: number

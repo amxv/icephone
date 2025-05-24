@@ -174,60 +174,7 @@ export function CampaignsPageClient() {
 		async function fetchData() {
 			setLoading(true)
 			try {
-				// const result = await getCampaigns() // Placeholder for now
-				// Simulating API call
-				await new Promise((resolve) => setTimeout(resolve, 1000))
-				const result = {
-					success: true,
-					data: [
-						{
-							id: 1,
-							name: "Summer Sale Outreach",
-							status: "running",
-							leadsCount: 150,
-							leadsConverted: 10,
-							updatedAt: new Date().toISOString()
-						},
-						{
-							id: 2,
-							name: "New Product Launch",
-							status: "completed",
-							leadsCount: 200,
-							leadsConverted: 35,
-							updatedAt: new Date(
-								Date.now() - 86400000 * 2
-							).toISOString()
-						},
-						{
-							id: 3,
-							name: "Q4 Follow-ups",
-							status: "paused",
-							leadsCount: 80,
-							leadsConverted: 5,
-							updatedAt: new Date(
-								Date.now() - 86400000 * 5
-							).toISOString()
-						},
-						{
-							id: 4,
-							name: "Win-back Campaign",
-							status: "draft",
-							leadsCount: 0,
-							leadsConverted: 0,
-							updatedAt: new Date(
-								Date.now() - 86400000 * 1
-							).toISOString()
-						},
-						{
-							id: 5,
-							name: "High Value Prospects",
-							status: "running",
-							leadsCount: 50,
-							leadsConverted: 2,
-							updatedAt: new Date().toISOString()
-						}
-					]
-				}
+				const result = await getCampaigns()
 
 				if (result.success && result.data) {
 					const transformedData = result.data.map((campaign) => ({
@@ -236,12 +183,11 @@ export function CampaignsPageClient() {
 						status: campaign.status || null,
 						leadsCount: campaign.leadsCount,
 						leadsConverted: campaign.leadsConverted,
-						updatedAt: campaign.updatedAt // Already a string from toISOString()
+						updatedAt: campaign.updatedAt.toISOString() // Convert Date to string
 					}))
 					setCampaignsData(transformedData as CampaignItem[])
 				} else {
-					// setError(result.error || "Failed to fetch campaigns data")
-					setError("Failed to fetch campaigns data")
+					setError(result.error || "Failed to fetch campaigns data")
 				}
 			} catch (err) {
 				console.error("Error fetching campaigns:", err)

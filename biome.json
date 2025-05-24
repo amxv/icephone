@@ -19,6 +19,11 @@
 				"noArrayIndexKey": {
 					"level": "off"
 				}
+			},
+			"a11y": {
+				"useSemanticElements": {
+					"level": "off"
+				}
 			}
 		},
 		"ignore": [
@@ -34,6 +39,9 @@
 		"enabled": true,
 		"indentStyle": "tab",
 		"indentWidth": 4
+	},
+	"organizeImports": {
+		"enabled": false
 	},
 	"javascript": {
 		"formatter": {

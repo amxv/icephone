@@ -336,8 +336,8 @@ export function CallsPageClient() {
 	// Load call from URL param
 	useEffect(() => {
 		if (callIdParam && callsData.length > 0) {
-			const callId = Number.parseInt(callIdParam, 10)
-			const call = callsData.find((c) => c.id === callId)
+			// Use string comparison since IDs are now strings like 'call_123' or 'voice_456'
+			const call = callsData.find((c) => c.id === callIdParam)
 
 			if (call) {
 				setSelectedCall(call)
@@ -404,7 +404,7 @@ export function CallsPageClient() {
 
 			// Keep selected call ID
 			if (selectedCall) {
-				params.set("callId", selectedCall.id.toString())
+				params.set("callId", selectedCall.id)
 			}
 
 			// Keep search query
@@ -436,7 +436,7 @@ export function CallsPageClient() {
 
 			// Keep other params
 			if (selectedCall) {
-				params.set("callId", selectedCall.id.toString())
+				params.set("callId", selectedCall.id)
 			}
 
 			router.replace(`${pathname}?${params.toString()}`, {
@@ -453,7 +453,7 @@ export function CallsPageClient() {
 
 			// Update URL
 			const params = new URLSearchParams(searchParams.toString())
-			params.set("callId", call.id.toString())
+			params.set("callId", call.id)
 
 			// Keep search query
 			if (searchQuery) {

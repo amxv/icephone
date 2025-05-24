@@ -11,14 +11,27 @@ declare namespace Cloudflare {
 		OWNER_USER_ID: string;
 		VOYAGE_API_KEY: string;
 		OPENAI_API_KEY: string;
-		NEXT_PUBLIC_MILLIS_PUBLIC_KEY: string;
-		MILLIS_SECRET_KEY: string;
-		NEXT_PUBLIC_MILLIS_ENDPOINT: string;
+		NEXT_PUBLIC_VAPI_API_URL: string;
+		NEXT_PUBLIC_VAPI_WEB_TOKEN: string;
 		NEXT_INC_CACHE_R2_BUCKET: R2Bucket;
 		WORKER_SELF_REFERENCE: Fetcher /* icephone */;
 		HYPERDRIVE_NOCACHE: Hyperdrive;
 		HYPERDRIVE_CACHE: Hyperdrive;
 		ASSETS: Fetcher;
+		// VAPI AI Integration
+		NEXT_PUBLIC_VAPI_PUBLIC_KEY: string
+		VAPI_SECRET_KEY: string
+		NEXT_PUBLIC_VAPI_ENDPOINT: string
+		// Database
+		DATABASE_URL: string;
+
+		// Authentication
+		CLERK_SECRET_KEY: string;
+		NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: string;
+		CLERK_WEBHOOK_SECRET: string;
+
+		// Other environment variables can be added here as needed
+		[key: string]: string;
 	}
 }
 interface CloudflareEnv extends Cloudflare.Env {}
@@ -26,7 +39,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" | "CLERK_SECRET_KEY" | "DEV_DB_URL" | "PROD_DB_URL" | "NEXTJS_ENV" | "OWNER_USER_ID" | "VOYAGE_API_KEY" | "OPENAI_API_KEY" | "NEXT_PUBLIC_MILLIS_PUBLIC_KEY" | "MILLIS_SECRET_KEY" | "NEXT_PUBLIC_MILLIS_ENDPOINT">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" | "CLERK_SECRET_KEY" | "DEV_DB_URL" | "PROD_DB_URL" | "NEXTJS_ENV" | "OWNER_USER_ID" | "VOYAGE_API_KEY" | "OPENAI_API_KEY" | "NEXT_PUBLIC_VAPI_API_URL" | "NEXT_PUBLIC_VAPI_WEB_TOKEN">> {}
 }
 
 // Begin runtime types
@@ -1037,7 +1050,7 @@ declare class DigestStream extends WritableStream<ArrayBuffer | ArrayBufferView>
     get bytesWritten(): number | bigint;
 }
 /**
- * A decoder for a specific method, that is a specific character encoding, like utf-8, iso-8859-2, koi8, cp1261, gbk, etc. A decoder takes a stream of bytes as input and emits a stream of code points. For a more scalable, non-native library, see StringView – a C-like representation of strings based on typed arrays.
+ * A decoder for a specific method, that is a specific character encoding, like utf-8, iso-8859-2, koi8, cp1261, gbk, etc. A decoder takes a stream of bytes as input and emits a stream of code points. For a more scalable, non-native library, see StringView – a C-like representation of strings based on typed arrays.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/TextDecoder)
  */
@@ -1229,7 +1242,7 @@ interface DocumentEnd {
     append(content: string, options?: ContentOptions): DocumentEnd;
 }
 /**
- * This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to this fetch.
+ * This is the event type for fetch events dispatched on the service worker global scope. It contains information about the fetch, including the request and how the receiver will treat the response. It provides the event.respondWith() method, which allows us to provide a response to this fetch.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/FetchEvent)
  */
@@ -1242,7 +1255,7 @@ declare abstract class FetchEvent extends ExtendableEvent {
 }
 type HeadersInit = Headers | Iterable<Iterable<string>> | Record<string, string>;
 /**
- * This Fetch API interface allows you to perform various actions on HTTP request and response headers. These actions include retrieving, setting, adding to, and removing. A Headers object has an associated header list, which is initially empty and consists of zero or more name and value pairs.  You can add to this using methods like append() (see Examples.) In all methods of this interface, header names are matched by case-insensitive byte sequence.
+ * This Fetch API interface allows you to perform various actions on HTTP request and response headers. These actions include retrieving, setting, adding to, and removing. A Headers object has an associated header list, which is initially empty and consists of zero or more name and value pairs. You can add to this using methods like append() (see Examples.) In all methods of this interface, header names are matched by case-insensitive byte sequence.
  *
  * [MDN Reference](https://developer.mozilla.org/docs/Web/API/Headers)
  */
@@ -4601,7 +4614,7 @@ interface IncomingRequestCfPropertiesTLSClientAuthPlaceholder {
     certNotAfter: "";
 }
 /** Possible outcomes of TLS verification */
-declare type CertVerificationStatus = 
+declare type CertVerificationStatus =
 /** Authentication succeeded */
 "SUCCESS"
 /** No certificate was presented */
@@ -4660,7 +4673,7 @@ interface D1ExecResult {
     count: number;
     duration: number;
 }
-type D1SessionConstraint = 
+type D1SessionConstraint =
 // Indicates that the first query should go to the primary, and the rest queries
 // using the same D1DatabaseSession will go to any replica that is consistent with
 // the bookmark maintained by the session (returned by the first query).
@@ -5098,7 +5111,7 @@ declare namespace Rpc {
     // The reason for using a generic type here is to build a serializable subset of structured
     //   cloneable composite types. This allows types defined with the "interface" keyword to pass the
     //   serializable check as well. Otherwise, only types defined with the "type" keyword would pass.
-    type Serializable<T> = 
+    type Serializable<T> =
     // Structured cloneables
     BaseType
     // Structured cloneable composites

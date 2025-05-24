@@ -1,7 +1,7 @@
 "use client"
 
-import { CreateVoiceAgentDialog } from "@/components/create-voice-agent-dialog"
-import { EditVoiceAgentDialog } from "@/components/edit-voice-agent-dialog"
+import { SimpleAgentCreator } from "@/components/simple-agent-creator"
+import { EssentialSettings } from "@/components/essential-settings"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,10 +31,81 @@ import {
 	PhoneIcon,
 	PlusIcon,
 	SettingsIcon,
-	VolumeXIcon
+	VolumeXIcon,
+	MessageSquareIcon,
+	UserIcon,
+	CalendarIcon,
+	BarChartIcon
 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
+
+// Helper function to get role display information
+function getRoleInfo(prompt: string) {
+	const promptLower = prompt.toLowerCase()
+
+	if (
+		promptLower.includes("customer service") ||
+		promptLower.includes("support")
+	) {
+		return {
+			role: "Customer Service",
+			icon: MessageSquareIcon,
+			color: "from-blue-500 to-blue-500/60",
+			description: "Handles customer inquiries and support"
+		}
+	}
+
+	if (promptLower.includes("sales") || promptLower.includes("selling")) {
+		return {
+			role: "Sales Representative",
+			icon: UserIcon,
+			color: "from-emerald-500 to-emerald-500/60",
+			description: "Qualifies leads and closes deals"
+		}
+	}
+
+	if (
+		promptLower.includes("appointment") ||
+		promptLower.includes("schedule")
+	) {
+		return {
+			role: "Appointment Setter",
+			icon: CalendarIcon,
+			color: "from-violet-500 to-violet-500/60",
+			description: "Schedules meetings and appointments"
+		}
+	}
+
+	// Default fallback
+	return {
+		role: "Voice Assistant",
+		icon: BotIcon,
+		color: "from-primary to-primary/60",
+		description: "AI-powered voice assistant"
+	}
+}
+
+// Helper function to get voice display name from technical details
+function getVoiceDisplayName(
+	voice: { provider?: string; voice_id?: string } | null | undefined
+) {
+	if (!voice || !voice.voice_id) return "Standard Voice"
+
+	// Map common ElevenLabs voice IDs to business-friendly names
+	const voiceMap: Record<string, string> = {
+		"21m00Tcm4TlvDq8ikWAM": "Professional",
+		AZnzlk1XvdvUeBnXmlld: "Warm",
+		EXAVITQu4vr4xnSDxMaL: "Friendly",
+		ErXwobaYiN019PkySvjV: "Confident",
+		MF3mGyEYCl7XYWbV9V6O: "Energetic",
+		TxGEqnHWrfWFTfGW9XjX: "Professional",
+		VR6AewLTigWG4xSOukaG: "Authoritative",
+		pNInz6obpgDQGcFmaJgB: "Clear"
+	}
+
+	return voiceMap[voice.voice_id] || "Professional"
+}
 
 // Page header component with gradient title
 function PageHeader({
@@ -51,15 +122,12 @@ function PageHeader({
 					Voice Agents
 				</h1>
 			</div>
-			<CreateVoiceAgentDialog
-				phoneNumbers={phoneNumbers}
-				onAgentCreated={onAgentCreated}
-			/>
+			<SimpleAgentCreator onAgentCreated={onAgentCreated} />
 		</div>
 	)
 }
 
-// Voice agent display card
+// Business-focused voice agent display card
 function VoiceAgentCard({
 	agent,
 	phoneNumbers,
@@ -70,6 +138,9 @@ function VoiceAgentCard({
 	onAgentUpdated?: () => void
 }) {
 	const [isTestCallOpen, setIsTestCallOpen] = useState(false)
+	const roleInfo = getRoleInfo(agent.prompt || "")
+	const voiceDisplayName = getVoiceDisplayName(agent.voice)
+
 	const statusConfig = {
 		active: {
 			color: "bg-green-100 text-green-800 border-green-200",
@@ -96,22 +167,28 @@ function VoiceAgentCard({
 	const config =
 		statusConfig[agent.status || "inactive"] || statusConfig.inactive
 	const StatusIcon = config.icon
+	const RoleIcon = roleInfo.icon
 
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm hover:bg-primary/5 transition">
 			<CardHeader className="pb-3">
 				<div className="flex items-start justify-between">
 					<div className="flex items-center gap-3">
-						<div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-							<StatusIcon className="h-6 w-6 text-primary" />
+						<div
+							className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${roleInfo.color} flex items-center justify-center`}
+						>
+							<RoleIcon className="h-6 w-6 text-white" />
 						</div>
 						<div>
 							<CardTitle className="text-lg">
 								{agent.name}
 							</CardTitle>
+							<p className="text-sm text-muted-foreground">
+								{roleInfo.role}
+							</p>
 							{agent.description && (
-								<p className="text-sm text-muted-foreground mt-1">
-									{agent.description}
+								<p className="text-xs text-muted-foreground mt-1">
+									{roleInfo.description}
 								</p>
 							)}
 						</div>
@@ -153,23 +230,48 @@ function VoiceAgentCard({
 						</div>
 					</div>
 
-					{/* Voice Configuration */}
+					{/* Voice Configuration - Business Friendly */}
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<VolumeXIcon className="h-4 w-4 text-muted-foreground" />
 							<span className="text-sm font-medium">Voice</span>
 						</div>
 						<div className="text-sm text-muted-foreground">
-							{agent.voice.provider} • {agent.language || "en"}
+							{voiceDisplayName} •{" "}
+							{agent.language === "en"
+								? "English"
+								: agent.language?.toUpperCase() || "English"}
+						</div>
+					</div>
+
+					{/* Performance Metrics (placeholder for future implementation) */}
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-2">
+							<BarChartIcon className="h-4 w-4 text-muted-foreground" />
+							<span className="text-sm font-medium">
+								Performance
+							</span>
+						</div>
+						<div className="text-sm text-muted-foreground">
+							0 calls handled
 						</div>
 					</div>
 
 					{/* Action Buttons */}
 					<div className="flex gap-2 pt-2">
-						<EditVoiceAgentDialog
+						<EssentialSettings
 							agent={agent}
-							phoneNumbers={phoneNumbers}
-							onAgentUpdated={onAgentUpdated}
+							onSettingsUpdated={onAgentUpdated}
+							trigger={
+								<Button
+									variant="outline"
+									size="sm"
+									className="flex-1 rounded-2xl"
+								>
+									<SettingsIcon className="h-4 w-4 mr-2" />
+									Settings
+								</Button>
+							}
 						/>
 						<Dialog
 							open={isTestCallOpen}
@@ -292,8 +394,7 @@ function VoiceAgentsSection({
 								Create your first AI voice agent to start
 								handling calls
 							</p>
-							<CreateVoiceAgentDialog
-								phoneNumbers={phoneNumbers}
+							<SimpleAgentCreator
 								onAgentCreated={() => window.location.reload()}
 								trigger={
 									<Button

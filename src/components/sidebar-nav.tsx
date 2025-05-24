@@ -5,6 +5,7 @@ import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar"
 import { SignedIn, UserButton } from "@clerk/nextjs"
 import { motion } from "framer-motion"
 import {
+	BarChart,
 	Book,
 	Bot,
 	Calendar,
@@ -100,6 +101,13 @@ export function SidebarNav() {
 			href: "/knowledge",
 			icon: (
 				<Book className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
+		{
+			label: "Analytics",
+			href: "/analytics",
+			icon: (
+				<BarChart className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
 			)
 		},
 		{

@@ -567,6 +567,7 @@ export interface VoiceAgent {
 	status: VoiceAgentStatus | null
 	configuration: VoiceAgentConfiguration | null
 	firstMessage: string | null
+	vapiAssistantId: string | null
 	createdAt: string | Date
 	updatedAt: string | Date
 	userId: string
@@ -583,7 +584,13 @@ export interface VoiceAgentPhoneNumber {
 
 // Voice agent with phone number for list views
 export interface VoiceAgentWithPhoneNumber extends VoiceAgent {
-	phoneNumber?: VoiceAgentPhoneNumber | null
+	phoneNumber: {
+		id: number
+		number: string
+		friendlyName: string
+		type: PhoneNumberType
+		status: PhoneNumberStatus | null
+	} | null
 }
 
 export interface VoiceAgentFunction {
@@ -612,7 +619,7 @@ export interface VoiceAgentFunction {
 
 export interface VoiceSession {
 	id: number
-	sessionId: string // Millis AI session ID
+	sessionId: string // Vapi AI session ID
 	agentId: number
 	leadId: number | null
 	phoneNumber: string | null
@@ -661,6 +668,7 @@ export interface VoiceAgentCreateRequest {
 	status?: VoiceAgentStatus
 	configuration?: VoiceAgentConfiguration
 	firstMessage?: string
+	vapiAssistantId?: string
 }
 
 export interface VoiceAgentUpdateRequest {
@@ -707,34 +715,30 @@ export interface VoiceSessionCreateRequest {
 	}
 }
 
-// Millis AI Web SDK types
-export interface MillisClientOptions {
+// Vapi AI Web SDK types
+export interface VapiClientOptions {
 	publicKey: string
 	endPoint?: string
 }
 
-export interface MillisAgentConfig {
-	agent_id?: string
-	agent_config?: {
-		prompt?: string
-		voice?: VoiceSettings
-		language?: string
-		tools?: VoiceAgentFunction[]
-		custom_llm_websocket?: string
-		llm?: string
+export interface VapiAgentConfig {
+	name: string
+	prompt: string
+	voice: {
+		provider: string
+		voice_id: string
 	}
+	language?: string
+	functions?: VoiceAgentFunction[]
 }
 
-export interface MillisStartOptions {
-	agent: MillisAgentConfig
+export interface VapiStartOptions {
+	agent: VapiAgentConfig
 	metadata?: Record<string, unknown>
-	include_metadata_in_prompt?: boolean
-	session_continuation?: {
-		session_id: string
-	}
 }
 
-export interface MillisEventHandlers {
+// Event handler types
+export interface VapiEventHandlers {
 	onopen?: () => void
 	onready?: () => void
 	onsessionended?: () => void

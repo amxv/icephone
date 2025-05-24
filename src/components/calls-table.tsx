@@ -69,10 +69,10 @@ import {
 } from "@/components/ui/table"
 import { useSettings } from "@/contexts/settings-context"
 
-// Define a schema for our call data
+// Define a schema for our call data - updated to match enhanced getCalls API response
 export const callSchema = z.object({
-	id: z.number(),
-	leadId: z.number(),
+	id: z.string(), // Changed to string to support prefixed IDs like 'call_123' or 'voice_456'
+	leadId: z.number().nullable(),
 	leadName: z.string().nullable(),
 	type: z.enum(["incoming", "outgoing"]),
 	duration: z.number().nullable(),
@@ -82,7 +82,15 @@ export const callSchema = z.object({
 	recordingUrl: z.string().nullable(),
 	status: z.string().nullable(),
 	createdAt: z.string(),
-	updatedAt: z.string()
+	updatedAt: z.string(),
+	// Additional fields from enhanced API
+	source: z.string(), // Accept string since SQL returns literals as string type
+	campaignId: z.number().nullable(),
+	agentId: z.number().nullable(),
+	agentName: z.string().nullable(),
+	sessionId: z.string().nullable(),
+	cost: z.string().nullable(),
+	sentiment: z.string().nullable()
 })
 
 // Infer the type from our schema
@@ -181,7 +189,7 @@ export function CallsTable({
 	initialColumnFilters?: ColumnFiltersState
 	onFilterChange?: (filters: ColumnFiltersState) => void
 	onRowClick: (call: CallItem) => void
-	selectedCallId?: number
+	selectedCallId?: string // Changed from number to string to match string IDs
 	searchQuery: string
 	onSearchChange: (query: string) => void
 }) {

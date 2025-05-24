@@ -1,35 +1,1427 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Autonomous Agent Guide: Building IcePhone on Next.js 15 & Cloudflare Workers
 
-## Context
+## Welcome to IcePhone Development
 
-IcePhone is an AI-powered CRM and Voice Agent Platform that allows business owners to set up custom Voice Agents to respond to inbound calls, perform outbound cold calls and follow-ups fully autonomously. It also provides standard CRM features for lead tracking, qualification, analytics, etc.
+You're building **IcePhone** - an AI-powered CRM and Voice Agent Platform that helps business owners set up custom Voice Agents for inbound calls, outbound cold calls, and autonomous follow-ups. This guide will walk you through implementing features systematically with a focus on quality and incremental development.
 
-## Coding Style:
+**Environment Configuration**: Your development variables are in `.dev.vars`
 
-- Ideally, you should write simple solutions that do not need complex debugging / maintenance if things go wrong
-- If you notice a lint error that you think is not important or critical, please turn it off in the .eslintrc.json file.
-- Always assume the dev server is running.
-- Follow modern best practices for full-stack web development in Next.js, keeping user privacy and security in mind.
-- When editing a page to add new components, always make the components first and then add them to the page to avoid causing temporary errors.
+## 🎯 Getting Started: Check the Master Plan
 
-## How to work with the Databse (Drizzle ORM + PostgreSQL)
+Before implementing ANY feature, always start here:
 
-- The schema location is `src/db/schema.ts`.
-- Put all your server actions in `src/actions/(name).ts`
-- Put all the types in `src/types.ts`
-- After making changes to the schema, run `bun db:dev:push` or `bun db:prod:push` to generate and apply migrations to our neon database.
-- Please try to use `mcp_run_sql_transaction` tool: wrap the commands that you are thinking of implementing in a transaction, and roll it back with a RETURNING clause to "preview" your changes before writing the drizzle code.
-- This tool call allows you to "dry run" and test changes easily.
+```bash
+# Check what features are planned and their current status
+cat docs/MASTER_FEATURES_CHECKLIST.md
 
-example:
-```sql
-BEGIN TRANSACTION                                                    ;
-UPDATE feedback SET rating = rating + 1 WHERE rating < 5 RETURNING * ;
-ROLLBACK                                                             ;
+# See if your feature is already in progress
+grep -i "{feature-name}" docs/MASTER_FEATURES_CHECKLIST.md
 ```
 
-This approach is very useful for debugging as well.
+The master checklist contains:
 
-Note that in Next.js, we always prefer to use server actions instead of API routes, so that the code is simple to read and write.
+- All 25 planned features with priorities
+- Current implementation status
+- Dependencies between features
+- Quarterly implementation roadmap
+
+**Important**: If a feature exists in the checklist, follow its existing roadmap. If not, add it first before starting implementation.
+
+## ✅ Checklist Management: Track Your Progress
+
+As you work on any feature, you MUST maintain two critical checklists that track development progress:
+
+### 1. Master Features Checklist (`docs/MASTER_FEATURES_CHECKLIST.md`)
+
+This is the high-level project roadmap containing all 25 planned features. Update it to reflect:
+
+- ✅ **Started**: When you begin working on a feature
+- 🚧 **In Progress**: When development is actively happening
+- ✅ **Complete**: Only when the entire feature is implemented AND tested
+
+### 2. Feature-Specific Checklists (`docs/features/{feature-name}/checklist.md`)
+
+Each feature has its own detailed checklist breaking down all subtasks required for completion. This includes:
+
+- Database schema changes
+- Server actions implementation
+- UI components creation
+- Authentication integration
+- Error handling
+- Mobile responsiveness
+- Performance optimization
+- Comprehensive testing
+
+### Critical Checklist Rules
+
+**🔄 Update Continuously**: As you complete each subtask, update the feature-specific checklist immediately. This provides visibility into progress and helps identify blockers early.
+
+**⏳ Don't Mark Complete Prematurely**: Only mark a feature as "Complete" in the master checklist when:
+
+1. ✅ ALL subtasks in the feature checklist are done
+2. ✅ ALL tests pass (unit, integration, e2e)
+3. ✅ Feature works end-to-end in development environment
+4. ✅ Code review checklist items verified
+5. ✅ Performance benchmarks met
+6. ✅ Security validation completed
+
+**📝 Document Blockers**: If you encounter issues or dependencies, immediately update the checklist with:
+
+- What the blocker is
+- Why it's blocking progress
+- What needs to happen to resolve it
+- Any alternative approaches being considered
+
+### Checklist Update Commands
+
+```bash
+# View current master status
+cat docs/MASTER_FEATURES_CHECKLIST.md
+
+# View specific feature progress
+cat docs/features/voice-agents/checklist.md
+
+# Update feature progress (example)
+echo "- [x] Database schema created" >> docs/features/voice-agents/checklist.md
+echo "- [ ] Server actions implemented" >> docs/features/voice-agents/checklist.md
+```
+
+**Remember**: Checklists are not just documentation—they're your roadmap to systematic, high-quality feature delivery. Keep them current, accurate, and detailed.
+
+## 📚 Documentation Strategy: Context7 & Web Search
+
+When you need technical documentation or encounter issues, you have two powerful resources:
+
+### 1. Context7 for Official Documentation
+
+Use Context7 to access real-time, up-to-date documentation for any library in our stack. Here's how to properly use the tool:
+
+**First, resolve the library ID:**
+
+```
+<function_calls>
+<invoke name="mcp_context7_resolve-library-id">
+<parameter name="libraryName">Next.js</parameter>
+</invoke>
+</function_calls>
+```
+
+**Then fetch documentation:**
+
+```
+<function_calls>
+<invoke name="mcp_context7_get-library-docs">
+<parameter name="context7CompatibleLibraryID">/vercel/next.js</parameter>
+<parameter name="topic">app router</parameter>
+<parameter name="tokens">10000</parameter>
+</invoke>
+</function_calls>
+```
+
+### 2. Web Search for Current Information
+
+When Context7 doesn't have what you need, or you need the latest community solutions:
+
+```
+<function_calls>
+<invoke name="web_search">
+<parameter name="search_term">Next.js 15 server components best practices 2024</parameter>
+<parameter name="explanation">Looking for the latest best practices for server components in Next.js 15</parameter>
+</invoke>
+</function_calls>
+```
+
+Use web search for:
+
+- Recent error solutions
+- Community best practices
+- Latest framework updates
+- Performance optimization techniques
+- Deployment troubleshooting
+
+## 🛠️ IcePhone Tech Stack Reference
+
+Here's your complete tech stack with Context7 library IDs for quick access:
+
+### Core Framework & Runtime
+
+- **Next.js v15**: `/vercel/next.js` - App Router, Server Components
+- **React v19**: `/reactjs/react.dev` - Latest React features
+- **TypeScript**: `/microsoft/typescript` - Type safety throughout
+- **Bun**: `/oven-sh/bun` - Fast package manager and runtime
+
+### Deployment & Infrastructure
+
+- **Cloudflare Workers**: `/cloudflare/workers-sdk` - Edge deployment
+- **OpenNext.js**: `/opennextjs/opennextjs-cloudflare` - Cloudflare adapter
+- **Neon Database**: `/neondatabase/website` - Serverless PostgreSQL
+
+### UI & Styling
+
+- **Tailwind CSS**: `/tailwindlabs/tailwindcss.com` - Utility-first CSS
+- **shadcn/ui**: `/shadcn-ui/ui` - Component library
+- **Lucide Icons**: `/lucide-icons/lucide` - Icon set
+
+### Backend & Data
+
+- **Drizzle ORM**: `/drizzle-team/drizzle-orm-docs` - TypeScript ORM
+- **Clerk Auth**: `/clerk/clerk-docs` - Authentication
+- **Hono**: `/honojs/website` - API framework
+
+### AI Integration
+
+- **Vercel AI SDK**: `/vercel/ai` - AI/LLM integration
+- **OpenAI**: `/openai/openai-node` - GPT models
+- **Anthropic**: `/anthropics/anthropic-sdk-typescript` - Claude models
+
+## 🌩️ Cloudflare Environment Variables
+
+When deploying to Cloudflare Workers, environment variables need to be accessed differently than in traditional Node.js environments. IcePhone handles this automatically using a dual-access pattern.
+
+### How to Access Environment Variables
+
+Use the following pattern for accessing environment variables in client components:
+
+```tsx
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
+// Initialize function that works in both development and production
+const getEnvironmentVariables = async () => {
+let publicKey: string | undefined
+let endPoint: string | undefined
+
+// Try to get from Cloudflare context first (for production)
+try {
+const { getCloudflareContext } = await import("@opennextjs/cloudflare")
+const { env } = getCloudflareContext()
+publicKey = env.NEXT_PUBLIC_VAPI_PUBLIC_KEY
+endPoint = env.NEXT_PUBLIC_VAPI_ENDPOINT
+} catch {
+// Fallback to process.env for development
+publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY
+endPoint = process.env.NEXT_PUBLIC_VAPI_ENDPOINT
+}
+
+return { publicKey, endPoint }
+}
+```
+
+### TypeScript Support
+
+Make sure your environment variables are properly typed in `cloudflare-env.d.ts`:
+
+```typescript
+declare namespace Cloudflare {
+interface Env {
+// Add your environment variables here
+NEXT_PUBLIC_VAPI_PUBLIC_KEY: string
+VAPI_SECRET_KEY: string
+NEXT_PUBLIC_VAPI_ENDPOINT: string
+// ... other variables
+}
+}
+```
+
+### Wrangler Configuration
+
+Environment variables are automatically pulled from `.dev.vars` during development and from Cloudflare secrets in production. No additional wrangler configuration is needed for most variables.
+
+### Pattern Benefits
+
+- ✅ **Universal**: Works in both development and production
+- ✅ **Type Safe**: Full TypeScript support
+- ✅ **Graceful Fallback**: Falls back to Node.js env in development
+- ✅ **Edge Compatible**: Optimized for Cloudflare Workers
+- ✅ **No Manual Config**: Automatically handles context switching
+
+## 🎨 IcePhone Design System & UI Patterns
+
+This section documents the carefully crafted design patterns and stylistic preferences established throughout IcePhone's interface. **ALL new components and pages MUST follow these exact patterns** to maintain visual consistency and user experience quality.
+
+### 🏗️ Page Layout Structure
+
+Every page follows this exact container structure:
+
+```tsx
+// Standard page layout (most common)
+<div className="container h-[calc(100vh-5rem)]">
+<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
+<PageHeader />
+<MainContent />
+</div>
+</div>
+
+// Alternative with larger gaps for dashboard-style pages
+<div className="container h-[calc(100vh-5rem)]">
+<div className="flex flex-col gap-8 p-2 md:px-8 md:py-4 h-full">
+<PageHeader />
+<MainContent />
+</div>
+</div>
+```
+
+**Key Layout Principles:**
+
+- ✅ Always use `container` class for horizontal centering
+- ✅ Height: `h-[calc(100vh-5rem)]` accounts for navigation
+- ✅ Responsive padding: `p-2 md:px-8 md:py-4`
+- ✅ Flex column with consistent gaps: `gap-4` or `gap-8`
+- ✅ Full height utilization: `h-full`
+
+### 📝 Page Headers
+
+**Standard Header Pattern:**
+
+```tsx
+function PageHeader() {
+return (
+<div className="flex items-center justify-between">
+<div>
+<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
+{pageTitle}
+</h1>
+</div>
+{/* Optional: Action buttons on the right */}
+<OptionalActionButtons />
+</div>
+)
+}
+```
+
+**Header Typography Rules:**
+
+- ✅ Size: `text-4xl lg:text-3xl` (responsive scaling)
+- ✅ Weight: `font-medium` (not bold)
+- ✅ Tracking: `tracking-tight` for elegance
+- ✅ Gradient text: `text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700`
+- ✅ Spacing: `pb-2 pt-4` for proper vertical rhythm
+
+### 🃏 Card Design System
+
+**Primary Card Style (Most Common):**
+
+```tsx
+<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+<CardContent className="px-6 py-2"> {/* or p-5, px-6 */}
+{/* Content */}
+</CardContent>
+</Card>
+```
+
+**Secondary Card Style (Smaller Components):**
+
+```tsx
+<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden">
+<CardContent className="p-4">
+{/* Content */}
+</CardContent>
+</Card>
+```
+
+**Card Design Principles:**
+
+- ✅ Border radius: `rounded-3xl` (primary) or `rounded-2xl` (secondary)
+- ✅ Border: Always `border-border` for consistency
+- ✅ Background: `bg-card/40 backdrop-blur-sm` for glass morphism effect
+- ✅ Shadow: `shadow-sm` for subtle depth
+- ✅ Overflow: Add `overflow-hidden` when needed for contained content
+
+### 🎯 Section Headers with Visual Hierarchy
+
+**Section Header Pattern (Used in detail pages):**
+
+```tsx
+const SectionHeader = ({
+icon: Icon,
+title,
+buttonText,
+buttonLink = "#",
+gradient = "from-primary to-primary/60"
+}: {
+icon: React.ElementType
+title: string
+buttonText: string
+buttonLink?: string
+gradient?: string
+}) => (
+<div className="flex items-center justify-between mb-4">
+<div className="flex items-center gap-2">
+<div className={`h-8 w-1 bg-gradient-to-b ${gradient} rounded-full`} />
+<div className="flex items-center gap-2">
+<Icon className="h-5 w-5 text-muted-foreground" />
+<h2 className="text-lg font-medium">{title}</h2>
+</div>
+</div>
+<Button size="sm" variant="outline" className="text-xs text-muted-foreground hover:text-foreground" asChild>
+<Link href={buttonLink}>
+{buttonText}
+<Expand className="ml-1 h-3 w-3" />
+</Link>
+</Button>
+</div>
+)
+```
+
+**Color-Coded Gradients for Different Sections:**
+
+- 🔵 Appointments: `from-blue-500 to-blue-500/60`
+- 🟢 Calls: `from-emerald-500 to-emerald-500/60`
+- 🟣 Messages: `from-violet-500 to-violet-500/60`
+- 🟡 Emails: `from-amber-500 to-amber-500/60`
+
+### 🔘 Button Design Patterns
+
+**Primary Button Styles:**
+
+```tsx
+// Standard outline button (preferred)
+<Button variant="outline" className="rounded-2xl">
+
+// Action buttons with icons
+<Button variant="outline" size="sm" className="gap-1 rounded-2xl">
+<Icon className="h-4 w-4" />
+Action Text
+</Button>
+
+// Back navigation buttons
+<Button variant="outline" onClick={() => router.push("/path")} className="gap-2">
+<ArrowLeftIcon className="h-4 w-4" />
+Back to Page
+</Button>
+```
+
+**Button Design Rules:**
+
+- ✅ Prefer `variant="outline"` over solid buttons
+- ✅ Border radius: `rounded-2xl` or `rounded-3xl`
+- ✅ Icon spacing: `gap-1` or `gap-2`
+- ✅ Icon size: `h-4 w-4` for buttons, `h-3 w-3` for small buttons
+
+### 🎨 Color System & Visual Hierarchy
+
+**Text Hierarchy:**
+
+```tsx
+// Primary headings
+className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700"
+
+// Section headings
+className="text-lg font-medium"
+
+// Secondary text
+className="text-muted-foreground"
+
+// Small labels
+className="text-sm text-muted-foreground"
+
+// Extra small text
+className="text-xs text-muted-foreground"
+```
+
+**Background & Border Colors:**
+
+- ✅ Card backgrounds: `bg-card/40 backdrop-blur-sm`
+- ✅ Borders: `border-border`
+- ✅ Input backgrounds: `bg-card/30`
+- ✅ Muted backgrounds: `bg-muted/40`
+
+### 📱 Responsive Design Patterns
+
+**Grid Layouts:**
+
+```tsx
+// Stats cards
+<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+
+// Two-column layouts
+<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<div className="lg:col-span-4">{/* Sidebar */}</div>
+<div className="lg:col-span-8">{/* Main content */}</div>
+</div>
+
+// Cards grid
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+```
+
+**Responsive Text & Spacing:**
+
+- ✅ Text: `text-4xl lg:text-3xl` (larger on mobile, smaller on desktop)
+- ✅ Padding: `p-2 md:px-8 md:py-4`
+- ✅ Gaps: `gap-4` or `gap-8` consistently
+
+### 🎭 Status Badges & Visual Indicators
+
+**Status Badge Pattern:**
+
+```tsx
+const StatusBadge = ({ status }: { status: string }) => {
+const statusColors: Record<string, string> = {
+new: "bg-blue-100 text-blue-800 hover:bg-blue-100",
+contacted: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
+qualified: "bg-orange-100 text-orange-800 hover:bg-orange-100",
+converted: "bg-green-100 text-green-800 hover:bg-green-100",
+lost: "bg-red-100 text-red-800 hover:bg-red-100"
+}
+
+return (
+<Badge className={`px-3 py-1 ${statusColors[status] || "bg-gray-100 text-gray-800"}`}>
+{status.charAt(0).toUpperCase() + status.slice(1)}
+</Badge>
+)
+}
+```
+
+**Color-Coded Visual Indicators:**
+
+- 🟢 Incoming/Received: `text-green-500` or `bg-green-500`
+- 🔵 Outgoing/Sent: `text-blue-500` or `bg-blue-500`
+- 🔴 Missed/Error: `text-red-500` or `bg-red-500`
+
+### 📦 Empty State Design
+
+**Consistent Empty State Pattern:**
+
+```tsx
+const EmptyState = ({
+icon: Icon,
+title,
+description,
+buttonText
+}: {
+icon: React.ElementType
+title: string
+description: string
+buttonText: string
+}) => (
+<div className="flex flex-col items-center justify-center py-8 text-center h-40">
+<div className="rounded-full p-3 border border-border/40 shadow-sm">
+<Icon className="h-6 w-6 text-muted-foreground" />
+</div>
+<h3 className="mt-3 text-sm font-medium">{title}</h3>
+<p className="mt-1 text-xs text-muted-foreground max-w-xs">
+{description}
+</p>
+<Button className="mt-3" size="sm" variant="outline">
+<PlusIcon className="mr-1 h-3 w-3" />
+{buttonText}
+</Button>
+</div>
+)
+```
+
+### ⚡ Loading States & Skeletons
+
+**Comprehensive Skeleton Loading:**
+
+- ✅ Always provide skeleton loading states that match the actual component structure
+- ✅ Use `<Skeleton className="h-X w-Y rounded-Z" />` with appropriate dimensions
+- ✅ Maintain the same layout structure as the loaded state
+
+### 🧩 Component Composition Patterns
+
+**Page Client Component Pattern:**
+
+```tsx
+// Server Component (page.tsx)
+export default async function PageName() {
+const data = await getServerData()
+
+return (
+<div className="container h-[calc(100vh-5rem)]">
+<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
+<PageNameClient initialData={data} />
+</div>
+</div>
+)
+}
+
+// Client Component (separate file)
+'use client'
+export function PageNameClient({ initialData }) {
+// Interactive features here
+}
+```
+
+### 📐 Spacing & Rhythm System
+
+**Consistent Spacing Hierarchy:**
+
+- ✅ Major sections: `gap-8` or `gap-6`
+- ✅ Related elements: `gap-4`
+- ✅ Small spacing: `gap-2`
+- ✅ Card padding: `px-6 py-2`, `p-5`, or `p-4`
+- ✅ Section margins: `mb-4`, `mt-4`
+
+### 🎪 Animation & Interaction
+
+**Subtle Interactions:**
+
+```tsx
+// Hover effects
+className="hover:bg-primary/5 transition"
+
+// Loading states
+className="animate-spin mr-2 h-4 w-4 border-2 border-primary-foreground border-r-transparent rounded-full"
+```
+
+### 🚨 Critical Design Rules
+
+**Never Violate These Principles:**
+
+1. **❌ Don't use different border radius patterns** - Stick to `rounded-2xl` and `rounded-3xl`
+2. **❌ Don't skip the backdrop blur effect** - Always use `bg-card/40 backdrop-blur-sm`
+3. **❌ Don't use inconsistent text gradients** - Always use the exact gradient formula
+4. **❌ Don't forget responsive padding** - Always use `p-2 md:px-8 md:py-4`
+5. **❌ Don't use solid backgrounds** - Prefer translucent with backdrop-blur
+6. **❌ Don't mix different status color schemes** - Use the established color mapping
+7. **❌ Don't skip loading states** - Every data-loading component needs a skeleton
+
+### 🎯 Design Implementation Checklist
+
+Before considering any page or component complete:
+
+- ✅ Uses the standard page layout structure
+- ✅ Header follows the gradient text pattern
+- ✅ Cards use the correct rounded corners and backdrop blur
+- ✅ Responsive design works on mobile and desktop
+- ✅ Loading states and empty states are implemented
+- ✅ Color scheme follows the established patterns
+- ✅ Typography hierarchy is consistent
+- ✅ Spacing follows the rhythm system
+- ✅ Interactive elements have proper hover states
+
+**Remember**: These patterns create IcePhone's distinctive, modern, and cohesive user interface. Every component should feel like it belongs to the same design system, creating a seamless user experience that reflects the premium quality of the platform.
+
+## 🚀 Feature Implementation Process
+
+Let's walk through implementing a feature from start to finish:
+
+### Step 1: Understand the Feature
+
+Before writing any code:
+
+1. Check if it exists in the master checklist
+2. Read any existing documentation
+3. Understand the user story and requirements
+
+### Step 2: Research & Planning
+
+Use your documentation tools wisely:
+
+**For implementation patterns:**
+
+```
+<function_calls>
+<invoke name="mcp_context7_get-library-docs">
+<parameter name="context7CompatibleLibraryID">/vercel/next.js</parameter>
+<parameter name="topic">server actions</parameter>
+</invoke>
+</function_calls>
+```
+
+**For current best practices:**
+
+```
+<function_calls>
+<invoke name="web_search">
+<parameter name="search_term">Next.js server actions authentication pattern 2024</parameter>
+<parameter name="explanation">Finding current best practices for securing server actions</parameter>
+</invoke>
+</function_calls>
+```
+
+**For studying successful implementations:**
+
+```
+<function_calls>
+<invoke name="mcp_mcp-deepwiki_deepwiki_fetch">
+<parameter name="url">vercel/nextjs-subscription-payments</parameter>
+<parameter name="mode">aggregate</parameter>
+<parameter name="maxDepth">1</parameter>
+</invoke>
+</function_calls>
+```
+
+### Step 3: Set Up Your Feature Structure
+
+Create the necessary directories and files:
+
+```bash
+# Create feature directories
+mkdir -p src/app/(pages)/{feature-name}
+mkdir -p src/actions
+mkdir -p tests/features/{feature-name}
+
+# Create or update the feature checklist
+touch docs/features/{feature-name}/checklist.md
+```
+
+### Step 4: Database Design
+
+Always start with the data layer using Drizzle ORM:
+
+1. **Design your schema** in `src/db/schema.ts`:
+
+```typescript
+// Example: Adding a new voice_agents table
+export const voiceAgents = pgTable('voice_agents', {
+id: serial('id').primaryKey(),
+name: text('name').notNull(),
+description: text('description'),
+phoneNumber: text('phone_number'),
+instructions: text('instructions'),
+userId: text('user_id').notNull(),
+createdAt: timestamp('created_at').defaultNow().notNull(),
+updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})                                                         ;
+
+export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
+// Define relationships here
+}))                                                                              ;
+```
+
+2. **Apply schema changes** immediately: `bun db:dev:push`
+3. **Test with MCP tools** (optional, for validation):
+
+```
+<function_calls>
+<invoke name="mcp_Neon_run_sql">
+<parameter name="params">{
+"projectId": "square-unit-96831934",
+"branchId": "br-blue-frog-a6npin6j",
+"databaseName": "neondb",
+"sql": "SELECT * FROM voice_agents LIMIT 1;"
+}</parameter>
+</invoke>
+</function_calls>
+```
+
+This approach ensures:
+
+- ✅ Schema stays in sync with Drizzle migrations
+- ✅ Type safety throughout your application
+- ✅ Proper migration tracking
+- ✅ Rollback capabilities when needed
+
+### Step 5: Build Server Actions
+
+Follow this secure pattern for ALL server actions:
+
+```typescript
+'use server';
+import { currentUser } from '@clerk/nextjs/server';
+import { db } from '@/db';
+
+export async function createLead(input: LeadInput) {
+// ALWAYS authenticate first
+const user = await currentUser()                     ;
+if (!user) throw new Error('Unauthorized');
+
+// Validate input
+const validated = leadSchema.parse(input) ;
+
+// Execute with user isolation
+const lead = await db.insert(leads).values({
+...validated,
+userId: user.id, // CRITICAL: Always scope to user
+}).returning()                                     ;
+
+return lead[0] ;
+}
+```
+
+### Step 6: Create UI Components
+
+Build incrementally with proper patterns:
+
+```typescript
+// Server Component (default) - page.tsx
+import { getLeads } from '@/actions/leads';
+
+export default async function LeadsPage() {
+const leads = await getLeads()              ;
+
+return (
+<div className="container mx-auto p-6">
+<h1 className="text-3xl font-bold mb-6">Leads</h1>
+<LeadsList leads={leads} />
+</div>
+)                                                  ;
+}
+
+// Client Component (only for interactivity) - LeadsList.tsx
+'use client';
+import { useState } from 'react';
+
+export function LeadsList({ leads: initialLeads }) {
+const [leads, setLeads] = useState(initialLeads)     ;
+
+// Interactive features here
+return <div>...</div>        ;
+}
+```
+
+### Step 7: Test Everything
+
+Create comprehensive tests:
+
+```typescript
+// tests/features/leads/actions.test.ts
+describe('Lead Actions', () => {
+it('should enforce user isolation', async () => {
+const lead = await createLead({ name: 'Test Lead' }) ;
+expect(lead.userId).toBe(mockUser.id)                ;
+})                                                   ;
+
+it('should validate input', async () => {
+await expect(createLead({ name: '' })).rejects.toThrow() ;
+})                                                       ;
+})                                                       ;
+```
+
+Run tests continuously: `bun test tests/features/leads --watch`
+
+## 💡 Critical Patterns You Must Follow
+
+### Authentication is Non-Negotiable
+
+Every server action MUST authenticate:
+
+```typescript
+const user = await currentUser()            ;
+if (!user) throw new Error('Unauthorized');
+```
+
+### Data Isolation is Mandatory
+
+Always scope queries to the current user:
+
+```typescript
+// ❌ NEVER do this
+const allLeads = await db.query.leads.findMany() ;
+
+// ✅ ALWAYS do this
+const userLeads = await db.query.leads.findMany({
+where: eq(leads.userId, user.id)
+})                                                ;
+```
+
+### Use Server Components by Default
+
+Only use client components when you need:
+
+- User input (forms, clicks)
+- Browser APIs
+- Real-time updates
+- Third-party client libraries
+
+### Handle Errors Gracefully
+
+Implement proper error boundaries:
+
+```typescript
+// app/(pages)/leads/error.tsx
+'use client';
+
+export default function Error({
+error,
+reset,
+}: {
+error: Error & { digest?: string }                                        ;
+reset: () => void                                                         ;
+}) {
+return (
+<div className="flex flex-col items-center justify-center min-h-[400px]">
+<h2 className="text-xl font-semibold mb-4">Something went wrong!</h2>
+<button onClick={reset} className="btn btn-outline">
+Try again
+</button>
+</div>
+)                                                                         ;
+}
+```
+
+## 🚢 Deployment with Cloudflare Workers
+
+### Pre-Deployment Checklist
+
+Before every deployment:
+
+1. **Run type checks**: `bun run check`
+2. **Run all tests**: `bun test`
+3. **Check bundle size**: Must be < 20MB
+4. **Verify environment variables**: Check `.dev.vars`
+5. **Test locally**: `bun run preview:worker`
+
+### Deployment Commands
+
+```bash
+# Deploy to staging
+bun run deploy:staging
+
+# Deploy to production (with confirmation)
+bun run deploy:production
+```
+
+### Performance Optimization
+
+Keep your app fast on Cloudflare Workers:
+
+1. **Use dynamic imports** for heavy components:
+
+```typescript
+const ChartComponent = dynamic(() => import('./HeavyChart'), {
+loading: () => <ChartSkeleton />,
+ssr: false
+})                                                             ;
+```
+
+2. **Stream with Suspense**:
+
+```typescript
+<Suspense fallback={<Loading />}>
+<ExpensiveComponent />
+</Suspense>
+```
+
+3. **Optimize images**: Always convert to WebP format
+
+## 🎯 Success Criteria
+
+A feature is complete when:
+
+- ✅ All tests pass
+- ✅ TypeScript has no errors
+- ✅ User authentication verified
+- ✅ Data isolation implemented
+- ✅ Mobile responsive
+- ✅ Error handling works
+- ✅ Loading states are smooth
+- ✅ Bundle size is optimized
+
+## 🔧 Troubleshooting Guide
+
+When things go wrong:
+
+1. **Check server logs**: `tail -n 200 logs/server.log`
+2. **Check browser console**: Use the MCP browser tools
+3. **Verify database state**: Use Neon MCP tools
+4. **Search for solutions**: Use web search for recent fixes
+5. **Check documentation**: Use Context7 for official guides
+
+## 🎉 Quick Reference
+
+### Common Commands
+
+```bash
+# Start development server with logging
+bun dev
+
+# Build the project
+bun run build
+
+# Start production server
+bun start
+
+# Run tests
+bun test
+
+# Run tests in watch mode
+bun test --watch
+
+# Type check, format, and lint
+bun run check
+
+```
+
+### Database Commands
+
+```bash
+# Development database operations
+bun db:dev:generate # Generate migrations
+bun db:dev:migrate  # Run migrations
+bun db:dev:push     # Push schema changes
+
+# Production database operations
+bun db:prod:generate # Generate migrations
+bun db:prod:migrate  # Run migrations
+bun db:prod:push     # Push schema changes
+
+# Seed database with test data
+bun db:seed
+```
+
+### Deployment & Build Commands
+
+```bash
+# Preview build locally
+bun run preview
+
+# Deploy to production (with checks)
+bun run deploy
+
+# Upload build to Cloudflare
+bun run upload
+
+# Generate Cloudflare types
+bun cf-typegen
+```
+
+### Utility Commands
+
+```bash
+# Show project file tree
+bun filetree
+
+# Clean and restart development
+bun run fix
+
+# Clean Next.js cache
+bun clean-next
+
+# Reinstall all dependencies
+bun reinstall-deps
+
+# Start browser MCP server
+bun browser-mcp
+
+# Setup git hooks
+bun prepare
+```
+
+### Getting Help
+
+When stuck:
+
+1. Search Context7 documentation
+2. Search the web for recent solutions
+3. Check the error in multiple browsers
+4. Test with minimal reproduction
+5. Check if it's a known issue in the framework
+
+Remember: Write clean code and let the React Compiler handle optimizations. Focus on building features that provide value to users, and always prioritize security and performance.
+
+## 📖 Learning from Open Source: DeepWiki Analysis
+
+When you need to understand how successful projects implement features, use DeepWiki to analyze GitHub repositories. This complements Context7's official docs with real-world implementation examples.
+
+### When to Use DeepWiki vs Context7
+
+| Need | Tool | Example |
+|------|------|---------|
+| Official API docs | Context7 | "How do I use Next.js server actions?" |
+| Implementation patterns | DeepWiki | "How does cal.com handle scheduling?" |
+| Framework features | Context7 | "What's new in React 19?" |
+| Architecture decisions | DeepWiki | "How does Supabase structure their app?" |
+
+### Using DeepWiki Effectively
+
+**Study a successful implementation:**
+
+```
+<function_calls>
+<invoke name="mcp_mcp-deepwiki_deepwiki_fetch">
+<parameter name="url">vercel/nextjs-subscription-payments</parameter>
+<parameter name="mode">aggregate</parameter>
+<parameter name="maxDepth">1</parameter>
+</invoke>
+</function_calls>
+```
+
+**Learn from component libraries:**
+
+```
+<function_calls>
+<invoke name="mcp_mcp-deepwiki_deepwiki_fetch">
+<parameter name="url">shadcn-ui/ui</parameter>
+<parameter name="mode">aggregate</parameter>
+<parameter name="maxDepth">1</parameter>
+</invoke>
+</function_calls>
+```
+
+### IcePhone-Specific Research
+
+Before building voice features:
+
+```
+<function_calls>
+<invoke name="mcp_mcp-deepwiki_deepwiki_fetch">
+<parameter name="url">livekit/livekit</parameter>
+<parameter name="mode">aggregate</parameter>
+<parameter name="maxDepth">1</parameter>
+</invoke>
+</function_calls>
+```
+
+Before CRM features:
+
+```
+<function_calls>
+<invoke name="mcp_mcp-deepwiki_deepwiki_fetch">
+<parameter name="url">twentyhq/twenty</parameter>
+<parameter name="mode">aggregate</parameter>
+<parameter name="maxDepth">1</parameter>
+</invoke>
+</function_calls>
+```
+
+💡 **Pro Tip**: Always check both Context7 for "how it should work" and DeepWiki for "how others make it work".
+
+## 🏗️ Core Development Principles
+
+As you build IcePhone, follow these principles:
+
+1. **Server Components First**: Use client components only for interactivity
+2. **Type Safety**: TypeScript everywhere, no `any` types
+3. **Test-Driven**: Write tests before code
+4. **Security by Default**: Always authenticate and isolate user data
+5. **Performance Focused**: Keep bundle under 20MB, load time under 2s
+6. **Clean Code**: Let React Compiler optimize, don't pre-optimize
+
+## 📋 Feature Development Workflow
+
+Every feature follows this systematic process:
+
+### 1️⃣ Check the Master Plan
+
+Before writing ANY code:
+
+```bash
+# See what's already planned
+cat docs/MASTER_FEATURES_CHECKLIST.md
+
+# Check if your feature exists
+grep -i "voice-agent" docs/MASTER_FEATURES_CHECKLIST.md
+```
+
+If it exists, follow the existing plan. If not, add it first.
+
+### 2️⃣ Research and Learn
+
+Use your tools to understand the best approach:
+
+**Official documentation:**
+
+```
+<function_calls>
+<invoke name="mcp_context7_get-library-docs">
+<parameter name="context7CompatibleLibraryID">/vercel/next.js</parameter>
+<parameter name="topic">server actions security</parameter>
+</invoke>
+</function_calls>
+```
+
+**Current best practices:**
+
+```
+<function_calls>
+<invoke name="web_search">
+<parameter name="search_term">Next.js 15 voice call integration WebRTC 2024</parameter>
+<parameter name="explanation">Finding current approaches for voice features</parameter>
+</invoke>
+</function_calls>
+```
+
+**Learn from others:**
+
+```
+<function_calls>
+<invoke name="mcp_mcp-deepwiki_deepwiki_fetch">
+<parameter name="url">livekit/livekit</parameter>
+<parameter name="mode">aggregate</parameter>
+</invoke>
+</function_calls>
+```
+
+### 3️⃣ Plan Your Implementation
+
+Create a clear structure:
+
+```bash
+# Set up directories
+mkdir -p src/app/(pages)/voice-agents
+mkdir -p src/actions/voice-agents
+mkdir -p tests/features/voice-agents
+
+# Create tracking checklist
+touch docs/features/voice-agents/checklist.md
+```
+
+### 4️⃣ Build Incrementally
+
+Start with the database, then server actions, then UI:
+
+**Database first:**
+
+```typescript
+// Edit src/db/schema.ts
+export const voiceAgents = pgTable('voice_agents', {
+id: serial('id').primaryKey(),
+name: text('name').notNull(),
+userId: text('user_id').notNull(),
+createdAt: timestamp('created_at').defaultNow().notNull(),
+updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})                                                         ;
+```
+
+Then apply immediately:
+
+```bash
+bun db:dev:push
+```
+
+**Then server actions:**
+
+```typescript
+'use server';
+export async function createVoiceAgent(data: AgentData) {
+const user = await currentUser()                          ;
+if (!user) throw new Error('Unauthorized');
+
+return db.insert(voiceAgents).values({
+...data,
+userId: user.id
+})                                     ;
+}
+```
+
+**Finally UI:**
+
+```typescript
+export default async function VoiceAgentsPage() {
+const agents = await getVoiceAgents()             ;
+return <AgentsList agents={agents} />             ;
+}
+```
+
+### 5️⃣ Test Everything
+
+Run tests continuously:
+
+```bash
+# Watch mode for rapid feedback
+bun test tests/features/voice-agents --watch
+
+# Full validation
+./test-feature.sh voice-agents
+```
+
+### 6️⃣ Quality Check
+
+Before marking complete:
+
+- ✅ All tests pass
+- ✅ TypeScript clean
+- ✅ User data isolated
+- ✅ Mobile responsive
+- ✅ Errors handled gracefully
+- ✅ Performance optimized
+
+## 🚀 Quick Command Reference
+
+```bash
+# Development
+bun dev          # Start dev server
+bun test --watch # Run tests
+bun run check    # TypeScript check
+bun db:dev:push  # Apply DB changes
+
+# Feature workflow
+cat docs/MASTER_FEATURES_CHECKLIST.md # Check plan
+./create-feature.sh {name}            # Start feature
+./test-feature.sh {name}              # Validate feature
+
+# Deployment
+bun run deploy:staging    # Test deployment
+bun run deploy:production # Go live
+```
+
+## 🆘 When You're Stuck
+
+1. **Check documentation**: Use Context7 for official docs
+2. **Search for solutions**: Use web search for recent fixes
+3. **Study examples**: Use DeepWiki to see how others solved it
+4. **Test in isolation**: Create minimal reproductions
+5. **Check logs**: Server logs in `logs/server.log`
+
+Remember: The goal is to build features that help business owners manage their customer relationships and automate their voice communications. Keep the user's needs at the center of every decision.
+
+## 🏆 Key Patterns for Success
+
+### The React Compiler Advantage
+
+Let the compiler optimize your code automatically:
+
+```jsx
+// Just write clean code - no manual optimization needed
+function LeadsList({ leads, searchTerm }) {
+const filteredLeads = leads.filter(lead =>
+lead.name.toLowerCase().includes(searchTerm.toLowerCase())
+)                                                          ;
+
+return (
+<div>
+{filteredLeads.map(lead => (
+<LeadCard key={lead.id} lead={lead} />
+))}
+</div>
+)                                      ;
+}
+```
+
+Only manually optimize expensive operations:
+
+```jsx
+// Keep useMemo for truly expensive calculations
+const processedAnalytics = useMemo(() => {
+return rawCallData
+.filter(call => call.duration > 30)
+.map(call => calculateSentimentScore(call.transcript))
+.sort((a, b) => b.score - a.score)                     ;
+}, [rawCallData])                                      ;
+```
+
+### Security Pattern (Non-Negotiable)
+
+Every server action MUST authenticate:
+
+```typescript
+'use server';
+import { currentUser } from '@clerk/nextjs/server';
+
+export async function createLead(input: LeadInput) {
+const user = await currentUser()                     ;
+if (!user) throw new Error('Unauthorized');
+
+return await db.insert(leads).values({
+...input,
+userId: user.id // CRITICAL: Always scope to user
+})                                                ;
+}
+```
+
+### Smart Data Loading
+
+Use server components for initial data:
+
+```typescript
+// ✅ Server component loads data
+export default async function LeadsPage() {
+const leads = await getLeads()              ;
+return <LeadsClient initialLeads={leads} /> ;
+}
+
+// ✅ Client component handles interactions
+'use client';
+export function LeadsClient({ initialLeads }) {
+const [leads, setLeads] = useState(initialLeads) ;
+// Interactive features here
+}
+```
+
+### Background Tasks
+
+Use Next.js `after` for non-blocking operations:
+
+```typescript
+import { unstable_after as after } from 'next/server';
+
+export async function processCall(callId: string) {
+const call = await updateCallStatus(callId, 'completed');
+
+// These run after response is sent
+after(async () => {
+await generateTranscript(callId)     ;
+await updateAnalytics(call.leadId)   ;
+await sendFollowupEmail(call.leadId) ;
+})                                   ;
+
+return call ;
+}
+```
+
+## 🚢 Deployment Made Simple
+
+### Quick Setup
+
+1. **Install dependencies:**
+
+```bash
+bun add -D @opennextjs/cloudflare wrangler@latest
+```
+
+2. **Configure deployment** in `wrangler.jsonc`
+3. **Add scripts** to package.json
+4. **Deploy:**
+
+```bash
+bun run deploy:staging    # Test first
+bun run deploy:production # Go live
+```
+
+### Pre-Deployment Checklist
+
+Before every deployment:
+
+- ✅ Tests pass: `bun test`
+- ✅ Types clean: `bun run check`
+- ✅ Build works: `bun run build`
+- ✅ Bundle < 20MB
+- ✅ Environment variables set
+
+### Monitor Success
+
+After deployment, watch for:
+
+- Cold start < 100ms
+- Response time < 500ms
+- Error rate < 0.1%
+- Memory < 128MB
+
+## 🧪 Testing Strategy
+
+### Test-First Development
+
+```typescript
+// 1. Write the test
+describe('Voice Agent', () => {
+it('should create agent with user isolation', async () => {
+const agent = await createVoiceAgent({ name: 'Test' })      ;
+expect(agent.userId).toBe(mockUser.id)                      ;
+})                                                          ;
+})                                                          ;
+
+// 2. Then implement
+export async function createVoiceAgent(data) {
+const user = await currentUser()               ;
+if (!user) throw new Error('Unauthorized');
+// Implementation
+}
+```
+
+### Database Testing Pattern
+
+Use transactions for safe testing:
+
+```typescript
+await db.transaction(async (tx) => {
+// Test your database operations
+const result = await createRecord(data, tx) ;
+
+// Verify the result
+expect(result).toBeDefined() ;
+
+// Transaction rolls back automatically
+throw new Error('Rollback');
+})                                      ;
+```
+
 
 ## Clerk Authentication:
 
@@ -44,45 +1436,17 @@ Note that in Next.js, we always prefer to use server actions instead of API rout
 - First, check the server and browser logs:
 -- Server Logs are continously saved to `logs/server.log` file as they appear in the console. You can run `tail -n 200 server.log` for the latest logs of the current dev server session (the file is cleared each time before running `next dev`)
 -- Browser logs can be fetched by calling the `mcp_getConsoleLogs()` tool. If you can't access them, remind me to run `bun browser-mcp` in a terminal and `right click -> inspect` on the page to open Chrome Dev Tools (which connects the MCP server to the browser)
-- If debugging type errors, run `bun typecheck` after your changes to make sure everything works.
-- If the problem could be related to a server side function that in any way interacts with the database, please try to use the `mcp_run_sql` tool from neon to interact with the db directly to understand the problem. After applying your changes, run the tool again to confirm that your solution has indeed worked.
-- If you can solve an issue using Next.js features vs using features of external packages, try using the Next.js solution because it is usually less error prone. This is not always the case as there might be popular javascript packages that solve issues in a simple way.
-- Always run commands to figure out things - I will always give you permission to run almost any terminal command because I want you to read the output from the terminal directly. This results in a faster feedback loop. Feel free to add packages, remove files, or anything else through the terminal. I will give you permission.
-- If you think searching the web is a good idea to look for docs or any other up to date information, just do it.
-- If you run into lint errors with Next.js or React, search the web for the most recent documentation for Next.js 15 / React 19
 
-## Packages:
+## 🎯 Final Reminders
 
-- Always use bun as the package manager to run commands instead of npm.
-- Always use bunx instead of npx.
+1. **User First**: Every feature should solve a real business problem
+2. **Security Always**: Never skip authentication or data isolation
+3. **Performance Matters**: Keep it fast for edge deployment
+4. **Test Everything**: Confidence comes from comprehensive testing
+5. **Document Progress**: Update checklists as you work
 
-## Design and Styling:
+## 📞 You're Building the Future of Business Communication
 
-- Always try to use UI components from shadcn/ui. It is already installed, but not all components are added. You can run the commands like `bunx shadcn@latest add button card` etc to add specific components. Run a search in the components folder before you run the install command to understand which ones you can skip.
-- Always use Tailwind CSS for styling. It is already installed.
-- Always use icons from lucide-react. It is already installed.
-- Try to create clean, sleek, modern, and minimal design that is responsive on both mobile and desktop browsers.
-- Follow the design patterns, conventions, and styling applied in the project to remain consistent.
-- Always use rounded corners (2xl or 3xl).
-- Prefer the 'outline' variant for most buttons.
+IcePhone will help thousands of business owners automate their customer interactions and grow their businesses. Every line of code you write brings us closer to that goal.
 
-## Tech Stack:
-
-- Next.js v15 (App Router)
-- React v19
-- Tailwind CSS
-- Drizzle ORM
-- Neon Database (PostgresSQL)
-- Shadcn/ui for components
-- Clerk for authentication
-- Lucide-react for icons
-- Cloudflare for deployment
-
-## Performance:
-
-- My highest priority is User Experience.
-- I want this Next.js website to load fast on any browser and in all network conditions.
-- Try to use React Server Components whenever possible so that we can render pages on the server for faster initial page loads.
-- However, if some components need high interactivity then you can use client components for a good user experience.
-- It should react to user input quickly without any lag and feel "snappy" to use.
-- I might give you some images to add to the site - always run a zsh command to convert it to an optimized format like webp before adding it so that they load fast.
+Happy coding! 🚀

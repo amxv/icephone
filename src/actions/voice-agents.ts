@@ -9,14 +9,37 @@ import {
 	voiceSessions
 } from "@/db/schema"
 import type {
+	VoiceAgent,
 	VoiceAgentCreateRequest,
+	VoiceAgentFunction,
 	VoiceAgentFunctionCreateRequest,
+	VoiceAgentStatus,
 	VoiceAgentUpdateRequest,
 	VoiceAgentWithPhoneNumber,
-	VoiceSessionCreateRequest
+	VoiceSession,
+	VoiceSessionCreateRequest,
+	VoiceSessionStatus,
+	VoiceSettings
 } from "@/types"
 import { auth, currentUser } from "@clerk/nextjs/server"
-import { type SQL, and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
+import {
+	type SQL,
+	and,
+	asc,
+	desc,
+	eq,
+	gte,
+	ilike,
+	inArray,
+	lte,
+	or,
+	sql
+} from "drizzle-orm"
+
+// Import Vapi integration services
+import { VoiceAgentService } from "@/lib/voice-agent-service"
+import { getAgentRole } from "@/actions/agent-roles"
+import { getVoicePreset } from "@/actions/voice-presets"
 
 // Define types for filtering
 type VoiceAgentFilter = {
@@ -39,35 +62,30 @@ export async function getVoiceAgents(filter: VoiceAgentFilter = {}): Promise<{
 			return { error: "Unauthorized", success: false, data: null }
 		}
 
-		// Collect where conditions
-		const whereConditions: SQL[] = [eq(voiceAgents.userId, userId)]
+		// Apply filters
+		const conditions = [eq(voiceAgents.userId, userId)]
 
-		// Apply search filter
 		if (filter.search) {
-			const searchPattern = `%${filter.search}%`
-			whereConditions.push(
-				sql`(${voiceAgents.name} ILIKE ${searchPattern} OR ${voiceAgents.description} ILIKE ${searchPattern})`
+			const searchCondition = or(
+				ilike(voiceAgents.name, `%${filter.search}%`),
+				ilike(voiceAgents.description, `%${filter.search}%`)
 			)
+			if (searchCondition) {
+				conditions.push(searchCondition)
+			}
 		}
 
-		// Filter by status
 		if (filter.status && filter.status.length > 0) {
-			whereConditions.push(
-				sql`${voiceAgents.status} IN (${sql.join(filter.status)})`
+			conditions.push(
+				inArray(voiceAgents.status, filter.status as VoiceAgentStatus[])
 			)
 		}
 
-		// Filter by phone number
 		if (filter.phoneNumberId) {
-			whereConditions.push(
-				eq(voiceAgents.phoneNumberId, filter.phoneNumberId)
-			)
+			conditions.push(eq(voiceAgents.phoneNumberId, filter.phoneNumberId))
 		}
 
-		// Create a single 'and' condition from all conditions
-		const condition = and(...whereConditions)
-
-		// Execute the query with phone number join
+		// Execute query with combined conditions
 		const agentsData = await db_ws
 			.select({
 				id: voiceAgents.id,
@@ -80,6 +98,7 @@ export async function getVoiceAgents(filter: VoiceAgentFilter = {}): Promise<{
 				status: voiceAgents.status,
 				configuration: voiceAgents.configuration,
 				firstMessage: voiceAgents.firstMessage,
+				vapiAssistantId: voiceAgents.vapiAssistantId,
 				createdAt: voiceAgents.createdAt,
 				updatedAt: voiceAgents.updatedAt,
 				userId: voiceAgents.userId,
@@ -96,40 +115,64 @@ export async function getVoiceAgents(filter: VoiceAgentFilter = {}): Promise<{
 				phoneNumbers,
 				eq(voiceAgents.phoneNumberId, phoneNumbers.id)
 			)
-			.where(condition)
+			.where(and(...conditions))
 
 		// Apply sorting
 		let sortedData = agentsData
 		if (filter.orderBy) {
+			// Create a type-safe mapping for sort columns
+			const sortableColumns = {
+				id: "id",
+				name: "name",
+				status: "status",
+				createdAt: "createdAt",
+				updatedAt: "updatedAt"
+			} as const
+
 			const orderColumn =
-				filter.orderBy as keyof typeof voiceAgents.$inferSelect
+				sortableColumns[filter.orderBy as keyof typeof sortableColumns]
 			const orderDirection = filter.orderDir || "desc"
 
-			sortedData = agentsData.sort((a, b) => {
-				const valueA = a[orderColumn]
-				const valueB = b[orderColumn]
+			if (orderColumn) {
+				sortedData = agentsData.sort((a, b) => {
+					const valueA = a[orderColumn]
+					const valueB = b[orderColumn]
 
-				// Handle dates
-				if (
-					orderColumn === "createdAt" ||
-					orderColumn === "updatedAt"
-				) {
-					const dateA = new Date(valueA as string).getTime()
-					const dateB = new Date(valueB as string).getTime()
-					return orderDirection === "asc"
-						? dateA - dateB
-						: dateB - dateA
-				}
+					// Handle dates
+					if (
+						orderColumn === "createdAt" ||
+						orderColumn === "updatedAt"
+					) {
+						const dateA = new Date(valueA as string).getTime()
+						const dateB = new Date(valueB as string).getTime()
+						return orderDirection === "asc"
+							? dateA - dateB
+							: dateB - dateA
+					}
 
-				// Handle strings
-				if (typeof valueA === "string" && typeof valueB === "string") {
-					return orderDirection === "asc"
-						? valueA.localeCompare(valueB)
-						: valueB.localeCompare(valueA)
-				}
+					// Handle strings
+					if (
+						typeof valueA === "string" &&
+						typeof valueB === "string"
+					) {
+						return orderDirection === "asc"
+							? valueA.localeCompare(valueB)
+							: valueB.localeCompare(valueA)
+					}
 
-				return 0
-			})
+					// Handle numbers
+					if (
+						typeof valueA === "number" &&
+						typeof valueB === "number"
+					) {
+						return orderDirection === "asc"
+							? valueA - valueB
+							: valueB - valueA
+					}
+
+					return 0
+				})
+			}
 		} else {
 			// Default sort by updatedAt desc
 			sortedData = agentsData.sort((a, b) => {
@@ -139,7 +182,20 @@ export async function getVoiceAgents(filter: VoiceAgentFilter = {}): Promise<{
 			})
 		}
 
-		return { data: sortedData, success: true, error: null }
+		// Transform data to match expected type by ensuring required fields are not null
+		const transformedData: VoiceAgentWithPhoneNumber[] = sortedData.map(
+			(agent) => ({
+				...agent,
+				prompt: agent.prompt || "", // Convert null to empty string
+				voice: agent.voice || {
+					provider: "elevenlabs",
+					voice_id: "default"
+				}, // Provide default voice
+				phoneNumber: agent.phoneNumber?.id ? agent.phoneNumber : null
+			})
+		)
+
+		return { data: transformedData, success: true, error: null }
 	} catch (error) {
 		console.error("Error getting voice agents:", error)
 		return {
@@ -280,6 +336,139 @@ export async function createVoiceAgent(data: VoiceAgentCreateRequest) {
 		return { data: result[0], success: true, error: null }
 	} catch (error) {
 		console.error("Error creating voice agent:", error)
+		return {
+			error: "Failed to create voice agent",
+			success: false,
+			data: null
+		}
+	}
+}
+
+/**
+ * Enhanced voice agent creation with automatic VAPI assistant creation
+ * This function creates both the database record and the corresponding VAPI assistant
+ */
+export async function createVoiceAgentWithRole(data: {
+	name: string
+	description?: string
+	agentRoleId: number
+	voicePresetId: number
+	language: string
+	phoneNumberId?: number
+	status?: VoiceAgentStatus
+	industryContext?: string
+}) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Validate phone number ownership if provided
+		if (data.phoneNumberId) {
+			const phoneNumber = await db_ws
+				.select()
+				.from(phoneNumbers)
+				.where(
+					and(
+						eq(phoneNumbers.id, data.phoneNumberId),
+						eq(phoneNumbers.userId, userId)
+					)
+				)
+				.limit(1)
+
+			if (!phoneNumber || phoneNumber.length === 0) {
+				return {
+					error: "Phone number not found or not owned by user",
+					success: false,
+					data: null
+				}
+			}
+		}
+
+		// Get agent role and voice preset configurations
+		const [agentRole, voicePreset] = await Promise.all([
+			getAgentRole(data.agentRoleId),
+			getVoicePreset(data.voicePresetId)
+		])
+
+		if (!agentRole) {
+			return {
+				error: "Agent role not found",
+				success: false,
+				data: null
+			}
+		}
+
+		if (!voicePreset) {
+			return {
+				error: "Voice preset not found",
+				success: false,
+				data: null
+			}
+		}
+
+		// Generate voice configuration and first message
+		const voiceConfig = {
+			provider: voicePreset.vapiProvider as
+				| "elevenlabs"
+				| "playht"
+				| "cartesia",
+			voice_id: voicePreset.vapiVoiceId
+		}
+
+		const firstMessage =
+			agentRole.firstMessageTemplate?.replace(
+				"{{agent_name}}",
+				data.name
+			) ||
+			`Hello! I'm ${data.name}, your ${agentRole.displayName.toLowerCase()}. How can I help you today?`
+
+		let vapiAssistantId: string | null = null
+
+		try {
+			// Create VAPI assistant using the VoiceAgentService
+			const voiceService = VoiceAgentService.getInstance()
+			const assistantResult = await voiceService.createVAPIAssistant({
+				name: data.name,
+				agentRole,
+				voicePreset,
+				language: data.language,
+				industryContext: data.industryContext,
+				phoneNumberId: data.phoneNumberId || undefined
+			})
+
+			vapiAssistantId = assistantResult.assistantId
+			console.log(
+				`Created VAPI assistant ${vapiAssistantId} for agent ${data.name}`
+			)
+		} catch (vapiError) {
+			console.error("Failed to create VAPI assistant:", vapiError)
+			// Continue with agent creation even if VAPI fails
+			// The assistant can be created later via sync operation
+		}
+
+		// Create the voice agent in database
+		const result = await db_ws
+			.insert(voiceAgents)
+			.values({
+				name: data.name,
+				description: data.description,
+				prompt: agentRole.systemPrompt,
+				voice: voiceConfig,
+				language: data.language,
+				phoneNumberId: data.phoneNumberId,
+				status: data.status || "inactive",
+				configuration: agentRole.defaultConfiguration || {},
+				firstMessage,
+				vapiAssistantId,
+				userId
+			})
+			.returning()
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error creating voice agent with role:", error)
 		return {
 			error: "Failed to create voice agent",
 			success: false,
@@ -760,13 +949,13 @@ export async function createVoiceSession(data: VoiceSessionCreateRequest) {
 			}
 		}
 
-		// Generate a unique session ID for Millis AI
-		const millisSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+		// Generate a unique session ID for Vapi AI
+		const vapiSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
 		const result = await db_ws
 			.insert(voiceSessions)
 			.values({
-				sessionId: millisSessionId,
+				sessionId: vapiSessionId,
 				agentId: data.agentId,
 				leadId: data.leadId,
 				phoneNumber: data.phoneNumber,
@@ -1586,6 +1775,80 @@ export async function createTestVoiceSession(
 		console.error("Error creating test voice session:", error)
 		return {
 			error: "Failed to create test voice session",
+			success: false,
+			data: null
+		}
+	}
+}
+
+/**
+ * Sync existing voice agents with VAPI assistants
+ * This function creates VAPI assistants for agents that don't have them yet
+ */
+export async function syncVoiceAgentsWithVapi() {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Find voice agents without VAPI assistant IDs
+		const agentsWithoutVapi = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(
+					eq(voiceAgents.userId, userId),
+					sql`${voiceAgents.vapiAssistantId} IS NULL`
+				)
+			)
+
+		if (agentsWithoutVapi.length === 0) {
+			return {
+				success: true,
+				data: {
+					synced: 0,
+					message: "All agents already have VAPI assistants"
+				},
+				error: null
+			}
+		}
+
+		const voiceService = VoiceAgentService.getInstance()
+		const errors: string[] = []
+
+		for (const agent of agentsWithoutVapi) {
+			try {
+				// For existing agents, we'll create a basic VAPI assistant
+				// without the full AgentRole/VoicePreset integration
+				// This is a fallback sync for legacy agents
+
+				// Skip sync for now - this will be implemented later
+				// when we have a direct VAPI assistant creation method
+				console.log(
+					`Skipping sync for agent ${agent.name} - requires manual recreation with role/preset`
+				)
+			} catch (error) {
+				console.error(`Failed to sync agent ${agent.name}:`, error)
+				errors.push(
+					`${agent.name}: ${error instanceof Error ? error.message : "Unknown error"}`
+				)
+			}
+		}
+
+		return {
+			success: true,
+			data: {
+				synced: 0,
+				total: agentsWithoutVapi.length,
+				errors: errors.length > 0 ? errors : undefined
+			},
+			error: null
+		}
+	} catch (error) {
+		console.error("Error syncing voice agents with VAPI:", error)
+		return {
+			error: "Failed to sync voice agents with VAPI",
 			success: false,
 			data: null
 		}

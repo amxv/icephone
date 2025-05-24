@@ -14,7 +14,7 @@ IcePhone is an AI-powered CRM and Voice Agent Platform that allows business owne
 
 ## Design and Styling
 
-- Always try to use UI components from shadcn/ui. It is already installed, but not all components are added. You can run the commands like `bunx shadcn@latest add button card` etc to add specific components. Run a search in the components folder before you run the install command to understand which ones you can skip.
+- Always try to use UI components from shadcn/ui. It is already installed, but not all components are added. You can run the shadcn helper command like `shadcn add button card` which adds only the components that are not already present. For example, if @/components/ui/button.tsx already exists, then this command will actually run `bunx shadcn@latest add --yes card` under the hood (skipping button).
 - Always use Tailwind CSS for styling. It is already installed.
 - Always use icons from lucide-react. It is already installed.
 - Try to create clean, sleek, modern, and minimal design that is responsive on both mobile and desktop browsers.

@@ -192,22 +192,22 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 // Initialize function that works in both development and production
 const getEnvironmentVariables = async () => {
-  let publicKey: string | undefined
-  let endPoint: string | undefined
+let publicKey: string | undefined
+let endPoint: string | undefined
 
-  // Try to get from Cloudflare context first (for production)
-  try {
-    const { getCloudflareContext } = await import("@opennextjs/cloudflare")
-    const { env } = getCloudflareContext()
-    publicKey = env.NEXT_PUBLIC_MILLIS_PUBLIC_KEY
-    endPoint = env.NEXT_PUBLIC_MILLIS_ENDPOINT
-  } catch {
-    // Fallback to process.env for development
-    publicKey = process.env.NEXT_PUBLIC_MILLIS_PUBLIC_KEY
-    endPoint = process.env.NEXT_PUBLIC_MILLIS_ENDPOINT
-  }
+// Try to get from Cloudflare context first (for production)
+try {
+const { getCloudflareContext } = await import("@opennextjs/cloudflare")
+const { env } = getCloudflareContext()
+publicKey = env.NEXT_PUBLIC_VAPI_PUBLIC_KEY
+endPoint = env.NEXT_PUBLIC_VAPI_ENDPOINT
+} catch {
+// Fallback to process.env for development
+publicKey = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY
+endPoint = process.env.NEXT_PUBLIC_VAPI_ENDPOINT
+}
 
-  return { publicKey, endPoint }
+return { publicKey, endPoint }
 }
 ```
 
@@ -217,13 +217,13 @@ Make sure your environment variables are properly typed in `cloudflare-env.d.ts`
 
 ```typescript
 declare namespace Cloudflare {
-  interface Env {
-    // Add your environment variables here
-    NEXT_PUBLIC_MILLIS_PUBLIC_KEY: string
-    MILLIS_SECRET_KEY: string
-    NEXT_PUBLIC_MILLIS_ENDPOINT: string
-    // ... other variables
-  }
+interface Env {
+// Add your environment variables here
+NEXT_PUBLIC_VAPI_PUBLIC_KEY: string
+VAPI_SECRET_KEY: string
+NEXT_PUBLIC_VAPI_ENDPOINT: string
+// ... other variables
+}
 }
 ```
 
@@ -250,18 +250,18 @@ Every page follows this exact container structure:
 ```tsx
 // Standard page layout (most common)
 <div className="container h-[calc(100vh-5rem)]">
-  <div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
-    <PageHeader />
-    <MainContent />
-  </div>
+<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
+<PageHeader />
+<MainContent />
+</div>
 </div>
 
 // Alternative with larger gaps for dashboard-style pages
 <div className="container h-[calc(100vh-5rem)]">
-  <div className="flex flex-col gap-8 p-2 md:px-8 md:py-4 h-full">
-    <PageHeader />
-    <MainContent />
-  </div>
+<div className="flex flex-col gap-8 p-2 md:px-8 md:py-4 h-full">
+<PageHeader />
+<MainContent />
+</div>
 </div>
 ```
 
@@ -279,17 +279,17 @@ Every page follows this exact container structure:
 
 ```tsx
 function PageHeader() {
-  return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
-          {pageTitle}
-        </h1>
-      </div>
-      {/* Optional: Action buttons on the right */}
-      <OptionalActionButtons />
-    </div>
-  )
+return (
+<div className="flex items-center justify-between">
+<div>
+<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
+{pageTitle}
+</h1>
+</div>
+{/* Optional: Action buttons on the right */}
+<OptionalActionButtons />
+</div>
+)
 }
 ```
 
@@ -307,9 +307,9 @@ function PageHeader() {
 
 ```tsx
 <Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-  <CardContent className="px-6 py-2"> {/* or p-5, px-6 */}
-    {/* Content */}
-  </CardContent>
+<CardContent className="px-6 py-2"> {/* or p-5, px-6 */}
+{/* Content */}
+</CardContent>
 </Card>
 ```
 
@@ -317,9 +317,9 @@ function PageHeader() {
 
 ```tsx
 <Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm overflow-hidden">
-  <CardContent className="p-4">
-    {/* Content */}
-  </CardContent>
+<CardContent className="p-4">
+{/* Content */}
+</CardContent>
 </Card>
 ```
 
@@ -337,33 +337,33 @@ function PageHeader() {
 
 ```tsx
 const SectionHeader = ({
-  icon: Icon,
-  title,
-  buttonText,
-  buttonLink = "#",
-  gradient = "from-primary to-primary/60"
+icon: Icon,
+title,
+buttonText,
+buttonLink = "#",
+gradient = "from-primary to-primary/60"
 }: {
-  icon: React.ElementType
-  title: string
-  buttonText: string
-  buttonLink?: string
-  gradient?: string
+icon: React.ElementType
+title: string
+buttonText: string
+buttonLink?: string
+gradient?: string
 }) => (
-  <div className="flex items-center justify-between mb-4">
-    <div className="flex items-center gap-2">
-      <div className={`h-8 w-1 bg-gradient-to-b ${gradient} rounded-full`} />
-      <div className="flex items-center gap-2">
-        <Icon className="h-5 w-5 text-muted-foreground" />
-        <h2 className="text-lg font-medium">{title}</h2>
-      </div>
-    </div>
-    <Button size="sm" variant="outline" className="text-xs text-muted-foreground hover:text-foreground" asChild>
-      <Link href={buttonLink}>
-        {buttonText}
-        <Expand className="ml-1 h-3 w-3" />
-      </Link>
-    </Button>
-  </div>
+<div className="flex items-center justify-between mb-4">
+<div className="flex items-center gap-2">
+<div className={`h-8 w-1 bg-gradient-to-b ${gradient} rounded-full`} />
+<div className="flex items-center gap-2">
+<Icon className="h-5 w-5 text-muted-foreground" />
+<h2 className="text-lg font-medium">{title}</h2>
+</div>
+</div>
+<Button size="sm" variant="outline" className="text-xs text-muted-foreground hover:text-foreground" asChild>
+<Link href={buttonLink}>
+{buttonText}
+<Expand className="ml-1 h-3 w-3" />
+</Link>
+</Button>
+</div>
 )
 ```
 
@@ -384,14 +384,14 @@ const SectionHeader = ({
 
 // Action buttons with icons
 <Button variant="outline" size="sm" className="gap-1 rounded-2xl">
-  <Icon className="h-4 w-4" />
-  Action Text
+<Icon className="h-4 w-4" />
+Action Text
 </Button>
 
 // Back navigation buttons
 <Button variant="outline" onClick={() => router.push("/path")} className="gap-2">
-  <ArrowLeftIcon className="h-4 w-4" />
-  Back to Page
+<ArrowLeftIcon className="h-4 w-4" />
+Back to Page
 </Button>
 ```
 
@@ -440,8 +440,8 @@ className="text-xs text-muted-foreground"
 
 // Two-column layouts
 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-  <div className="lg:col-span-4">{/* Sidebar */}</div>
-  <div className="lg:col-span-8">{/* Main content */}</div>
+<div className="lg:col-span-4">{/* Sidebar */}</div>
+<div className="lg:col-span-8">{/* Main content */}</div>
 </div>
 
 // Cards grid
@@ -460,19 +460,19 @@ className="text-xs text-muted-foreground"
 
 ```tsx
 const StatusBadge = ({ status }: { status: string }) => {
-  const statusColors: Record<string, string> = {
-    new: "bg-blue-100 text-blue-800 hover:bg-blue-100",
-    contacted: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
-    qualified: "bg-orange-100 text-orange-800 hover:bg-orange-100",
-    converted: "bg-green-100 text-green-800 hover:bg-green-100",
-    lost: "bg-red-100 text-red-800 hover:bg-red-100"
-  }
+const statusColors: Record<string, string> = {
+new: "bg-blue-100 text-blue-800 hover:bg-blue-100",
+contacted: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
+qualified: "bg-orange-100 text-orange-800 hover:bg-orange-100",
+converted: "bg-green-100 text-green-800 hover:bg-green-100",
+lost: "bg-red-100 text-red-800 hover:bg-red-100"
+}
 
-  return (
-    <Badge className={`px-3 py-1 ${statusColors[status] || "bg-gray-100 text-gray-800"}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </Badge>
-  )
+return (
+<Badge className={`px-3 py-1 ${statusColors[status] || "bg-gray-100 text-gray-800"}`}>
+{status.charAt(0).toUpperCase() + status.slice(1)}
+</Badge>
+)
 }
 ```
 
@@ -488,29 +488,29 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 ```tsx
 const EmptyState = ({
-  icon: Icon,
-  title,
-  description,
-  buttonText
+icon: Icon,
+title,
+description,
+buttonText
 }: {
-  icon: React.ElementType
-  title: string
-  description: string
-  buttonText: string
+icon: React.ElementType
+title: string
+description: string
+buttonText: string
 }) => (
-  <div className="flex flex-col items-center justify-center py-8 text-center h-40">
-    <div className="rounded-full p-3 border border-border/40 shadow-sm">
-      <Icon className="h-6 w-6 text-muted-foreground" />
-    </div>
-    <h3 className="mt-3 text-sm font-medium">{title}</h3>
-    <p className="mt-1 text-xs text-muted-foreground max-w-xs">
-      {description}
-    </p>
-    <Button className="mt-3" size="sm" variant="outline">
-      <PlusIcon className="mr-1 h-3 w-3" />
-      {buttonText}
-    </Button>
-  </div>
+<div className="flex flex-col items-center justify-center py-8 text-center h-40">
+<div className="rounded-full p-3 border border-border/40 shadow-sm">
+<Icon className="h-6 w-6 text-muted-foreground" />
+</div>
+<h3 className="mt-3 text-sm font-medium">{title}</h3>
+<p className="mt-1 text-xs text-muted-foreground max-w-xs">
+{description}
+</p>
+<Button className="mt-3" size="sm" variant="outline">
+<PlusIcon className="mr-1 h-3 w-3" />
+{buttonText}
+</Button>
+</div>
 )
 ```
 
@@ -529,21 +529,21 @@ const EmptyState = ({
 ```tsx
 // Server Component (page.tsx)
 export default async function PageName() {
-  const data = await getServerData()
+const data = await getServerData()
 
-  return (
-    <div className="container h-[calc(100vh-5rem)]">
-      <div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
-        <PageNameClient initialData={data} />
-      </div>
-    </div>
-  )
+return (
+<div className="container h-[calc(100vh-5rem)]">
+<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
+<PageNameClient initialData={data} />
+</div>
+</div>
+)
 }
 
 // Client Component (separate file)
 'use client'
 export function PageNameClient({ initialData }) {
-  // Interactive features here
+// Interactive features here
 }
 ```
 
@@ -670,19 +670,19 @@ Always start with the data layer using Drizzle ORM:
 ```typescript
 // Example: Adding a new voice_agents table
 export const voiceAgents = pgTable('voice_agents', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  description: text('description'),
-  phoneNumber: text('phone_number'),
-  instructions: text('instructions'),
-  userId: text('user_id').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+id: serial('id').primaryKey(),
+name: text('name').notNull(),
+description: text('description'),
+phoneNumber: text('phone_number'),
+instructions: text('instructions'),
+userId: text('user_id').notNull(),
+createdAt: timestamp('created_at').defaultNow().notNull(),
+updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})                                                         ;
 
 export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
-  // Define relationships here
-}));
+// Define relationships here
+}))                                                                              ;
 ```
 
 2. **Apply schema changes** immediately: `bun db:dev:push`
@@ -692,10 +692,10 @@ export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
 <function_calls>
 <invoke name="mcp_Neon_run_sql">
 <parameter name="params">{
-  "projectId": "square-unit-96831934",
-  "branchId": "br-blue-frog-a6npin6j",
-  "databaseName": "neondb",
-  "sql": "SELECT * FROM voice_agents LIMIT 1;"
+"projectId": "square-unit-96831934",
+"branchId": "br-blue-frog-a6npin6j",
+"databaseName": "icephone-db",
+"sql": "SELECT * FROM voice_agents LIMIT 1;"
 }</parameter>
 </invoke>
 </function_calls>
@@ -718,20 +718,20 @@ import { currentUser } from '@clerk/nextjs/server';
 import { db } from '@/db';
 
 export async function createLead(input: LeadInput) {
-  // ALWAYS authenticate first
-  const user = await currentUser();
-  if (!user) throw new Error('Unauthorized');
+// ALWAYS authenticate first
+const user = await currentUser()                     ;
+if (!user) throw new Error('Unauthorized');
 
-  // Validate input
-  const validated = leadSchema.parse(input);
+// Validate input
+const validated = leadSchema.parse(input) ;
 
-  // Execute with user isolation
-  const lead = await db.insert(leads).values({
-    ...validated,
-    userId: user.id, // CRITICAL: Always scope to user
-  }).returning();
+// Execute with user isolation
+const lead = await db.insert(leads).values({
+...validated,
+userId: user.id, // CRITICAL: Always scope to user
+}).returning()                                     ;
 
-  return lead[0];
+return lead[0] ;
 }
 ```
 
@@ -744,14 +744,14 @@ Build incrementally with proper patterns:
 import { getLeads } from '@/actions/leads';
 
 export default async function LeadsPage() {
-  const leads = await getLeads();
+const leads = await getLeads()              ;
 
-  return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Leads</h1>
-      <LeadsList leads={leads} />
-    </div>
-  );
+return (
+<div className="container mx-auto p-6">
+<h1 className="text-3xl font-bold mb-6">Leads</h1>
+<LeadsList leads={leads} />
+</div>
+)                                                  ;
 }
 
 // Client Component (only for interactivity) - LeadsList.tsx
@@ -759,10 +759,10 @@ export default async function LeadsPage() {
 import { useState } from 'react';
 
 export function LeadsList({ leads: initialLeads }) {
-  const [leads, setLeads] = useState(initialLeads);
+const [leads, setLeads] = useState(initialLeads)     ;
 
-  // Interactive features here
-  return <div>...</div>;
+// Interactive features here
+return <div>...</div>        ;
 }
 ```
 
@@ -773,15 +773,15 @@ Create comprehensive tests:
 ```typescript
 // tests/features/leads/actions.test.ts
 describe('Lead Actions', () => {
-  it('should enforce user isolation', async () => {
-    const lead = await createLead({ name: 'Test Lead' });
-    expect(lead.userId).toBe(mockUser.id);
-  });
+it('should enforce user isolation', async () => {
+const lead = await createLead({ name: 'Test Lead' }) ;
+expect(lead.userId).toBe(mockUser.id)                ;
+})                                                   ;
 
-  it('should validate input', async () => {
-    await expect(createLead({ name: '' })).rejects.toThrow();
-  });
-});
+it('should validate input', async () => {
+await expect(createLead({ name: '' })).rejects.toThrow() ;
+})                                                       ;
+})                                                       ;
 ```
 
 Run tests continuously: `bun test tests/features/leads --watch`
@@ -793,7 +793,7 @@ Run tests continuously: `bun test tests/features/leads --watch`
 Every server action MUST authenticate:
 
 ```typescript
-const user = await currentUser();
+const user = await currentUser()            ;
 if (!user) throw new Error('Unauthorized');
 ```
 
@@ -803,12 +803,12 @@ Always scope queries to the current user:
 
 ```typescript
 // ❌ NEVER do this
-const allLeads = await db.query.leads.findMany();
+const allLeads = await db.query.leads.findMany() ;
 
 // ✅ ALWAYS do this
 const userLeads = await db.query.leads.findMany({
-  where: eq(leads.userId, user.id)
-});
+where: eq(leads.userId, user.id)
+})                                                ;
 ```
 
 ### Use Server Components by Default
@@ -829,20 +829,20 @@ Implement proper error boundaries:
 'use client';
 
 export default function Error({
-  error,
-  reset,
+error,
+reset,
 }: {
-  error: Error & { digest?: string };
-  reset: () => void;
+error: Error & { digest?: string }                                        ;
+reset: () => void                                                         ;
 }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[400px]">
-      <h2 className="text-xl font-semibold mb-4">Something went wrong!</h2>
-      <button onClick={reset} className="btn btn-outline">
-        Try again
-      </button>
-    </div>
-  );
+return (
+<div className="flex flex-col items-center justify-center min-h-[400px]">
+<h2 className="text-xl font-semibold mb-4">Something went wrong!</h2>
+<button onClick={reset} className="btn btn-outline">
+Try again
+</button>
+</div>
+)                                                                         ;
 }
 ```
 
@@ -876,16 +876,16 @@ Keep your app fast on Cloudflare Workers:
 
 ```typescript
 const ChartComponent = dynamic(() => import('./HeavyChart'), {
-  loading: () => <ChartSkeleton />,
-  ssr: false
-});
+loading: () => <ChartSkeleton />,
+ssr: false
+})                                                             ;
 ```
 
 2. **Stream with Suspense**:
 
 ```typescript
 <Suspense fallback={<Loading />}>
-  <ExpensiveComponent />
+<ExpensiveComponent />
 </Suspense>
 ```
 
@@ -939,18 +939,80 @@ bun run check
 
 ```
 
+
+## Neon Database Configuration:
+
+**Project Details:**
+- Project ID: `square-unit-96831934`
+- Project Name: `icephone`
+- Region: `aws-us-west-2`
+- PostgreSQL Version: 17
+
+**Branches:**
+- Production Branch: `br-round-dawn-a6gfsin7` (name: "production")
+- Development Branch: `br-blue-frog-a6npin6j` (name: "development") - **USE THIS FOR DEVELOPMENT**
+- Temp Branch: `br-quiet-night-a6zhzakv`
+
+**Database Tables:**
+- `leads` - Core lead management (96 kB, well-indexed)
+- `calls` - Call records and transcripts (48 kB)
+- `campaigns` - Marketing campaigns
+- `appointments` - Scheduled appointments
+- `chats` - Chat conversations
+- `chat_messages` - Individual chat messages
+- `emails` - Email communications
+- `text_messages` - SMS/text messaging
+- `knowledge_base_documents` - Knowledge base content
+- `knowledge_base_sources` - Knowledge base sources
+
+**Key Schema Notes:**
+- All tables have `user_id` for multi-tenant isolation
+- Foreign key relationships: calls->leads, calls->campaigns
+- Custom enum types: `lead_status`, call `type`
+- Proper indexing on frequently queried columns
+- Timestamps: `created_at`, `updated_at` on all tables
+
+## How to work with the Database (Drizzle ORM + PostgreSQL)
+
+**Preferred Workflow (Drizzle First):**
+
+1. **Edit schema** in `src/db/schema.ts` using Drizzle syntax
+2. **Apply changes** immediately: `bun db:dev:push` or `bun db:prod:push`
+3. **Build server actions** in `src/actions/(name).ts`
+4. **Define types** in `src/types.ts`
+
+**Why Drizzle First:**
+- ✅ Maintains migration history and rollback capabilities
+- ✅ Ensures type safety throughout your application
+- ✅ Keeps schema and code in perfect sync
+- ✅ Provides better developer experience with IntelliSense
+
+**Using MCP Tools (for testing/debugging only):**
+- **Always use the development branch ID `br-blue-frog-a6npin6j` for MCP Neon tools during development**
+- Use `mcp_run_sql_transaction` tool for testing queries or debugging existing data:
+
+```sql
+BEGIN TRANSACTION                                                    ;
+UPDATE feedback SET rating = rating + 1 WHERE rating < 5 RETURNING * ;
+ROLLBACK                                                             ;
+```
+
+**Key Point**: Only use MCP tools for read operations, data exploration, or testing queries. Always use Drizzle for schema changes and migrations.
+
+Note that in Next.js, we always prefer to use server actions instead of API routes, so that the code is simple to read and write.
+
 ### Database Commands
 
 ```bash
 # Development database operations
-bun db:dev:generate    # Generate migrations
-bun db:dev:migrate     # Run migrations
-bun db:dev:push        # Push schema changes
+bun db:dev:generate # Generate migrations
+bun db:dev:migrate  # Run migrations
+bun db:dev:push     # Push schema changes
 
 # Production database operations
-bun db:prod:generate   # Generate migrations
-bun db:prod:migrate    # Run migrations
-bun db:prod:push       # Push schema changes
+bun db:prod:generate # Generate migrations
+bun db:prod:migrate  # Run migrations
+bun db:prod:push     # Push schema changes
 
 # Seed database with test data
 bun db:seed
@@ -977,8 +1039,6 @@ bun cf-typegen
 ```bash
 # Show project file tree
 bun filetree
-
-
 
 # Clean and restart development
 bun run fix
@@ -1164,12 +1224,12 @@ Start with the database, then server actions, then UI:
 ```typescript
 // Edit src/db/schema.ts
 export const voiceAgents = pgTable('voice_agents', {
-  id: serial('id').primaryKey(),
-  name: text('name').notNull(),
-  userId: text('user_id').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+id: serial('id').primaryKey(),
+name: text('name').notNull(),
+userId: text('user_id').notNull(),
+createdAt: timestamp('created_at').defaultNow().notNull(),
+updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})                                                         ;
 ```
 
 Then apply immediately:
@@ -1183,13 +1243,13 @@ bun db:dev:push
 ```typescript
 'use server';
 export async function createVoiceAgent(data: AgentData) {
-  const user = await currentUser();
-  if (!user) throw new Error('Unauthorized');
+const user = await currentUser()                          ;
+if (!user) throw new Error('Unauthorized');
 
-  return db.insert(voiceAgents).values({
-    ...data,
-    userId: user.id
-  });
+return db.insert(voiceAgents).values({
+...data,
+userId: user.id
+})                                     ;
 }
 ```
 
@@ -1197,8 +1257,8 @@ export async function createVoiceAgent(data: AgentData) {
 
 ```typescript
 export default async function VoiceAgentsPage() {
-  const agents = await getVoiceAgents();
-  return <AgentsList agents={agents} />;
+const agents = await getVoiceAgents()             ;
+return <AgentsList agents={agents} />             ;
 }
 ```
 
@@ -1229,15 +1289,15 @@ Before marking complete:
 
 ```bash
 # Development
-bun dev                    # Start dev server
-bun test --watch          # Run tests
-bun run check             # TypeScript check
-bun db:dev:push           # Apply DB changes
+bun dev          # Start dev server
+bun test --watch # Run tests
+bun run check    # TypeScript check
+bun db:dev:push  # Apply DB changes
 
 # Feature workflow
-cat docs/MASTER_FEATURES_CHECKLIST.md     # Check plan
-./create-feature.sh {name}                 # Start feature
-./test-feature.sh {name}                   # Validate feature
+cat docs/MASTER_FEATURES_CHECKLIST.md # Check plan
+./create-feature.sh {name}            # Start feature
+./test-feature.sh {name}              # Validate feature
 
 # Deployment
 bun run deploy:staging    # Test deployment
@@ -1263,17 +1323,17 @@ Let the compiler optimize your code automatically:
 ```jsx
 // Just write clean code - no manual optimization needed
 function LeadsList({ leads, searchTerm }) {
-  const filteredLeads = leads.filter(lead =>
-    lead.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+const filteredLeads = leads.filter(lead =>
+lead.name.toLowerCase().includes(searchTerm.toLowerCase())
+)                                                          ;
 
-  return (
-    <div>
-      {filteredLeads.map(lead => (
-        <LeadCard key={lead.id} lead={lead} />
-      ))}
-    </div>
-  );
+return (
+<div>
+{filteredLeads.map(lead => (
+<LeadCard key={lead.id} lead={lead} />
+))}
+</div>
+)                                      ;
 }
 ```
 
@@ -1282,11 +1342,11 @@ Only manually optimize expensive operations:
 ```jsx
 // Keep useMemo for truly expensive calculations
 const processedAnalytics = useMemo(() => {
-  return rawCallData
-    .filter(call => call.duration > 30)
-    .map(call => calculateSentimentScore(call.transcript))
-    .sort((a, b) => b.score - a.score);
-}, [rawCallData]);
+return rawCallData
+.filter(call => call.duration > 30)
+.map(call => calculateSentimentScore(call.transcript))
+.sort((a, b) => b.score - a.score)                     ;
+}, [rawCallData])                                      ;
 ```
 
 ### Security Pattern (Non-Negotiable)
@@ -1298,13 +1358,13 @@ Every server action MUST authenticate:
 import { currentUser } from '@clerk/nextjs/server';
 
 export async function createLead(input: LeadInput) {
-  const user = await currentUser();
-  if (!user) throw new Error('Unauthorized');
+const user = await currentUser()                     ;
+if (!user) throw new Error('Unauthorized');
 
-  return await db.insert(leads).values({
-    ...input,
-    userId: user.id  // CRITICAL: Always scope to user
-  });
+return await db.insert(leads).values({
+...input,
+userId: user.id // CRITICAL: Always scope to user
+})                                                ;
 }
 ```
 
@@ -1315,15 +1375,15 @@ Use server components for initial data:
 ```typescript
 // ✅ Server component loads data
 export default async function LeadsPage() {
-  const leads = await getLeads();
-  return <LeadsClient initialLeads={leads} />;
+const leads = await getLeads()              ;
+return <LeadsClient initialLeads={leads} /> ;
 }
 
 // ✅ Client component handles interactions
 'use client';
 export function LeadsClient({ initialLeads }) {
-  const [leads, setLeads] = useState(initialLeads);
-  // Interactive features here
+const [leads, setLeads] = useState(initialLeads) ;
+// Interactive features here
 }
 ```
 
@@ -1335,16 +1395,16 @@ Use Next.js `after` for non-blocking operations:
 import { unstable_after as after } from 'next/server';
 
 export async function processCall(callId: string) {
-  const call = await updateCallStatus(callId, 'completed');
+const call = await updateCallStatus(callId, 'completed');
 
-  // These run after response is sent
-  after(async () => {
-    await generateTranscript(callId);
-    await updateAnalytics(call.leadId);
-    await sendFollowupEmail(call.leadId);
-  });
+// These run after response is sent
+after(async () => {
+await generateTranscript(callId)     ;
+await updateAnalytics(call.leadId)   ;
+await sendFollowupEmail(call.leadId) ;
+})                                   ;
 
-  return call;
+return call ;
 }
 ```
 
@@ -1393,17 +1453,17 @@ After deployment, watch for:
 ```typescript
 // 1. Write the test
 describe('Voice Agent', () => {
-  it('should create agent with user isolation', async () => {
-    const agent = await createVoiceAgent({ name: 'Test' });
-    expect(agent.userId).toBe(mockUser.id);
-  });
-});
+it('should create agent with user isolation', async () => {
+const agent = await createVoiceAgent({ name: 'Test' })      ;
+expect(agent.userId).toBe(mockUser.id)                      ;
+})                                                          ;
+})                                                          ;
 
 // 2. Then implement
 export async function createVoiceAgent(data) {
-  const user = await currentUser();
-  if (!user) throw new Error('Unauthorized');
-  // Implementation
+const user = await currentUser()               ;
+if (!user) throw new Error('Unauthorized');
+// Implementation
 }
 ```
 
@@ -1413,16 +1473,52 @@ Use transactions for safe testing:
 
 ```typescript
 await db.transaction(async (tx) => {
-  // Test your database operations
-  const result = await createRecord(data, tx);
+// Test your database operations
+const result = await createRecord(data, tx) ;
 
-  // Verify the result
-  expect(result).toBeDefined();
+// Verify the result
+expect(result).toBeDefined() ;
 
-  // Transaction rolls back automatically
-  throw new Error('Rollback');
-});
+// Transaction rolls back automatically
+throw new Error('Rollback');
+})                                      ;
 ```
+
+## Clerk Authentication:
+
+- The middleware is in src/middleware.ts - do not modify this file.
+- Remember to use the appropriate helper to get the current user's id depending on server/client components.
+- On the server side, use the `currentUser` helper from `@clerk/nextjs/server` to get the current users details.
+- On the client side, use the `useUser` hook from `@clerk/nextjs` to get the current user's id.
+
+## What to do when things go wrong:
+
+- Run `bun filetree` to see the current file structure of the project (excludes node modules etc.)
+- First, check the server and browser logs:
+-- Server Logs are continously saved to `logs/server.log` file as they appear in the console. You can run `tail -n 200 server.log` for the latest logs of the current dev server session (the file is cleared each time before running `next dev`)
+-- Browser logs can be fetched by calling the `mcp_getConsoleLogs()` tool. If you can't access them, remind me to run `bun browser-mcp` in a terminal and `right click -> inspect` on the page to open Chrome Dev Tools (which connects the MCP server to the browser)
+- If debugging type errors, run `bun check` after your changes to make sure everything works.
+- If the problem could be related to a server side function that in any way interacts with the database, please try to use the `mcp_run_sql` tool from neon to interact with the db directly to understand the problem. After applying your changes, run the tool again to confirm that your solution has indeed worked.
+- If I say "build error", you should run `bun run build` and fix any issues that you notice. Always run `bun run build` and confirm that the build was succesful after your changes.
+- I will often give you screenshots when something goes wrong with the UI. Try to "see" the UI through the photo and try to fix the design by looking at other components that might be visible / used in the page render. You should search and read as many components / pages / files as you need to so you understand the full context of the React render.
+- If you can solve an issue using Next.js features vs using features of external packages, try using the Next.js solution because it is usually less error prone. This is not always the case as there might be popular javascript packages that solve issues in a simple way.
+- Always run commands to figure out things - I will always give you permission to run almost any terminal command because I want you to read the output from the terminal directly. This results in a faster feedback loop. Feel free to add packages, remove files, or anything else through the terminal. I will give you permission.
+- If you think searching the web is a good idea to look for docs or any other up to date information, just do it.
+
+## Packages:
+
+- Always use bun as the package manager to run commands instead of npm.
+- Always use bunx instead of npx.
+
+## Design and Styling:
+
+- Always try to use UI components from shadcn/ui. It is already installed, but not all components are added. You can run my custom bash wrapper `shadcn` like this: `shadcn add button card` which adds only the components that are not already present. For example, if @/components/ui/button.tsx already exists, then this command will actually run the correct shadcn command under the hood to add card and skip button.
+- Always use Tailwind CSS for styling. It is already installed.
+- Always use icons from lucide-react. It is already installed.
+- Try to create clean, sleek, modern, and minimal design that is responsive on both mobile and desktop browsers.
+- Follow the design patterns, conventions, and styling applied in the project to remain consistent.
+- Always use rounded corners (2xl or 3xl).
+- Prefer the 'outline' variant for most buttons.
 
 ## 🎯 Final Reminders
 

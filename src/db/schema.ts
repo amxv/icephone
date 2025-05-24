@@ -399,6 +399,145 @@ export const voiceSessionStatusEnum = pgEnum("voice_session_status", [
 	"timeout"
 ])
 
+// Define voice preset language enum
+export const voicePresetLanguageEnum = pgEnum("voice_preset_language", [
+	"en",
+	"es",
+	"fr",
+	"de",
+	"it",
+	"pt",
+	"zh",
+	"hi",
+	"ar",
+	"ja"
+])
+
+// Define voice preset gender enum
+export const voicePresetGenderEnum = pgEnum("voice_preset_gender", [
+	"male",
+	"female",
+	"neutral"
+])
+
+// Voice Presets table - stores business-friendly voice configurations
+export const voicePresets = pgTable(
+	"voice_presets",
+	{
+		id: serial("id").primaryKey(),
+		codename: varchar("codename", { length: 100 }).notNull().unique(), // Business-friendly name like "Professional", "Friendly"
+		displayName: varchar("display_name", { length: 100 }).notNull(), // Display name for UI
+		language: voicePresetLanguageEnum("language").notNull(),
+		gender: voicePresetGenderEnum("gender").notNull(),
+		description: text("description").notNull(), // Description for business users
+		// VAPI provider configuration (hidden from users)
+		vapiVoiceId: varchar("vapi_voice_id", { length: 255 }).notNull(), // ElevenLabs voice ID, etc.
+		vapiProvider: varchar("vapi_provider", { length: 50 }).notNull(), // "elevenlabs", "playht", "cartesia"
+		vapiModel: varchar("vapi_model", { length: 100 }), // Provider-specific model
+		sampleAudioUrl: varchar("sample_audio_url", { length: 1024 }), // URL for voice preview
+		isDefault: boolean("is_default").default(false), // Default voice for language
+		sortOrder: integer("sort_order").default(0), // Display ordering
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("voice_preset_codename_idx").on(table.codename),
+		index("voice_preset_language_idx").on(table.language),
+		index("voice_preset_gender_idx").on(table.gender),
+		index("voice_preset_is_default_idx").on(table.isDefault),
+		index("voice_preset_sort_order_idx").on(table.sortOrder)
+	]
+)
+
+// Agent Roles table - stores pre-built business role configurations
+export const agentRoles = pgTable(
+	"agent_roles",
+	{
+		id: serial("id").primaryKey(),
+		roleName: varchar("role_name", { length: 100 }).notNull().unique(), // "customer-service", "sales", "appointment-setting"
+		displayName: varchar("display_name", { length: 100 }).notNull(), // "Customer Service", "Sales Representative"
+		description: text("description").notNull(), // Business description of the role
+		icon: varchar("icon", { length: 50 }).notNull(), // Lucide icon name
+		systemPrompt: text("system_prompt").notNull(), // Optimized prompt for this role
+		conversationStyle: text("conversation_style").notNull(), // Description of conversation style
+		industryFocus: text("industry_focus"), // Target industries (optional)
+		sampleConversation: text("sample_conversation"), // Example conversation
+		// Default function configurations for this role
+		defaultFunctions: jsonb("default_functions")
+			.$type<
+				Array<{
+					name: string
+					description: string
+					webhook: string
+					parameters: Array<{
+						name: string
+						type:
+							| "string"
+							| "number"
+							| "boolean"
+							| "object"
+							| "array"
+						description: string
+						required: boolean
+					}>
+				}>
+			>()
+			.default([]),
+		// Default configuration for agents with this role
+		defaultConfiguration: jsonb("default_configuration")
+			.$type<{
+				flow?: {
+					user_start_first?: boolean
+					interruption?: {
+						allowed?: boolean
+						keep_interruption_message?: boolean
+						first_message?: boolean
+					}
+					response_delay?: number
+					auto_fill_responses?: {
+						response_gap_threshold?: number
+						messages?: string[]
+					}
+					agent_terminate_call?: {
+						enabled?: boolean
+						instruction?: string
+						messages?: string[]
+					}
+					voicemail?: {
+						action?: "hangup" | "continue"
+						message?: string
+						continue_on_voice_activity?: boolean
+					}
+					inactivity_handling?: {
+						idle_time?: number
+						message?: string
+					}
+				}
+				llm?: {
+					model?: string
+					temperature?: number
+				}
+				session_timeout?: {
+					max_duration?: number
+					max_idle?: number
+					message?: string
+				}
+			}>()
+			.default({}),
+		firstMessageTemplate: text("first_message_template"), // Default first message template
+		isActive: boolean("is_active").default(true),
+		sortOrder: integer("sort_order").default(0),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("agent_role_name_idx").on(table.roleName),
+		index("agent_role_display_name_idx").on(table.displayName),
+		index("agent_role_is_active_idx").on(table.isActive),
+		index("agent_role_sort_order_idx").on(table.sortOrder)
+	]
+)
+
 // Voice Agents table - stores AI voice agent configurations
 export const voiceAgents = pgTable(
 	"voice_agents",
@@ -406,15 +545,19 @@ export const voiceAgents = pgTable(
 		id: serial("id").primaryKey(),
 		name: varchar("name", { length: 255 }).notNull(),
 		description: text("description"),
-		prompt: text("prompt").notNull(), // System prompt for the agent
-		voice: jsonb("voice")
-			.$type<{
-				provider: "elevenlabs" | "playht" | "cartesia"
-				voice_id: string
-				model?: string
-				settings?: Record<string, unknown>
-			}>()
-			.notNull(),
+		// Business simplification layer references
+		voicePresetId: integer("voice_preset_id").references(
+			() => voicePresets.id
+		), // Reference to simplified voice configuration
+		agentRoleId: integer("agent_role_id").references(() => agentRoles.id), // Reference to business role
+		// Legacy technical fields (deprecated in favor of presets)
+		prompt: text("prompt"), // System prompt for the agent (now auto-generated from role)
+		voice: jsonb("voice").$type<{
+			provider: "elevenlabs" | "playht" | "cartesia"
+			voice_id: string
+			model?: string
+			settings?: Record<string, unknown>
+		}>(),
 		language: varchar("language", { length: 10 }).default("en"), // Language code (en, es, fr, etc.)
 		phoneNumberId: integer("phone_number_id").references(
 			() => phoneNumbers.id
@@ -498,6 +641,7 @@ export const voiceAgents = pgTable(
 			}>()
 			.default({}),
 		firstMessage: text("first_message"), // First message the agent says
+		vapiAssistantId: varchar("vapi_assistant_id", { length: 255 }), // VAPI Assistant ID for voice calls
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
@@ -506,6 +650,8 @@ export const voiceAgents = pgTable(
 		index("voice_agent_name_idx").on(table.name),
 		index("voice_agent_status_idx").on(table.status),
 		index("voice_agent_phone_number_idx").on(table.phoneNumberId),
+		index("voice_agent_voice_preset_idx").on(table.voicePresetId),
+		index("voice_agent_role_idx").on(table.agentRoleId),
 		index("voice_agent_user_id_idx").on(table.userId)
 	]
 )
@@ -556,7 +702,7 @@ export const voiceSessions = pgTable(
 	"voice_sessions",
 	{
 		id: serial("id").primaryKey(),
-		sessionId: varchar("session_id", { length: 255 }).unique().notNull(), // Millis AI session ID
+		sessionId: varchar("session_id", { length: 255 }).unique().notNull(), // Vapi AI session ID
 		agentId: integer("agent_id")
 			.notNull()
 			.references(() => voiceAgents.id),
@@ -785,6 +931,149 @@ export const visualElements = pgTable(
 	]
 )
 
+// Admin Activity Logs table - tracks all admin actions for security and auditing
+export const adminActivityLogs = pgTable(
+	"admin_activity_logs",
+	{
+		id: serial("id").primaryKey(),
+		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Clerk user ID of admin
+		actionType: varchar("action_type", { length: 100 }).notNull(), // e.g., 'CREATE', 'UPDATE', 'DELETE', 'VIEW', 'EXPORT'
+		targetTable: varchar("target_table", { length: 100 }), // Which table was affected
+		targetId: varchar("target_id", { length: 255 }), // ID of the affected record
+		actionDetails: jsonb("action_details").$type<{
+			description: string
+			changes?: Record<
+				string,
+				{
+					from?: string | number | boolean | null
+					to?: string | number | boolean | null
+				}
+			>
+			metadata?: Record<string, string | number | boolean | null>
+		}>(),
+		ipAddress: varchar("ip_address", { length: 45 }), // IPv4 or IPv6
+		userAgent: text("user_agent"),
+		sessionId: varchar("session_id", { length: 255 }),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("admin_activity_user_id_idx").on(table.adminUserId),
+		index("admin_activity_action_type_idx").on(table.actionType),
+		index("admin_activity_target_table_idx").on(table.targetTable),
+		index("admin_activity_created_at_idx").on(table.createdAt),
+		index("admin_activity_session_id_idx").on(table.sessionId)
+	]
+)
+
+// Admin Sessions table - tracks admin login sessions
+export const adminSessions = pgTable(
+	"admin_sessions",
+	{
+		id: serial("id").primaryKey(),
+		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Clerk user ID
+		sessionId: varchar("session_id", { length: 255 }).notNull().unique(),
+		ipAddress: varchar("ip_address", { length: 45 }),
+		userAgent: text("user_agent"),
+		loginAt: timestamp("login_at").defaultNow().notNull(),
+		lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+		logoutAt: timestamp("logout_at"),
+		isActive: boolean("is_active").default(true),
+		expiresAt: timestamp("expires_at").notNull(),
+		metadata: jsonb("metadata")
+			.$type<{
+				browser?: string
+				os?: string
+				device?: string
+				location?: {
+					country?: string
+					city?: string
+				}
+			}>()
+			.default({})
+	},
+	(table) => [
+		index("admin_sessions_user_id_idx").on(table.adminUserId),
+		index("admin_sessions_session_id_idx").on(table.sessionId),
+		index("admin_sessions_is_active_idx").on(table.isActive),
+		index("admin_sessions_expires_at_idx").on(table.expiresAt)
+	]
+)
+
+// Admin Settings table - stores global configuration settings for voice agents and platform
+export const adminSettings = pgTable(
+	"admin_settings",
+	{
+		id: serial("id").primaryKey(),
+		settingKey: varchar("setting_key", { length: 100 }).notNull().unique(), // e.g., 'default_system_prompt', 'default_model'
+		settingValue: jsonb("setting_value").$type<{
+			// System prompts
+			systemPrompt?: string
+			industryPrompts?: Record<string, string> // e.g., { "sales": "You are a sales agent...", "support": "You are a support agent..." }
+
+			// Model configurations
+			defaultModel?: string
+			availableModels?: Array<{
+				id: string
+				name: string
+				provider: string
+				description: string
+				costPerToken?: number
+				maxTokens?: number
+			}>
+
+			// Voice agent defaults
+			defaultVoiceSettings?: {
+				provider?: string
+				voiceId?: string
+				speed?: number
+				stability?: number
+				similarityBoost?: number
+			}
+
+			// A/B testing configurations
+			abTestConfigs?: Array<{
+				name: string
+				variants: Array<{
+					name: string
+					weight: number
+					config: Record<string, unknown>
+				}>
+				isActive: boolean
+			}>
+
+			// Global prompt templates
+			promptTemplates?: Array<{
+				id: string
+				name: string
+				category: string
+				template: string
+				variables: string[]
+			}>
+
+			// Platform configurations
+			platformSettings?: {
+				maxAgentsPerUser?: number
+				defaultLanguage?: string
+				enableAnalytics?: boolean
+				enableRecording?: boolean
+			}
+
+			// Any other configuration data
+			[key: string]: unknown
+		}>(),
+		description: text("description"), // Human-readable description of the setting
+		isActive: boolean("is_active").default(true),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdBy: varchar("created_by", { length: 255 }).notNull() // Admin user ID
+	},
+	(table) => [
+		index("admin_settings_key_idx").on(table.settingKey),
+		index("admin_settings_is_active_idx").on(table.isActive),
+		index("admin_settings_created_by_idx").on(table.createdBy)
+	]
+)
+
 // Define relationships
 export const knowledgeBaseSourcesRelations = relations(
 	knowledgeBaseSources,
@@ -816,6 +1105,14 @@ export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
 	phoneNumber: one(phoneNumbers, {
 		fields: [voiceAgents.phoneNumberId],
 		references: [phoneNumbers.id]
+	}),
+	voicePreset: one(voicePresets, {
+		fields: [voiceAgents.voicePresetId],
+		references: [voicePresets.id]
+	}),
+	agentRole: one(agentRoles, {
+		fields: [voiceAgents.agentRoleId],
+		references: [agentRoles.id]
 	}),
 	functions: many(voiceAgentFunctions),
 	sessions: many(voiceSessions)
@@ -855,3 +1152,13 @@ export const voiceRecordingsRelations = relations(
 		})
 	})
 )
+
+// Voice Presets relations
+export const voicePresetsRelations = relations(voicePresets, ({ many }) => ({
+	voiceAgents: many(voiceAgents)
+}))
+
+// Agent Roles relations
+export const agentRolesRelations = relations(agentRoles, ({ many }) => ({
+	voiceAgents: many(voiceAgents)
+}))
