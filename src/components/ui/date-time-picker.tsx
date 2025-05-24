@@ -22,14 +22,28 @@ import type { ControllerRenderProps, UseFormReturn } from "react-hook-form"
 interface DatePickerProps {
 	form: UseFormReturn<TEventFormData>
 	field: ControllerRenderProps<TEventFormData, "endDate" | "startDate">
+	isEditing?: boolean
+	isInitialStartTimeSet?: boolean
+	onStartTimeChange?: (date: Date) => void
+	isInvalid?: boolean
 }
 
-export function DateTimePicker({ form, field }: DatePickerProps) {
+export function DateTimePicker({
+	form,
+	field,
+	isEditing,
+	isInitialStartTimeSet,
+	onStartTimeChange,
+	isInvalid
+}: DatePickerProps) {
 	const { use24HourFormat } = useCalendar()
 
 	function handleDateSelect(date: Date | undefined) {
 		if (date) {
 			form.setValue(field.name, date)
+			if (field.name === "startDate" && onStartTimeChange) {
+				onStartTimeChange(date)
+			}
 		}
 	}
 
@@ -51,6 +65,9 @@ export function DateTimePicker({ form, field }: DatePickerProps) {
 		}
 
 		form.setValue(field.name, newDate)
+		if (field.name === "startDate" && onStartTimeChange) {
+			onStartTimeChange(newDate)
+		}
 	}
 
 	return (
@@ -65,7 +82,9 @@ export function DateTimePicker({ form, field }: DatePickerProps) {
 							variant={"outline"}
 							className={cn(
 								"w-full pl-3 text-left font-normal",
-								!field.value && "text-muted-foreground"
+								!field.value && "text-muted-foreground",
+								isInvalid &&
+									"border-red-500 focus-visible:ring-red-500"
 							)}
 						>
 							{field.value ? (
@@ -84,85 +103,137 @@ export function DateTimePicker({ form, field }: DatePickerProps) {
 				</PopoverTrigger>
 				<PopoverContent className="w-auto p-0">
 					<div className="sm:flex">
-						<Calendar
-							mode="single"
-							selected={field.value}
-							onSelect={handleDateSelect}
-							initialFocus
-						/>
-						<div className="flex flex-col sm:flex-row sm:h-[300px] divide-y sm:divide-y-0 sm:divide-x">
-							<ScrollArea className="w-64 sm:w-auto">
-								<div className="flex sm:flex-col p-2">
-									{Array.from(
-										{ length: use24HourFormat ? 24 : 12 },
-										(_, i) => i
-									).map((hour) => (
+						<div className="flex flex-col">
+							<div className="text-sm font-medium text-center pt-2">
+								Date
+							</div>
+							<Calendar
+								mode="single"
+								selected={field.value}
+								onSelect={handleDateSelect}
+								initialFocus
+							/>
+						</div>
+						<div className="flex flex-col">
+							<div className="text-sm font-medium text-center pt-2">
+								Time
+							</div>
+							<div className="flex flex-col sm:flex-row sm:h-110 divide-y sm:divide-y-0 sm:divide-x">
+								<ScrollArea className="h-110 hide-scrollbar">
+									<div className="flex sm:flex-col p-2">
+										{Array.from(
+											{
+												length: use24HourFormat
+													? 24
+													: 12
+											},
+											(_, i) => i
+										).map((hour) => {
+											const displayHour = use24HourFormat
+												? hour
+												: hour === 0
+													? 12
+													: hour
+											const hourText = displayHour
+												.toString()
+												.padStart(2, "0")
+											return (
+												<Button
+													key={hour}
+													size="icon"
+													variant={
+														field.value &&
+														field.value.getHours() %
+															(use24HourFormat
+																? 24
+																: 12) ===
+															hour %
+																(use24HourFormat
+																	? 24
+																	: 12)
+															? "default"
+															: "ghost"
+													}
+													className="sm:w-full shrink-0 aspect-square"
+													onClick={() =>
+														handleTimeChange(
+															"hour",
+															hour.toString()
+														)
+													}
+												>
+													{hourText}
+												</Button>
+											)
+										})}
+									</div>
+								</ScrollArea>
+								<ScrollArea className="h-110 hide-scrollbar">
+									<div className="flex sm:flex-col p-2">
+										{Array.from(
+											{ length: 12 },
+											(_, i) => i * 5
+										).map((minute) => (
+											<Button
+												key={minute}
+												size="icon"
+												variant={
+													field.value &&
+													field.value.getMinutes() ===
+														minute
+														? "default"
+														: "ghost"
+												}
+												className="sm:w-full shrink-0 aspect-square"
+												onClick={() =>
+													handleTimeChange(
+														"minute",
+														minute.toString()
+													)
+												}
+											>
+												{minute
+													.toString()
+													.padStart(2, "0")}
+											</Button>
+										))}
+									</div>
+								</ScrollArea>
+								{!use24HourFormat && (
+									<div className="flex sm:flex-col p-2">
 										<Button
-											key={hour}
 											size="icon"
 											variant={
 												field.value &&
-												field.value.getHours() %
-													(use24HourFormat
-														? 24
-														: 12) ===
-													hour %
-														(use24HourFormat
-															? 24
-															: 12)
+												field.value.getHours() < 12
 													? "default"
 													: "ghost"
 											}
 											className="sm:w-full shrink-0 aspect-square"
 											onClick={() =>
-												handleTimeChange(
-													"hour",
-													hour.toString()
-												)
+												handleTimeChange("ampm", "AM")
 											}
 										>
-											{hour.toString().padStart(2, "0")}
+											AM
 										</Button>
-									))}
-								</div>
-								<ScrollBar
-									orientation="horizontal"
-									className="sm:hidden"
-								/>
-							</ScrollArea>
-							<ScrollArea className="w-64 sm:w-auto">
-								<div className="flex sm:flex-col p-2">
-									{Array.from(
-										{ length: 12 },
-										(_, i) => i * 5
-									).map((minute) => (
 										<Button
-											key={minute}
 											size="icon"
 											variant={
 												field.value &&
-												field.value.getMinutes() ===
-													minute
+												field.value.getHours() >= 12
 													? "default"
 													: "ghost"
 											}
 											className="sm:w-full shrink-0 aspect-square"
 											onClick={() =>
-												handleTimeChange(
-													"minute",
-													minute.toString()
-												)
+												handleTimeChange("ampm", "PM")
 											}
 										>
-											{minute.toString().padStart(2, "0")}
+											PM
 										</Button>
-									))}
-								</div>
-								<ScrollBar
-									orientation="horizontal"
-									className="sm:hidden"
-								/>
-							</ScrollArea>
+									</div>
+								)}
+							</div>
 						</div>
 					</div>
 				</PopoverContent>

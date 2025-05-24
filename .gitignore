@@ -53,3 +53,6 @@ next-env.d.ts
 .dev.vars
 
 logs/
+
+# node_modules in any subdirectory
+**/node_modules/

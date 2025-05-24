@@ -1,6 +1,10 @@
+import { customVector } from "@useverk/drizzle-pgvector"
 import { relations } from "drizzle-orm"
+import { sql } from "drizzle-orm"
 import {
 	boolean,
+	date,
+	decimal,
 	index,
 	integer,
 	jsonb,
@@ -11,7 +15,8 @@ import {
 	text,
 	timestamp,
 	uuid,
-	varchar
+	varchar,
+	vector
 } from "drizzle-orm/pg-core"
 
 // Define lead status enum
@@ -27,6 +32,21 @@ export const leadStatusEnum = pgEnum("lead_status", [
 export const communicationTypeEnum = pgEnum("communication_type", [
 	"incoming",
 	"outgoing"
+])
+
+// Define phone number type enum
+export const phoneNumberTypeEnum = pgEnum("phone_number_type", [
+	"inbound",
+	"outbound",
+	"both"
+])
+
+// Define phone number status enum
+export const phoneNumberStatusEnum = pgEnum("phone_number_status", [
+	"active",
+	"inactive",
+	"pending",
+	"suspended"
 ])
 
 // Leads table - stores information about leads/prospects
@@ -95,6 +115,93 @@ export const campaigns = pgTable(
 		index("campaign_name_idx").on(table.name),
 		index("campaign_status_idx").on(table.status),
 		index("campaign_user_id_idx").on(table.userId)
+	]
+)
+
+// Phone Numbers table - stores inbound and outbound phone numbers for voice agents
+export const phoneNumbers = pgTable(
+	"phone_numbers",
+	{
+		id: serial("id").primaryKey(),
+		number: varchar("number", { length: 20 }).notNull().unique(), // E.164 format
+		friendlyName: varchar("friendly_name", { length: 255 }).notNull(), // User-defined name
+		type: phoneNumberTypeEnum("type").notNull(),
+		status: phoneNumberStatusEnum("status").default("active"),
+		isDefault: boolean("is_default").default(false), // Default number for outbound calls
+		provider: varchar("provider", { length: 100 }), // Telephony provider (Twilio, etc.)
+		providerSid: varchar("provider_sid", { length: 255 }), // Provider's unique identifier
+		capabilities: jsonb("capabilities")
+			.$type<{
+				voice: boolean
+				sms: boolean
+				mms: boolean
+				fax: boolean
+			}>()
+			.default({ voice: true, sms: false, mms: false, fax: false }),
+		configuration: jsonb("configuration")
+			.$type<{
+				routingRules?: {
+					businessHours?: {
+						enabled: boolean
+						timezone: string
+						schedule: {
+							[key: string]: { start: string; end: string } | null
+						}
+					}
+					voicemail?: {
+						enabled: boolean
+						greeting: string
+					}
+					fallback?: {
+						enabled: boolean
+						forwardTo: string
+					}
+				}
+				callerIdName?: string
+				recordCalls?: boolean
+			}>()
+			.default({}),
+		costPerMinute: decimal("cost_per_minute", {
+			precision: 10,
+			scale: 4
+		}).default("0.0000"), // Cost tracking
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("phone_number_idx").on(table.number),
+		index("phone_type_idx").on(table.type),
+		index("phone_status_idx").on(table.status),
+		index("phone_user_id_idx").on(table.userId),
+		index("phone_is_default_idx").on(table.isDefault)
+	]
+)
+
+// Phone Number Usage table - stores daily usage analytics for phone numbers
+export const phoneNumberUsage = pgTable(
+	"phone_number_usage",
+	{
+		id: serial("id").primaryKey(),
+		phoneNumberId: integer("phone_number_id")
+			.notNull()
+			.references(() => phoneNumbers.id, { onDelete: "cascade" }),
+		date: date("date").notNull(),
+		inboundCalls: integer("inbound_calls").default(0),
+		outboundCalls: integer("outbound_calls").default(0),
+		totalMinutes: integer("total_minutes").default(0),
+		totalCost: decimal("total_cost", { precision: 10, scale: 4 }).default(
+			"0.0000"
+		),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("phone_usage_phone_id_idx").on(table.phoneNumberId),
+		index("phone_usage_date_idx").on(table.date),
+		index("phone_usage_user_id_idx").on(table.userId),
+		// Unique constraint to prevent duplicate usage records for same phone number on same date
+		index("phone_usage_unique_idx").on(table.phoneNumberId, table.date)
 	]
 )
 
@@ -200,7 +307,8 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
 	calls: many(calls),
 	textMessages: many(textMessages),
 	emails: many(emails),
-	chats: many(chats)
+	chats: many(chats),
+	voiceSessions: many(voiceSessions)
 }))
 
 export const appointmentsRelations = relations(appointments, ({ one }) => ({
@@ -274,3 +382,476 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
 export const campaignsRelations = relations(campaigns, ({ many }) => ({
 	calls: many(calls)
 }))
+
+// Define voice agent status enum
+export const voiceAgentStatusEnum = pgEnum("voice_agent_status", [
+	"active",
+	"inactive",
+	"training",
+	"error"
+])
+
+// Define voice session status enum
+export const voiceSessionStatusEnum = pgEnum("voice_session_status", [
+	"active",
+	"completed",
+	"failed",
+	"timeout"
+])
+
+// Voice Agents table - stores AI voice agent configurations
+export const voiceAgents = pgTable(
+	"voice_agents",
+	{
+		id: serial("id").primaryKey(),
+		name: varchar("name", { length: 255 }).notNull(),
+		description: text("description"),
+		prompt: text("prompt").notNull(), // System prompt for the agent
+		voice: jsonb("voice")
+			.$type<{
+				provider: "elevenlabs" | "playht" | "cartesia"
+				voice_id: string
+				model?: string
+				settings?: Record<string, unknown>
+			}>()
+			.notNull(),
+		language: varchar("language", { length: 10 }).default("en"), // Language code (en, es, fr, etc.)
+		phoneNumberId: integer("phone_number_id").references(
+			() => phoneNumbers.id
+		), // Associated phone number
+		status: voiceAgentStatusEnum("status").default("inactive"),
+		configuration: jsonb("configuration")
+			.$type<{
+				flow?: {
+					user_start_first?: boolean
+					interruption?: {
+						allowed?: boolean
+						keep_interruption_message?: boolean
+						first_message?: boolean
+					}
+					response_delay?: number
+					auto_fill_responses?: {
+						response_gap_threshold?: number
+						messages?: string[]
+					}
+					agent_terminate_call?: {
+						enabled?: boolean
+						instruction?: string
+						messages?: string[]
+					}
+					voicemail?: {
+						action?: "hangup" | "continue"
+						message?: string
+						continue_on_voice_activity?: boolean
+					}
+					call_transfer?: {
+						phone?: string
+						phones?: Array<{ phone: string; description: string }>
+						instruction?: string
+						messages?: string[]
+					}
+					inactivity_handling?: {
+						idle_time?: number
+						message?: string
+					}
+					dtmf_dial?: {
+						enabled?: boolean
+						instruction?: string
+					}
+				}
+				llm?: {
+					model?: string
+					temperature?: number
+					history_settings?: {
+						history_message_limit?: number
+						history_tool_result_limit?: number
+					}
+				}
+				session_timeout?: {
+					max_duration?: number
+					max_idle?: number
+					message?: string
+				}
+				privacy_settings?: {
+					opt_out_data_collection?: boolean
+					do_not_call_detection?: boolean
+				}
+				custom_vocabulary?: {
+					keywords?: Record<string, unknown>
+				}
+				knowledge_base?: {
+					files?: string[]
+					messages?: string[]
+				}
+				speech_to_text?: {
+					provider?: "deepgram"
+					multilingual?: boolean
+					model?: string
+				}
+				call_settings?: {
+					enable_recording?: boolean
+				}
+				memory?: {
+					user_identifier_key?: string
+				}
+				timezone?: string
+			}>()
+			.default({}),
+		firstMessage: text("first_message"), // First message the agent says
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("voice_agent_name_idx").on(table.name),
+		index("voice_agent_status_idx").on(table.status),
+		index("voice_agent_phone_number_idx").on(table.phoneNumberId),
+		index("voice_agent_user_id_idx").on(table.userId)
+	]
+)
+
+// Voice Agent Functions table - stores function calls that agents can make
+export const voiceAgentFunctions = pgTable(
+	"voice_agent_functions",
+	{
+		id: serial("id").primaryKey(),
+		agentId: integer("agent_id")
+			.notNull()
+			.references(() => voiceAgents.id, { onDelete: "cascade" }),
+		name: varchar("name", { length: 100 }).notNull(),
+		description: text("description").notNull(),
+		webhook: varchar("webhook", { length: 1024 }).notNull(), // Webhook URL
+		method: varchar("method", { length: 10 }).default("POST"), // HTTP method
+		headers: jsonb("headers").$type<Record<string, string>>().default({}), // HTTP headers
+		parameters: jsonb("parameters")
+			.$type<
+				Array<{
+					name: string
+					type: "string" | "number" | "boolean" | "object" | "array"
+					description: string
+					required: boolean
+				}>
+			>()
+			.default([]), // Function parameters
+		timeout: integer("timeout").default(30), // Timeout in seconds
+		runAfterCall: boolean("run_after_call").default(false), // Execute after call ends
+		responseMode: varchar("response_mode", { length: 20 }).default(
+			"strict"
+		), // Response handling mode
+		executeAfterMessage: boolean("execute_after_message").default(true),
+		excludeSessionId: boolean("exclude_session_id").default(false),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("voice_function_agent_id_idx").on(table.agentId),
+		index("voice_function_name_idx").on(table.name),
+		index("voice_function_user_id_idx").on(table.userId)
+	]
+)
+
+// Voice Sessions table - stores voice conversation sessions
+export const voiceSessions = pgTable(
+	"voice_sessions",
+	{
+		id: serial("id").primaryKey(),
+		sessionId: varchar("session_id", { length: 255 }).unique().notNull(), // Millis AI session ID
+		agentId: integer("agent_id")
+			.notNull()
+			.references(() => voiceAgents.id),
+		leadId: integer("lead_id").references(() => leads.id), // Optional lead association
+		phoneNumber: varchar("phone_number", { length: 50 }), // Caller's phone number
+		direction: communicationTypeEnum("direction").notNull(), // incoming or outgoing
+		status: voiceSessionStatusEnum("status").default("active"),
+		startTime: timestamp("start_time").defaultNow().notNull(),
+		endTime: timestamp("end_time"),
+		duration: integer("duration"), // Duration in seconds
+		metadata: jsonb("metadata")
+			.$type<{
+				user_agent?: string
+				ip_address?: string
+				custom_data?: Record<string, unknown>
+			}>()
+			.default({}), // Session metadata
+		transcript: text("transcript"), // Full conversation transcript
+		summary: text("summary"), // AI-generated summary
+		sentiment: varchar("sentiment", { length: 20 }), // positive, negative, neutral
+		recordingUrl: varchar("recording_url", { length: 1024 }), // Recording file URL
+		cost: decimal("cost", { precision: 10, scale: 4 }).default("0.0000"), // Session cost
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("voice_session_session_id_idx").on(table.sessionId),
+		index("voice_session_agent_id_idx").on(table.agentId),
+		index("voice_session_lead_id_idx").on(table.leadId),
+		index("voice_session_start_time_idx").on(table.startTime),
+		index("voice_session_status_idx").on(table.status),
+		index("voice_session_user_id_idx").on(table.userId)
+	]
+)
+
+// Voice Recordings table - stores voice recording metadata and URLs
+export const voiceRecordings = pgTable(
+	"voice_recordings",
+	{
+		id: serial("id").primaryKey(),
+		sessionId: integer("session_id")
+			.notNull()
+			.references(() => voiceSessions.id, { onDelete: "cascade" }),
+		recordingUrl: varchar("recording_url", { length: 1024 }).notNull(),
+		duration: integer("duration"), // Duration in seconds
+		fileSize: integer("file_size"), // File size in bytes
+		format: varchar("format", { length: 20 }).default("mp3"), // Audio format
+		transcript: text("transcript"), // Transcription of the recording
+		processingStatus: varchar("processing_status", { length: 20 }).default(
+			"pending"
+		), // pending, processing, completed, failed
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("voice_recording_session_id_idx").on(table.sessionId),
+		index("voice_recording_status_idx").on(table.processingStatus),
+		index("voice_recording_user_id_idx").on(table.userId)
+	]
+)
+
+// Phone number relations
+export const phoneNumbersRelations = relations(
+	phoneNumbers,
+	({ many, one }) => ({
+		usage: many(phoneNumberUsage),
+		voiceAgents: many(voiceAgents)
+	})
+)
+
+export const phoneNumberUsageRelations = relations(
+	phoneNumberUsage,
+	({ one }) => ({
+		phoneNumber: one(phoneNumbers, {
+			fields: [phoneNumberUsage.phoneNumberId],
+			references: [phoneNumbers.id]
+		})
+	})
+)
+
+// Knowledge Base Sources Table
+export const knowledgeBaseSources = pgTable(
+	"knowledge_base_sources",
+	{
+		id: serial("id").primaryKey(),
+		name: text("name").notNull(),
+		type: text("type").notNull(), // "website_url", "pdf_upload", "gdoc", "image_upload", etc.
+		uri: text("uri").notNull(), // URL or path to the source
+		processingOptions: jsonb("processing_options").$type<{
+			useMultimodal: boolean
+			useHyde: boolean
+			chunkingStrategy: "adaptive" | "layout-aware" | "standard"
+			preserveLayout: boolean
+			generateVisualDescriptions: boolean
+		}>(),
+		lastIndexedAt: timestamp("last_indexed_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("kb_source_name_idx").on(table.name),
+		index("kb_source_type_idx").on(table.type),
+		index("kb_source_user_id_idx").on(table.userId)
+	]
+)
+
+// Enhanced Knowledge Base Documents Table (chunks with multiple embedding types)
+export const knowledgeBaseDocuments = pgTable(
+	"knowledge_base_documents",
+	{
+		id: serial("id").primaryKey(),
+		sourceId: integer("source_id").references(
+			() => knowledgeBaseSources.id,
+			{
+				onDelete: "cascade"
+			}
+		),
+		contentChunk: text("content_chunk").notNull(),
+		chunkType: text("chunk_type").notNull().default("text"), // 'text', 'image', 'table', 'mixed'
+
+		// Text embedding (voyage-3.5)
+		textEmbeddingModel: text("text_embedding_model")
+			.notNull()
+			.default("voyage-3.5"),
+		textEmbedding: vector("text_embedding", { dimensions: 1024 }),
+
+		// Multimodal embedding (voyage-multimodal-3)
+		multimodalEmbeddingModel: text("multimodal_embedding_model"),
+		multimodalEmbedding: vector("multimodal_embedding", {
+			dimensions: 1024
+		}),
+
+		// HyDE embeddings
+		hydeEmbedding: vector("hyde_embedding", { dimensions: 1024 }),
+		hydeQueries: jsonb("hyde_queries").$type<string[]>(),
+
+		// Visual context and metadata
+		visualContext: text("visual_context"), // Description of visual elements
+		boundingBox: jsonb("bounding_box").$type<{
+			x: number
+			y: number
+			width: number
+			height: number
+		}>(),
+
+		pageNumber: integer("page_number"),
+		processingMetadata: jsonb("processing_metadata").$type<{
+			processingTime: number
+			chunkingStrategy: string
+			embeddingModels: string[]
+			visualElementsDetected: boolean
+			confidence: number
+			retrievalStrategies?: string[]
+		}>(),
+
+		metadata: jsonb("metadata").default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("kb_document_source_id_idx").on(table.sourceId),
+		index("kb_document_user_id_idx").on(table.userId),
+		index("kb_document_chunk_type_idx").on(table.chunkType),
+		index("kb_document_page_number_idx").on(table.pageNumber),
+
+		// Vector indexes for different embedding types
+		index("kb_document_text_embedding_hnsw_idx").using(
+			"hnsw",
+			table.textEmbedding.op("vector_cosine_ops")
+		),
+		index("kb_document_multimodal_embedding_hnsw_idx").using(
+			"hnsw",
+			table.multimodalEmbedding.op("vector_cosine_ops")
+		),
+		index("kb_document_hyde_embedding_hnsw_idx").using(
+			"hnsw",
+			table.hydeEmbedding.op("vector_cosine_ops")
+		),
+
+		// Composite indexes for hybrid search
+		index("kb_document_source_type_idx").on(
+			table.sourceId,
+			table.chunkType
+		),
+		index("kb_document_metadata_gin_idx").using("gin", table.metadata)
+	]
+)
+
+// Optional: Table for storing visual elements separately
+export const visualElements = pgTable(
+	"visual_elements",
+	{
+		id: serial("id").primaryKey(),
+		documentId: integer("document_id").references(
+			() => knowledgeBaseDocuments.id,
+			{ onDelete: "cascade" }
+		),
+		elementType: text("element_type").notNull(), // 'image', 'table', 'chart', 'diagram'
+		description: text("description"),
+		extractedText: text("extracted_text"),
+		imageData: text("image_data"), // Base64 encoded image or reference
+		embedding: vector("embedding", { dimensions: 1024 }),
+		boundingBox: jsonb("bounding_box").$type<{
+			x: number
+			y: number
+			width: number
+			height: number
+		}>(),
+		pageNumber: integer("page_number"),
+		metadata: jsonb("metadata").default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull()
+	},
+	(table) => [
+		index("visual_element_document_id_idx").on(table.documentId),
+		index("visual_element_type_idx").on(table.elementType),
+		index("visual_element_user_id_idx").on(table.userId),
+		index("visual_element_embedding_hnsw_idx").using(
+			"hnsw",
+			table.embedding.op("vector_cosine_ops")
+		)
+	]
+)
+
+// Define relationships
+export const knowledgeBaseSourcesRelations = relations(
+	knowledgeBaseSources,
+	({ many }) => ({
+		documents: many(knowledgeBaseDocuments)
+	})
+)
+
+export const knowledgeBaseDocumentsRelations = relations(
+	knowledgeBaseDocuments,
+	({ one, many }) => ({
+		source: one(knowledgeBaseSources, {
+			fields: [knowledgeBaseDocuments.sourceId],
+			references: [knowledgeBaseSources.id]
+		}),
+		visualElements: many(visualElements)
+	})
+)
+
+export const visualElementsRelations = relations(visualElements, ({ one }) => ({
+	document: one(knowledgeBaseDocuments, {
+		fields: [visualElements.documentId],
+		references: [knowledgeBaseDocuments.id]
+	})
+}))
+
+// Voice agent relations
+export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
+	phoneNumber: one(phoneNumbers, {
+		fields: [voiceAgents.phoneNumberId],
+		references: [phoneNumbers.id]
+	}),
+	functions: many(voiceAgentFunctions),
+	sessions: many(voiceSessions)
+}))
+
+export const voiceAgentFunctionsRelations = relations(
+	voiceAgentFunctions,
+	({ one }) => ({
+		agent: one(voiceAgents, {
+			fields: [voiceAgentFunctions.agentId],
+			references: [voiceAgents.id]
+		})
+	})
+)
+
+export const voiceSessionsRelations = relations(
+	voiceSessions,
+	({ one, many }) => ({
+		agent: one(voiceAgents, {
+			fields: [voiceSessions.agentId],
+			references: [voiceAgents.id]
+		}),
+		lead: one(leads, {
+			fields: [voiceSessions.leadId],
+			references: [leads.id]
+		}),
+		recordings: many(voiceRecordings)
+	})
+)
+
+export const voiceRecordingsRelations = relations(
+	voiceRecordings,
+	({ one }) => ({
+		session: one(voiceSessions, {
+			fields: [voiceRecordings.sessionId],
+			references: [voiceSessions.id]
+		})
+	})
+)

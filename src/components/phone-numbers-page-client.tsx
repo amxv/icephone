@@ -1,5 +1,7 @@
 "use client"
 
+import { AddPhoneNumberDialog } from "@/components/add-phone-number-dialog"
+import { PhoneNumberConfigDialog } from "@/components/phone-number-config-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,16 +20,15 @@ import {
 	TooltipProvider,
 	TooltipTrigger
 } from "@/components/ui/tooltip"
+import type { PhoneNumber } from "@/types"
 import {
 	ClockIcon,
 	InfoIcon,
 	PhoneIcon,
 	PhoneIncomingIcon,
-	PhoneOutgoingIcon,
-	PlusIcon,
-	SettingsIcon
+	PhoneOutgoingIcon
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 // Page header component with gradient title
 function PageHeader() {
@@ -38,26 +39,18 @@ function PageHeader() {
 					Phone Numbers
 				</h1>
 			</div>
-			<Button variant="outline" className="rounded-full">
-				<PlusIcon className="h-4 w-4 mr-2" />
-				Add Number
-			</Button>
+			<AddPhoneNumberDialog variant="outline" />
 		</div>
 	)
 }
 
 // Phone number display with status badge
 function PhoneNumberDisplay({
-	number,
-	name,
-	status,
-	isDefault = false
+	phoneNumber
 }: {
-	number: string
-	name: string
-	status: "active" | "inactive" | "pending"
-	isDefault?: boolean
+	phoneNumber: PhoneNumber
 }) {
+	const { number, friendlyName, status, isDefault } = phoneNumber
 	const statusConfig = {
 		active: {
 			color: "bg-green-100 text-green-800 border-green-200",
@@ -70,10 +63,14 @@ function PhoneNumberDisplay({
 		pending: {
 			color: "bg-yellow-100 text-yellow-800 border-yellow-200",
 			label: "Pending"
+		},
+		suspended: {
+			color: "bg-red-100 text-red-800 border-red-200",
+			label: "Suspended"
 		}
 	}
 
-	const config = statusConfig[status]
+	const config = statusConfig[status] || statusConfig.inactive
 
 	return (
 		<div className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 border border-border/50 rounded-2xl bg-card/30 mb-3">
@@ -83,7 +80,9 @@ function PhoneNumberDisplay({
 				</div>
 				<div>
 					<div className="font-medium">{number}</div>
-					<div className="text-sm text-muted-foreground">{name}</div>
+					<div className="text-sm text-muted-foreground">
+						{friendlyName}
+					</div>
 				</div>
 				<div className="flex gap-2">
 					<Badge variant="outline" className={config.color}>
@@ -100,21 +99,16 @@ function PhoneNumberDisplay({
 				</div>
 			</div>
 			<div className="flex gap-2 w-full md:w-auto">
-				<Button
-					variant="outline"
-					size="sm"
-					className="rounded-full w-full md:w-auto"
-				>
-					<SettingsIcon className="h-4 w-4 mr-2" />
-					Configure
-				</Button>
+				<PhoneNumberConfigDialog phoneNumber={phoneNumber} />
 			</div>
 		</div>
 	)
 }
 
 // Inbound numbers section
-function InboundNumbersSection() {
+function InboundNumbersSection({
+	phoneNumbers
+}: { phoneNumbers: PhoneNumber[] }) {
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 			<CardHeader className="pb-3">
@@ -142,17 +136,22 @@ function InboundNumbersSection() {
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-4">
-					<PhoneNumberDisplay
-						number="+1 (415) 555-1234"
-						name="Sales Department"
-						status="active"
-						isDefault={true}
-					/>
-					<PhoneNumberDisplay
-						number="+1 (415) 555-5678"
-						name="Support Line"
-						status="active"
-					/>
+					{phoneNumbers.length > 0 ? (
+						phoneNumbers.map((phoneNumber) => (
+							<PhoneNumberDisplay
+								key={phoneNumber.id}
+								phoneNumber={phoneNumber}
+							/>
+						))
+					) : (
+						<div className="text-center py-8 text-muted-foreground">
+							<PhoneIncomingIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+							<p>No inbound numbers configured</p>
+							<p className="text-sm">
+								Add a number to start receiving calls
+							</p>
+						</div>
+					)}
 				</div>
 			</CardContent>
 		</Card>
@@ -160,7 +159,9 @@ function InboundNumbersSection() {
 }
 
 // Outbound numbers section with settings
-function OutboundNumbersSection() {
+function OutboundNumbersSection({
+	phoneNumbers
+}: { phoneNumbers: PhoneNumber[] }) {
 	const [callerId, setCallerId] = useState("default")
 	const [scheduleEnabled, setScheduleEnabled] = useState(true)
 
@@ -191,12 +192,22 @@ function OutboundNumbersSection() {
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-4">
-					<PhoneNumberDisplay
-						number="+1 (415) 555-9012"
-						name="Sales Outreach"
-						status="active"
-						isDefault={true}
-					/>
+					{phoneNumbers.length > 0 ? (
+						phoneNumbers.map((phoneNumber) => (
+							<PhoneNumberDisplay
+								key={phoneNumber.id}
+								phoneNumber={phoneNumber}
+							/>
+						))
+					) : (
+						<div className="text-center py-8 text-muted-foreground">
+							<PhoneOutgoingIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+							<p>No outbound numbers configured</p>
+							<p className="text-sm">
+								Add a number to start making calls
+							</p>
+						</div>
+					)}
 
 					<div className="p-4 border border-border/50 rounded-2xl bg-card/30">
 						<h3 className="text-base font-medium mb-4">
@@ -271,7 +282,22 @@ function OutboundNumbersSection() {
 }
 
 // Main Phone Numbers Page Client Component
-export function PhoneNumbersPageClient() {
+export function PhoneNumbersPageClient({
+	initialPhoneNumbers = []
+}: {
+	initialPhoneNumbers?: PhoneNumber[]
+}) {
+	const [phoneNumbers, setPhoneNumbers] =
+		useState<PhoneNumber[]>(initialPhoneNumbers)
+
+	// Filter numbers by type
+	const inboundNumbers = phoneNumbers.filter(
+		(num) => num.type === "inbound" || num.type === "both"
+	)
+	const outboundNumbers = phoneNumbers.filter(
+		(num) => num.type === "outbound" || num.type === "both"
+	)
+
 	return (
 		<>
 			<PageHeader />
@@ -299,16 +325,16 @@ export function PhoneNumbersPageClient() {
 				</TabsList>
 
 				<TabsContent value="all" className="space-y-6 mt-6">
-					<InboundNumbersSection />
-					<OutboundNumbersSection />
+					<InboundNumbersSection phoneNumbers={inboundNumbers} />
+					<OutboundNumbersSection phoneNumbers={outboundNumbers} />
 				</TabsContent>
 
 				<TabsContent value="inbound" className="mt-6">
-					<InboundNumbersSection />
+					<InboundNumbersSection phoneNumbers={inboundNumbers} />
 				</TabsContent>
 
 				<TabsContent value="outbound" className="mt-6">
-					<OutboundNumbersSection />
+					<OutboundNumbersSection phoneNumbers={outboundNumbers} />
 				</TabsContent>
 			</Tabs>
 		</>

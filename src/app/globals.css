@@ -117,3 +117,8 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide scrollbar for specific ScrollArea components */
+.hide-scrollbar > div[data-slot='scroll-area-scrollbar'] {
+  display: none;
+}

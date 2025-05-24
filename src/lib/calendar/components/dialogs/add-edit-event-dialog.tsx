@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { addMinutes, format, set } from "date-fns"
 import type { ReactNode } from "react"
+import React from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -56,22 +57,84 @@ export function AddEditEventDialog({
 	const { isOpen, onClose, onToggle } = useDisclosure()
 	const { addEvent, updateEvent } = useCalendar()
 	const isEditing = !!event
+	const [isInitialStartTimeSet, setIsInitialStartTimeSet] =
+		React.useState(false)
 
 	const getInitialDates = () => {
-		if (!startDate)
-			return {
-				startDate: new Date(),
-				endDate: addMinutes(new Date(), 30)
-			}
-		const start = startTime
-			? set(new Date(startDate), {
-					hours: startTime.hour,
-					minutes: startTime.minute,
-					seconds: 0
+		const now = new Date()
+		const minutes = now.getMinutes()
+		let startDate: Date
+
+		if (minutes < 30) {
+			startDate = set(now, { minutes: 30, seconds: 0, milliseconds: 0 })
+		} else {
+			startDate = set(now, {
+				hours: now.getHours() + 1,
+				minutes: 0,
+				seconds: 0,
+				milliseconds: 0
+			})
+		}
+
+		if (startTime) {
+			// if a specific start time is provided (e.g. by clicking on calendar)
+			startDate = set(new Date(startDate), {
+				// ensure it uses the provided date, but applies the rounding logic for time
+				hours: startTime.hour,
+				minutes: startTime.minute,
+				seconds: 0,
+				milliseconds: 0
+			})
+			// Recalculate based on provided startTime
+			const currentStartTimeMinutes = startDate.getMinutes()
+			if (currentStartTimeMinutes < 30 && currentStartTimeMinutes !== 0) {
+				startDate = set(startDate, {
+					minutes: 30,
+					seconds: 0,
+					milliseconds: 0
 				})
-			: new Date(startDate)
-		const end = addMinutes(start, 30)
-		return { startDate: start, endDate: end }
+			} else if (currentStartTimeMinutes > 30) {
+				startDate = set(startDate, {
+					hours: startDate.getHours() + 1,
+					minutes: 0,
+					seconds: 0,
+					milliseconds: 0
+				})
+			}
+			// if startTime.minute is already 0 or 30, it will remain as is, which is correct.
+		}
+
+		// If a specific startDate is passed (e.g. clicking on a day in month view)
+		// We should use that date, but round the time to the next half hour from current time if no specific startTime is given
+		if (startDate && !startTime) {
+			const dateToUse = new Date(startDate) // Use the passed startDate
+			const nowForTime = new Date() // But use current time for rounding logic
+			const currentMinutes = nowForTime.getMinutes()
+			let roundedHours = nowForTime.getHours()
+			let roundedMinutes = 0
+
+			if (currentMinutes < 30) {
+				roundedMinutes = 30
+			} else {
+				roundedMinutes = 0
+				roundedHours += 1
+			}
+			// If roundedHours becomes 24, set to 0 (next day handled by date-fns)
+			if (roundedHours === 24) {
+				roundedHours = 0
+				// date-fns set function handles date increment if hour goes past 23
+			}
+
+			startDate = set(dateToUse, {
+				hours: roundedHours,
+				minutes: roundedMinutes,
+				seconds: 0,
+				milliseconds: 0
+			})
+		}
+
+		const endDate = addMinutes(startDate, 30)
+		return { startDate: startDate, endDate: endDate }
 	}
 
 	const initialDates = getInitialDates()
@@ -108,6 +171,18 @@ export function AddEditEventDialog({
 				}
 	})
 
+	const watchedStartDate = form.watch("startDate")
+	const watchedEndDate = form.watch("endDate")
+	const isEndDateInvalid =
+		watchedStartDate && watchedEndDate && watchedEndDate <= watchedStartDate
+
+	const handleStartTimeChange = (newStartDate: Date) => {
+		if (!isEditing && !isInitialStartTimeSet) {
+			form.setValue("endDate", addMinutes(newStartDate, 30))
+			setIsInitialStartTimeSet(true)
+		}
+	}
+
 	const onSubmit = async (values: TEventFormData) => {
 		try {
 			const eventPayloadForServer = {
@@ -136,6 +211,7 @@ export function AddEditEventDialog({
 
 			onClose()
 			form.reset()
+			setIsInitialStartTimeSet(false)
 		} catch (error) {
 			console.error(
 				`Error ${isEditing ? "editing" : "adding"} event:`,
@@ -197,14 +273,26 @@ export function AddEditEventDialog({
 							control={form.control}
 							name="startDate"
 							render={({ field }) => (
-								<DateTimePicker form={form} field={field} />
+								<DateTimePicker
+									form={form}
+									field={field}
+									isEditing={isEditing}
+									isInitialStartTimeSet={
+										isInitialStartTimeSet
+									}
+									onStartTimeChange={handleStartTimeChange}
+								/>
 							)}
 						/>
 						<FormField
 							control={form.control}
 							name="endDate"
 							render={({ field }) => (
-								<DateTimePicker form={form} field={field} />
+								<DateTimePicker
+									form={form}
+									field={field}
+									isInvalid={isEndDateInvalid}
+								/>
 							)}
 						/>
 						<FormField
@@ -299,7 +387,11 @@ export function AddEditEventDialog({
 							Cancel
 						</Button>
 					</DialogClose>
-					<Button form="event-form" type="submit">
+					<Button
+						form="event-form"
+						type="submit"
+						disabled={isEndDateInvalid || !form.formState.isValid}
+					>
 						{isEditing ? "Save Changes" : "Create Event"}
 					</Button>
 				</DialogFooter>

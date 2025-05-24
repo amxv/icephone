@@ -8,14 +8,9 @@
 			"command": "bunx",
 			"args": ["@agentdeskai/browser-tools-mcp"]
 		},
-		"neon": {
-			"command": "npx",
-			"args": [
-				"-y",
-				"@neondatabase/mcp-server-neon",
-				"start",
-				"napi_c29yds4k49mzr7ht77atrdmjrh614x6piwvaof8xgro953vd8etag4yz3pcdc1fq"
-			]
+		"Neon": {
+			"command": "bunx",
+			"args": ["-y", "mcp-remote", "https://mcp.neon.tech/sse"]
 		},
 		"vercel-mcp": {
 			"command": "npx",

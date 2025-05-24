@@ -1,5 +1,6 @@
 "use client"
 
+import { processAndEmbedFileWithWorker } from "@/actions/knowledge-base-worker"
 import clsx from "clsx"
 import {
 	CheckCircle,
@@ -10,58 +11,105 @@ import {
 } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import { type ChangeEvent, type DragEvent, useRef, useState } from "react"
+// import { useToast } from "@/components/ui/use-toast" // Will add later for notifications
 
 interface FileWithPreview {
 	id: string
 	preview: string
-	progress: number
+	progress: number // 0-10 for sending, 10-99 for processing, 100 for success, -1 for error
 	name: string
 	size: number
 	type: string
 	lastModified?: number
 	file?: File
+	error?: string | null // To store error messages
 }
 
 export default function FileUpload() {
 	const [files, setFiles] = useState<FileWithPreview[]>([])
 	const [isDragging, setIsDragging] = useState(false)
 	const inputRef = useRef<HTMLInputElement>(null)
+	// const { toast } = useToast(); // Will add later
 
 	// Process dropped or selected files
-	const handleFiles = (fileList: FileList) => {
-		const newFiles = Array.from(fileList).map((file) => ({
-			id: `${URL.createObjectURL(file)}-${Date.now()}`,
-			preview: URL.createObjectURL(file),
+	const handleFiles = async (fileList: FileList) => {
+		const newFilesArray = Array.from(fileList).map((file) => ({
+			id: `${file.name}-${file.lastModified}-${file.size}`,
+			preview: file.type.startsWith("image/")
+				? URL.createObjectURL(file)
+				: "",
 			progress: 0,
 			name: file.name,
 			size: file.size,
 			type: file.type,
 			lastModified: file.lastModified,
-			file
+			file,
+			error: null
 		}))
-		setFiles((prev) => [...prev, ...newFiles])
-		for (const file of newFiles) {
-			simulateUpload(file.id)
-		}
-	}
 
-	// Simulate upload progress
-	const simulateUpload = (id: string) => {
-		let progress = 0
-		const interval = setInterval(() => {
-			progress += Math.random() * 15
-			setFiles((prev) =>
-				prev.map((f) =>
-					f.id === id
-						? { ...f, progress: Math.min(progress, 100) }
-						: f
+		setFiles((prev) => [...prev, ...newFilesArray])
+
+		for (const newFileEntry of newFilesArray) {
+			if (newFileEntry.file) {
+				// Indicate processing has started for this file
+				setFiles((prev) =>
+					prev.map((f) =>
+						f.id === newFileEntry.id ? { ...f, progress: 10 } : f
+					)
 				)
-			)
-			if (progress >= 100) {
-				clearInterval(interval)
-				if (navigator.vibrate) navigator.vibrate(100)
+
+				try {
+					const result = await processAndEmbedFileWithWorker(
+						newFileEntry.file,
+						newFileEntry.name
+						// We can pass sourceType if we detect it from file.type
+					)
+
+					if (result.success) {
+						setFiles((prev) =>
+							prev.map((f) =>
+								f.id === newFileEntry.id
+									? { ...f, progress: 100 }
+									: f
+							)
+						)
+						// toast({ title: "Success", description: result.message }); // For later
+						console.log("File processed:", result.message)
+					} else {
+						setFiles((prev) =>
+							prev.map((f) =>
+								f.id === newFileEntry.id
+									? {
+											...f,
+											progress: -1,
+											error: result.error
+										}
+									: f
+							)
+						)
+						// toast({ variant: "destructive", title: "Error", description: result.error }); // For later
+						console.error("File processing error:", result.error)
+					}
+				} catch (error) {
+					console.error("Exception during file processing:", error)
+					setFiles((prev) =>
+						prev.map((f) =>
+							f.id === newFileEntry.id
+								? {
+										...f,
+										progress: -1,
+										error:
+											error instanceof Error
+												? error.message
+												: "Unknown client-side error"
+									}
+								: f
+						)
+					)
+					// toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred." }); // For later
+				}
 			}
-		}, 300)
+		}
 	}
 
 	const onDrop = (e: DragEvent) => {
@@ -194,15 +242,18 @@ export default function FileUpload() {
 							<h3 className="font-semibold text-lg md:text-xl text-zinc-800 dark:text-zinc-200">
 								Uploaded files ({files.length})
 							</h3>
-							{files.length > 1 && (
-								<button
-									type="button"
-									onClick={() => setFiles([])}
-									className="text-sm font-medium px-3 py-1 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 rounded-md text-zinc-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400 transition-colors duration-200"
-								>
-									Clear all
-								</button>
-							)}
+							{files.filter(
+								(f) => f.progress !== -1 && f.progress < 100
+							).length === 0 &&
+								files.length > 1 && (
+									<button
+										type="button"
+										onClick={() => setFiles([])} // Consider only clearing completed/error files or all
+										className="text-sm font-medium px-3 py-1 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 rounded-md text-zinc-700 hover:text-red-600 dark:text-zinc-300 dark:hover:text-red-400 transition-colors duration-200"
+									>
+										Clear all completed
+									</button>
+								)}
 						</motion.div>
 					)}
 				</AnimatePresence>
@@ -228,40 +279,34 @@ export default function FileUpload() {
 								}}
 								className="px-4 py-4 flex items-start gap-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/80 shadow hover:shadow-md transition-all duration-200"
 							>
-								{/* Thumbnail */}
-								<div className="relative flex-shrink-0">
-									{file.type.startsWith("image/") ? (
+								{/* Thumbnail - simplified for brevity, original logic for image/video/fileicon can remain */}
+								<div className="relative flex-shrink-0 w-16 h-16 md:w-20 md:h-20 flex items-center justify-center bg-slate-100 dark:bg-slate-700 rounded-lg border dark:border-zinc-700 shadow-sm">
+									{file.type.startsWith("image/") &&
+									file.preview ? (
 										<img
 											src={file.preview}
 											alt={`Preview of ${file.name}`}
-											className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover border dark:border-zinc-700 shadow-sm"
-											onError={(e) => {
-												// We need to modify the DOM element directly here
-												// @ts-ignore - We know this is safe in this context
-												e.currentTarget.style.display =
-													"none"
-											}}
-										/>
-									) : file.type.startsWith("video/") ? (
-										<video
-											src={file.preview}
-											className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover border dark:border-zinc-700 shadow-sm"
-											controls={false}
-											muted
-											loop
-											playsInline
-											preload="metadata"
+											className="w-full h-full rounded-lg object-cover"
 										/>
 									) : (
-										<FileIcon className="w-16 h-16 md:w-20 md:h-20 text-zinc-400" />
+										<FileIcon className="w-10 h-10 text-zinc-400" />
 									)}
-									{file.progress === 100 && (
+									{/* Status Icon overlay */}
+									{(file.progress === 100 ||
+										(file.progress > 0 &&
+											file.progress < 100)) && (
 										<motion.div
 											initial={{ opacity: 0, scale: 0.5 }}
 											animate={{ opacity: 1, scale: 1 }}
-											className="absolute -right-2 -bottom-2 bg-white dark:bg-zinc-800 rounded-full shadow-sm"
+											className="absolute -right-2 -bottom-2 bg-white dark:bg-zinc-800 rounded-full shadow-sm p-0.5"
 										>
-											<CheckCircle className="w-5 h-5 text-emerald-500" />
+											{file.progress === 100 && (
+												<CheckCircle className="w-5 h-5 text-emerald-500" />
+											)}
+											{file.progress > 0 &&
+												file.progress < 100 && (
+													<Loader className="w-5 h-5 text-blue-500 animate-spin" />
+												)}
 										</motion.div>
 									)}
 								</div>
@@ -280,18 +325,29 @@ export default function FileUpload() {
 											</h4>
 										</div>
 
-										{/* Details & remove/loading */}
+										{/* Error Message */}
+										{file.progress === -1 && file.error && (
+											<p className="text-xs text-red-500 dark:text-red-400 mt-0.5 break-all">
+												Error: {file.error}
+											</p>
+										)}
+
+										{/* Details & remove/status icon */}
 										<div className="flex items-center justify-between gap-3 text-sm text-zinc-500 dark:text-zinc-400">
 											<span className="text-xs md:text-sm">
 												{formatFileSize(file.size)}
+												{file.progress > 0 &&
+													file.progress < 100 &&
+													"(Processing...)"}
+												{file.progress === 100 &&
+													"(Completed)"}
+												{file.progress === -1 &&
+													"(Failed)"}
 											</span>
 											<span className="flex items-center gap-1.5">
-												<span className="font-medium">
-													{Math.round(file.progress)}%
-												</span>
-												{file.progress < 100 ? (
-													<Loader className="w-4 h-4 animate-spin text-blue-500" />
-												) : (
+												{(file.progress === 0 ||
+													file.progress === -1 ||
+													file.progress === 100) && (
 													<Trash2
 														className="w-4 h-4 cursor-pointer text-zinc-400 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 transition-colors duration-200"
 														onClick={(e) => {
@@ -307,31 +363,44 @@ export default function FileUpload() {
 														aria-label="Remove file"
 													/>
 												)}
+												{file.progress > 0 &&
+													file.progress < 100 && (
+														<Loader className="w-4 h-4 animate-spin text-blue-500" />
+													)}
+												{file.progress === 100 && (
+													<CheckCircle className="w-4 h-4 text-emerald-500" />
+												)}
 											</span>
 										</div>
 									</div>
 
-									{/* Progress bar */}
-									<div className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden mt-3">
-										<motion.div
-											initial={{ width: 0 }}
-											animate={{
-												width: `${file.progress}%`
-											}}
-											transition={{
-												duration: 0.4,
-												type: "spring",
-												stiffness: 100,
-												ease: "easeOut"
-											}}
-											className={clsx(
-												"h-full rounded-full shadow-inner",
-												file.progress < 100
-													? "bg-blue-500"
-													: "bg-emerald-500"
-											)}
-										/>
-									</div>
+									{/* Progress bar - only show for active processing or completed */}
+									{(file.progress > 0 ||
+										file.progress === 100) &&
+										file.progress !== -1 && (
+											<div className="w-full h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden mt-3">
+												<motion.div
+													initial={{ width: 0 }}
+													animate={{
+														width: `${file.progress < 0 ? 100 : file.progress}%` // Show full red for error if needed, but error text is primary
+													}}
+													transition={{
+														duration: 0.4,
+														type: "spring",
+														stiffness: 100,
+														ease: "easeOut"
+													}}
+													className={clsx(
+														"h-full rounded-full shadow-inner",
+														file.progress === 100
+															? "bg-emerald-500"
+															: "bg-blue-500"
+														// Add a red color for error if progress bar is shown for errors
+														// file.progress === -1 ? "bg-red-500" :
+													)}
+												/>
+											</div>
+										)}
 								</div>
 							</motion.div>
 						))}

@@ -29,23 +29,64 @@ IcePhone is an AI-powered CRM and Voice Agent Platform that allows business owne
 - Before creating new files, do a search to make sure what you're about to create doesn't already exist.
 - When editing a page to add new components, always make the components first and then add them to the page to avoid causing temporary errors (until you complete the component)
 
-## How to work with the Databse (Drizzle ORM + PostgreSQL)
+## Neon Database Configuration:
 
-- The schema location is `src/db/schema.ts`.
-- Put all your server actions in `src/actions/(name).ts`
-- Put all the types in `src/types.ts`
-- After making changes to the schema, run `bun db:dev:push` or `bun db:prod:push` to generate and apply migrations to our neon database.
-- Please try to use `mcp_run_sql_transaction` tool: wrap the commands that you are thinking of implementing in a transaction, and roll it back with a RETURNING clause to "preview" your changes before writing the drizzle code.
-- This tool call allows you to "dry run" and test changes easily.
+**Project Details:**
+- Project ID: `square-unit-96831934`
+- Project Name: `icephone`
+- Region: `aws-us-west-2`
+- PostgreSQL Version: 17
 
-example:
+**Branches:**
+- Production Branch: `br-round-dawn-a6gfsin7` (name: "production")
+- Development Branch: `br-blue-frog-a6npin6j` (name: "development") - **USE THIS FOR DEVELOPMENT**
+- Temp Branch: `br-quiet-night-a6zhzakv`
+
+**Database Tables:**
+- `leads` - Core lead management (96 kB, well-indexed)
+- `calls` - Call records and transcripts (48 kB)
+- `campaigns` - Marketing campaigns
+- `appointments` - Scheduled appointments
+- `chats` - Chat conversations
+- `chat_messages` - Individual chat messages
+- `emails` - Email communications
+- `text_messages` - SMS/text messaging
+- `knowledge_base_documents` - Knowledge base content
+- `knowledge_base_sources` - Knowledge base sources
+
+**Key Schema Notes:**
+- All tables have `user_id` for multi-tenant isolation
+- Foreign key relationships: calls->leads, calls->campaigns
+- Custom enum types: `lead_status`, call `type`
+- Proper indexing on frequently queried columns
+- Timestamps: `created_at`, `updated_at` on all tables
+
+## How to work with the Database (Drizzle ORM + PostgreSQL)
+
+**Preferred Workflow (Drizzle First):**
+
+1. **Edit schema** in `src/db/schema.ts` using Drizzle syntax
+2. **Apply changes** immediately: `bun db:dev:push` or `bun db:prod:push`
+3. **Build server actions** in `src/actions/(name).ts`
+4. **Define types** in `src/types.ts`
+
+**Why Drizzle First:**
+- ✅ Maintains migration history and rollback capabilities
+- ✅ Ensures type safety throughout your application
+- ✅ Keeps schema and code in perfect sync
+- ✅ Provides better developer experience with IntelliSense
+
+**Using MCP Tools (for testing/debugging only):**
+- **Always use the development branch ID `br-blue-frog-a6npin6j` for MCP Neon tools during development**
+- Use `mcp_run_sql_transaction` tool for testing queries or debugging existing data:
+
 ```sql
 BEGIN TRANSACTION                                                    ;
 UPDATE feedback SET rating = rating + 1 WHERE rating < 5 RETURNING * ;
 ROLLBACK                                                             ;
 ```
 
-This approach is very useful for debugging as well.
+**Key Point**: Only use MCP tools for read operations, data exploration, or testing queries. Always use Drizzle for schema changes and migrations.
 
 Note that in Next.js, we always prefer to use server actions instead of API routes, so that the code is simple to read and write.
 
@@ -62,7 +103,7 @@ Note that in Next.js, we always prefer to use server actions instead of API rout
 - First, check the server and browser logs:
 -- Server Logs are continously saved to `logs/server.log` file as they appear in the console. You can run `tail -n 200 server.log` for the latest logs of the current dev server session (the file is cleared each time before running `next dev`)
 -- Browser logs can be fetched by calling the `mcp_getConsoleLogs()` tool. If you can't access them, remind me to run `bun browser-mcp` in a terminal and `right click -> inspect` on the page to open Chrome Dev Tools (which connects the MCP server to the browser)
-- If debugging type errors, run `bun typecheck` after your changes to make sure everything works.
+- If debugging type errors, run `bun check` after your changes to make sure everything works.
 - If the problem could be related to a server side function that in any way interacts with the database, please try to use the `mcp_run_sql` tool from neon to interact with the db directly to understand the problem. After applying your changes, run the tool again to confirm that your solution has indeed worked.
 - Only if I say "build error", you should run `bun run build` and fix any issues that you notice. Always run `bun run build` and confirm that the build was succesful after your changes.
 - I will often give you screenshots when something goes wrong with the UI. Try to "see" the UI through the photo and try to fix the design by looking at other components that might be visible / used in the page render. You should search and read as many components / pages / files as you need to so you understand the full context of the React render.

@@ -1,0 +1,1593 @@
+"use server"
+
+import { db_ws } from "@/db"
+import {
+	phoneNumbers,
+	voiceAgentFunctions,
+	voiceAgents,
+	voiceRecordings,
+	voiceSessions
+} from "@/db/schema"
+import type {
+	VoiceAgentCreateRequest,
+	VoiceAgentFunctionCreateRequest,
+	VoiceAgentUpdateRequest,
+	VoiceAgentWithPhoneNumber,
+	VoiceSessionCreateRequest
+} from "@/types"
+import { auth, currentUser } from "@clerk/nextjs/server"
+import { type SQL, and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
+
+// Define types for filtering
+type VoiceAgentFilter = {
+	search?: string
+	status?: string[]
+	phoneNumberId?: number
+	orderBy?: string
+	orderDir?: "asc" | "desc"
+}
+
+// Get all voice agents with optional filtering
+export async function getVoiceAgents(filter: VoiceAgentFilter = {}): Promise<{
+	data: VoiceAgentWithPhoneNumber[] | null
+	success: boolean
+	error: string | null
+}> {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Collect where conditions
+		const whereConditions: SQL[] = [eq(voiceAgents.userId, userId)]
+
+		// Apply search filter
+		if (filter.search) {
+			const searchPattern = `%${filter.search}%`
+			whereConditions.push(
+				sql`(${voiceAgents.name} ILIKE ${searchPattern} OR ${voiceAgents.description} ILIKE ${searchPattern})`
+			)
+		}
+
+		// Filter by status
+		if (filter.status && filter.status.length > 0) {
+			whereConditions.push(
+				sql`${voiceAgents.status} IN (${sql.join(filter.status)})`
+			)
+		}
+
+		// Filter by phone number
+		if (filter.phoneNumberId) {
+			whereConditions.push(
+				eq(voiceAgents.phoneNumberId, filter.phoneNumberId)
+			)
+		}
+
+		// Create a single 'and' condition from all conditions
+		const condition = and(...whereConditions)
+
+		// Execute the query with phone number join
+		const agentsData = await db_ws
+			.select({
+				id: voiceAgents.id,
+				name: voiceAgents.name,
+				description: voiceAgents.description,
+				prompt: voiceAgents.prompt,
+				voice: voiceAgents.voice,
+				language: voiceAgents.language,
+				phoneNumberId: voiceAgents.phoneNumberId,
+				status: voiceAgents.status,
+				configuration: voiceAgents.configuration,
+				firstMessage: voiceAgents.firstMessage,
+				createdAt: voiceAgents.createdAt,
+				updatedAt: voiceAgents.updatedAt,
+				userId: voiceAgents.userId,
+				phoneNumber: {
+					id: phoneNumbers.id,
+					number: phoneNumbers.number,
+					friendlyName: phoneNumbers.friendlyName,
+					type: phoneNumbers.type,
+					status: phoneNumbers.status
+				}
+			})
+			.from(voiceAgents)
+			.leftJoin(
+				phoneNumbers,
+				eq(voiceAgents.phoneNumberId, phoneNumbers.id)
+			)
+			.where(condition)
+
+		// Apply sorting
+		let sortedData = agentsData
+		if (filter.orderBy) {
+			const orderColumn =
+				filter.orderBy as keyof typeof voiceAgents.$inferSelect
+			const orderDirection = filter.orderDir || "desc"
+
+			sortedData = agentsData.sort((a, b) => {
+				const valueA = a[orderColumn]
+				const valueB = b[orderColumn]
+
+				// Handle dates
+				if (
+					orderColumn === "createdAt" ||
+					orderColumn === "updatedAt"
+				) {
+					const dateA = new Date(valueA as string).getTime()
+					const dateB = new Date(valueB as string).getTime()
+					return orderDirection === "asc"
+						? dateA - dateB
+						: dateB - dateA
+				}
+
+				// Handle strings
+				if (typeof valueA === "string" && typeof valueB === "string") {
+					return orderDirection === "asc"
+						? valueA.localeCompare(valueB)
+						: valueB.localeCompare(valueA)
+				}
+
+				return 0
+			})
+		} else {
+			// Default sort by updatedAt desc
+			sortedData = agentsData.sort((a, b) => {
+				const dateA = new Date(a.updatedAt).getTime()
+				const dateB = new Date(b.updatedAt).getTime()
+				return dateB - dateA
+			})
+		}
+
+		return { data: sortedData, success: true, error: null }
+	} catch (error) {
+		console.error("Error getting voice agents:", error)
+		return {
+			error: "Failed to get voice agents",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Get a single voice agent by ID with related data
+export async function getVoiceAgentById(agentId: number) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { success: false, error: "Unauthorized" }
+		}
+
+		// Get the voice agent with phone number
+		const agent = await db_ws
+			.select({
+				id: voiceAgents.id,
+				name: voiceAgents.name,
+				description: voiceAgents.description,
+				prompt: voiceAgents.prompt,
+				voice: voiceAgents.voice,
+				language: voiceAgents.language,
+				phoneNumberId: voiceAgents.phoneNumberId,
+				status: voiceAgents.status,
+				configuration: voiceAgents.configuration,
+				firstMessage: voiceAgents.firstMessage,
+				createdAt: voiceAgents.createdAt,
+				updatedAt: voiceAgents.updatedAt,
+				userId: voiceAgents.userId,
+				phoneNumber: {
+					id: phoneNumbers.id,
+					number: phoneNumbers.number,
+					friendlyName: phoneNumbers.friendlyName,
+					type: phoneNumbers.type,
+					status: phoneNumbers.status
+				}
+			})
+			.from(voiceAgents)
+			.leftJoin(
+				phoneNumbers,
+				eq(voiceAgents.phoneNumberId, phoneNumbers.id)
+			)
+			.where(
+				and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, userId))
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return { success: false, error: "Voice agent not found" }
+		}
+
+		// Get related functions
+		const agentFunctions = await db_ws
+			.select()
+			.from(voiceAgentFunctions)
+			.where(
+				and(
+					eq(voiceAgentFunctions.agentId, agentId),
+					eq(voiceAgentFunctions.userId, userId)
+				)
+			)
+			.orderBy(asc(voiceAgentFunctions.name))
+
+		// Get recent sessions
+		const recentSessions = await db_ws
+			.select()
+			.from(voiceSessions)
+			.where(
+				and(
+					eq(voiceSessions.agentId, agentId),
+					eq(voiceSessions.userId, userId)
+				)
+			)
+			.orderBy(desc(voiceSessions.startTime))
+			.limit(10)
+
+		return {
+			success: true,
+			data: {
+				agent: agent[0],
+				functions: agentFunctions,
+				recentSessions: recentSessions
+			}
+		}
+	} catch (error) {
+		console.error("Error getting voice agent details:", error)
+		return {
+			success: false,
+			error: "Failed to retrieve voice agent details"
+		}
+	}
+}
+
+// Create a new voice agent
+export async function createVoiceAgent(data: VoiceAgentCreateRequest) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Validate phone number ownership if provided
+		if (data.phoneNumberId) {
+			const phoneNumber = await db_ws
+				.select()
+				.from(phoneNumbers)
+				.where(
+					and(
+						eq(phoneNumbers.id, data.phoneNumberId),
+						eq(phoneNumbers.userId, userId)
+					)
+				)
+				.limit(1)
+
+			if (!phoneNumber || phoneNumber.length === 0) {
+				return {
+					error: "Phone number not found or not owned by user",
+					success: false,
+					data: null
+				}
+			}
+		}
+
+		const result = await db_ws
+			.insert(voiceAgents)
+			.values({
+				...data,
+				userId,
+				status: data.status || "inactive"
+			})
+			.returning()
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error creating voice agent:", error)
+		return {
+			error: "Failed to create voice agent",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Update a voice agent
+export async function updateVoiceAgent(
+	id: number,
+	data: VoiceAgentUpdateRequest
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Validate phone number ownership if provided
+		if (data.phoneNumberId) {
+			const phoneNumber = await db_ws
+				.select()
+				.from(phoneNumbers)
+				.where(
+					and(
+						eq(phoneNumbers.id, data.phoneNumberId),
+						eq(phoneNumbers.userId, userId)
+					)
+				)
+				.limit(1)
+
+			if (!phoneNumber || phoneNumber.length === 0) {
+				return {
+					error: "Phone number not found or not owned by user",
+					success: false,
+					data: null
+				}
+			}
+		}
+
+		const result = await db_ws
+			.update(voiceAgents)
+			.set({
+				...data,
+				updatedAt: new Date()
+			})
+			.where(and(eq(voiceAgents.id, id), eq(voiceAgents.userId, userId)))
+			.returning()
+
+		if (!result || result.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error updating voice agent:", error)
+		return {
+			error: "Failed to update voice agent",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Delete a voice agent
+export async function deleteVoiceAgent(id: number) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false }
+		}
+
+		// Check if agent has active sessions
+		const activeSessions = await db_ws
+			.select()
+			.from(voiceSessions)
+			.where(
+				and(
+					eq(voiceSessions.agentId, id),
+					eq(voiceSessions.userId, userId),
+					eq(voiceSessions.status, "active")
+				)
+			)
+
+		if (activeSessions.length > 0) {
+			return {
+				error: "Cannot delete voice agent with active sessions",
+				success: false
+			}
+		}
+
+		const result = await db_ws
+			.delete(voiceAgents)
+			.where(and(eq(voiceAgents.id, id), eq(voiceAgents.userId, userId)))
+			.returning()
+
+		if (!result || result.length === 0) {
+			return { error: "Voice agent not found", success: false }
+		}
+
+		return { success: true, error: null }
+	} catch (error) {
+		console.error("Error deleting voice agent:", error)
+		return { error: "Failed to delete voice agent", success: false }
+	}
+}
+
+// Voice Agent Functions CRUD Operations
+
+// Get functions for a voice agent
+export async function getVoiceAgentFunctions(agentId: number) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Verify agent ownership
+		const agent = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, userId))
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		const functions = await db_ws
+			.select()
+			.from(voiceAgentFunctions)
+			.where(
+				and(
+					eq(voiceAgentFunctions.agentId, agentId),
+					eq(voiceAgentFunctions.userId, userId)
+				)
+			)
+			.orderBy(asc(voiceAgentFunctions.name))
+
+		return { data: functions, success: true, error: null }
+	} catch (error) {
+		console.error("Error getting voice agent functions:", error)
+		return {
+			error: "Failed to get voice agent functions",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Create a new voice agent function
+export async function createVoiceAgentFunction(
+	data: VoiceAgentFunctionCreateRequest
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Verify agent ownership
+		const agent = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(
+					eq(voiceAgents.id, data.agentId),
+					eq(voiceAgents.userId, userId)
+				)
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		const result = await db_ws
+			.insert(voiceAgentFunctions)
+			.values({
+				...data,
+				userId,
+				method: data.method || "POST",
+				headers: data.headers || {},
+				parameters: data.parameters || [],
+				timeout: data.timeout || 30,
+				runAfterCall: data.runAfterCall || false,
+				responseMode: data.responseMode || "strict",
+				executeAfterMessage: data.executeAfterMessage !== false,
+				excludeSessionId: data.excludeSessionId || false
+			})
+			.returning()
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error creating voice agent function:", error)
+		return {
+			error: "Failed to create voice agent function",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Update a voice agent function
+export async function updateVoiceAgentFunction(
+	id: number,
+	data: Partial<VoiceAgentFunctionCreateRequest>
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		const result = await db_ws
+			.update(voiceAgentFunctions)
+			.set({
+				...data,
+				updatedAt: new Date()
+			})
+			.where(
+				and(
+					eq(voiceAgentFunctions.id, id),
+					eq(voiceAgentFunctions.userId, userId)
+				)
+			)
+			.returning()
+
+		if (!result || result.length === 0) {
+			return {
+				error: "Voice agent function not found",
+				success: false,
+				data: null
+			}
+		}
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error updating voice agent function:", error)
+		return {
+			error: "Failed to update voice agent function",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Delete a voice agent function
+export async function deleteVoiceAgentFunction(id: number) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false }
+		}
+
+		const result = await db_ws
+			.delete(voiceAgentFunctions)
+			.where(
+				and(
+					eq(voiceAgentFunctions.id, id),
+					eq(voiceAgentFunctions.userId, userId)
+				)
+			)
+			.returning()
+
+		if (!result || result.length === 0) {
+			return { error: "Voice agent function not found", success: false }
+		}
+
+		return { success: true, error: null }
+	} catch (error) {
+		console.error("Error deleting voice agent function:", error)
+		return {
+			error: "Failed to delete voice agent function",
+			success: false
+		}
+	}
+}
+
+// Voice Sessions Management
+
+// Get voice sessions with optional filtering
+export async function getVoiceSessions(agentId?: number, limit = 50) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		const whereConditions: SQL[] = [eq(voiceSessions.userId, userId)]
+
+		if (agentId) {
+			// Verify agent ownership
+			const agent = await db_ws
+				.select()
+				.from(voiceAgents)
+				.where(
+					and(
+						eq(voiceAgents.id, agentId),
+						eq(voiceAgents.userId, userId)
+					)
+				)
+				.limit(1)
+
+			if (!agent || agent.length === 0) {
+				return {
+					error: "Voice agent not found",
+					success: false,
+					data: null
+				}
+			}
+
+			whereConditions.push(eq(voiceSessions.agentId, agentId))
+		}
+
+		const condition = and(...whereConditions)
+
+		const sessions = await db_ws
+			.select({
+				id: voiceSessions.id,
+				sessionId: voiceSessions.sessionId,
+				agentId: voiceSessions.agentId,
+				leadId: voiceSessions.leadId,
+				phoneNumber: voiceSessions.phoneNumber,
+				direction: voiceSessions.direction,
+				status: voiceSessions.status,
+				startTime: voiceSessions.startTime,
+				endTime: voiceSessions.endTime,
+				duration: voiceSessions.duration,
+				metadata: voiceSessions.metadata,
+				transcript: voiceSessions.transcript,
+				summary: voiceSessions.summary,
+				sentiment: voiceSessions.sentiment,
+				recordingUrl: voiceSessions.recordingUrl,
+				cost: voiceSessions.cost,
+				createdAt: voiceSessions.createdAt,
+				updatedAt: voiceSessions.updatedAt,
+				userId: voiceSessions.userId,
+				agent: {
+					id: voiceAgents.id,
+					name: voiceAgents.name
+				}
+			})
+			.from(voiceSessions)
+			.leftJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(condition)
+			.orderBy(desc(voiceSessions.startTime))
+			.limit(limit)
+
+		return { data: sessions, success: true, error: null }
+	} catch (error) {
+		console.error("Error getting voice sessions:", error)
+		return {
+			error: "Failed to get voice sessions",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Get a specific voice session by ID
+export async function getVoiceSessionById(sessionId: number) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { success: false, error: "Unauthorized" }
+		}
+
+		const session = await db_ws
+			.select({
+				id: voiceSessions.id,
+				sessionId: voiceSessions.sessionId,
+				agentId: voiceSessions.agentId,
+				leadId: voiceSessions.leadId,
+				phoneNumber: voiceSessions.phoneNumber,
+				direction: voiceSessions.direction,
+				status: voiceSessions.status,
+				startTime: voiceSessions.startTime,
+				endTime: voiceSessions.endTime,
+				duration: voiceSessions.duration,
+				metadata: voiceSessions.metadata,
+				transcript: voiceSessions.transcript,
+				summary: voiceSessions.summary,
+				sentiment: voiceSessions.sentiment,
+				recordingUrl: voiceSessions.recordingUrl,
+				cost: voiceSessions.cost,
+				createdAt: voiceSessions.createdAt,
+				updatedAt: voiceSessions.updatedAt,
+				userId: voiceSessions.userId,
+				agent: {
+					id: voiceAgents.id,
+					name: voiceAgents.name,
+					prompt: voiceAgents.prompt
+				}
+			})
+			.from(voiceSessions)
+			.leftJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					eq(voiceSessions.id, sessionId),
+					eq(voiceSessions.userId, userId)
+				)
+			)
+			.limit(1)
+
+		if (!session || session.length === 0) {
+			return { success: false, error: "Voice session not found" }
+		}
+
+		// Get recordings for this session
+		const recordings = await db_ws
+			.select()
+			.from(voiceRecordings)
+			.where(
+				and(
+					eq(voiceRecordings.sessionId, sessionId),
+					eq(voiceRecordings.userId, userId)
+				)
+			)
+			.orderBy(desc(voiceRecordings.createdAt))
+
+		return {
+			success: true,
+			data: {
+				session: session[0],
+				recordings: recordings
+			}
+		}
+	} catch (error) {
+		console.error("Error getting voice session details:", error)
+		return {
+			success: false,
+			error: "Failed to retrieve voice session details"
+		}
+	}
+}
+
+// Create a new voice session
+export async function createVoiceSession(data: VoiceSessionCreateRequest) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Verify agent ownership
+		const agent = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(
+					eq(voiceAgents.id, data.agentId),
+					eq(voiceAgents.userId, userId)
+				)
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		// Generate a unique session ID for Millis AI
+		const millisSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+		const result = await db_ws
+			.insert(voiceSessions)
+			.values({
+				sessionId: millisSessionId,
+				agentId: data.agentId,
+				leadId: data.leadId,
+				phoneNumber: data.phoneNumber,
+				direction: data.direction,
+				status: "active",
+				metadata: data.metadata || {},
+				userId
+			})
+			.returning()
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error creating voice session:", error)
+		return {
+			error: "Failed to create voice session",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Update a voice session (typically called when session ends)
+export async function updateVoiceSession(
+	id: number,
+	data: {
+		status?: "active" | "completed" | "failed" | "timeout"
+		endTime?: Date
+		duration?: number
+		transcript?: string
+		summary?: string
+		sentiment?: string
+		recordingUrl?: string
+		cost?: string
+	}
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		const result = await db_ws
+			.update(voiceSessions)
+			.set({
+				...data,
+				updatedAt: new Date()
+			})
+			.where(
+				and(eq(voiceSessions.id, id), eq(voiceSessions.userId, userId))
+			)
+			.returning()
+
+		if (!result || result.length === 0) {
+			return {
+				error: "Voice session not found",
+				success: false,
+				data: null
+			}
+		}
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error updating voice session:", error)
+		return {
+			error: "Failed to update voice session",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Get session transcript
+export async function getSessionTranscript(sessionId: number) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		const session = await db_ws
+			.select({
+				transcript: voiceSessions.transcript,
+				summary: voiceSessions.summary,
+				sentiment: voiceSessions.sentiment
+			})
+			.from(voiceSessions)
+			.where(
+				and(
+					eq(voiceSessions.id, sessionId),
+					eq(voiceSessions.userId, userId)
+				)
+			)
+			.limit(1)
+
+		if (!session || session.length === 0) {
+			return {
+				error: "Voice session not found",
+				success: false,
+				data: null
+			}
+		}
+
+		return { data: session[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error getting session transcript:", error)
+		return {
+			error: "Failed to get session transcript",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// ============================================================================
+// INBOUND CALL HANDLING
+// ============================================================================
+
+// Handle incoming call and route to appropriate voice agent
+export async function handleInboundCall(
+	phoneNumber: string,
+	callData: {
+		from: string
+		to: string
+		callSid?: string
+		metadata?: Record<string, unknown>
+	}
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Find the phone number and its associated voice agent
+		const phoneNumberRecord = await db_ws
+			.select({
+				id: phoneNumbers.id,
+				number: phoneNumbers.number,
+				configuration: phoneNumbers.configuration
+			})
+			.from(phoneNumbers)
+			.where(
+				and(
+					eq(phoneNumbers.number, phoneNumber),
+					eq(phoneNumbers.userId, userId),
+					eq(phoneNumbers.status, "active")
+				)
+			)
+			.limit(1)
+
+		if (!phoneNumberRecord || phoneNumberRecord.length === 0) {
+			return {
+				error: "Phone number not found or inactive",
+				success: false,
+				data: null
+			}
+		}
+
+		// Find active voice agent for this phone number
+		const agent = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(
+					eq(voiceAgents.phoneNumberId, phoneNumberRecord[0].id),
+					eq(voiceAgents.userId, userId),
+					eq(voiceAgents.status, "active")
+				)
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "No active voice agent found for this phone number",
+				success: false,
+				data: null
+			}
+		}
+
+		// Create voice session for the inbound call
+		const sessionResult = await createVoiceSession({
+			agentId: agent[0].id,
+			phoneNumber: callData.from,
+			direction: "incoming",
+			metadata: {
+				...callData.metadata,
+				custom_data: {
+					call_sid: callData.callSid,
+					to_number: callData.to,
+					from_number: callData.from
+				}
+			}
+		})
+
+		if (!sessionResult.success) {
+			return sessionResult
+		}
+
+		return {
+			success: true,
+			data: {
+				agent: agent[0],
+				session: sessionResult.data,
+				phoneNumber: phoneNumberRecord[0]
+			},
+			error: null
+		}
+	} catch (error) {
+		console.error("Error handling inbound call:", error)
+		return {
+			error: "Failed to handle inbound call",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Configure routing for a phone number to a specific agent
+export async function configureInboundRouting(
+	phoneNumberId: number,
+	agentId: number
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Verify ownership of both phone number and agent
+		const [phoneNumber, agent] = await Promise.all([
+			db_ws
+				.select()
+				.from(phoneNumbers)
+				.where(
+					and(
+						eq(phoneNumbers.id, phoneNumberId),
+						eq(phoneNumbers.userId, userId)
+					)
+				)
+				.limit(1),
+			db_ws
+				.select()
+				.from(voiceAgents)
+				.where(
+					and(
+						eq(voiceAgents.id, agentId),
+						eq(voiceAgents.userId, userId)
+					)
+				)
+				.limit(1)
+		])
+
+		if (!phoneNumber || phoneNumber.length === 0) {
+			return {
+				error: "Phone number not found",
+				success: false,
+				data: null
+			}
+		}
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		// Update the voice agent with the phone number
+		const result = await db_ws
+			.update(voiceAgents)
+			.set({
+				phoneNumberId,
+				updatedAt: new Date()
+			})
+			.where(
+				and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, userId))
+			)
+			.returning()
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error configuring inbound routing:", error)
+		return {
+			error: "Failed to configure inbound routing",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Get inbound call history with filtering
+export async function getInboundCallHistory(filter?: {
+	agentId?: number
+	phoneNumberId?: number
+	startDate?: Date
+	endDate?: Date
+	limit?: number
+}) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		const whereConditions: SQL[] = [
+			eq(voiceSessions.userId, userId),
+			eq(voiceSessions.direction, "incoming")
+		]
+
+		// Apply filters
+		if (filter?.agentId) {
+			whereConditions.push(eq(voiceSessions.agentId, filter.agentId))
+		}
+
+		if (filter?.startDate) {
+			whereConditions.push(gte(voiceSessions.startTime, filter.startDate))
+		}
+
+		if (filter?.endDate) {
+			whereConditions.push(lte(voiceSessions.startTime, filter.endDate))
+		}
+
+		const condition = and(...whereConditions)
+
+		const sessions = await db_ws
+			.select({
+				id: voiceSessions.id,
+				sessionId: voiceSessions.sessionId,
+				agentId: voiceSessions.agentId,
+				leadId: voiceSessions.leadId,
+				phoneNumber: voiceSessions.phoneNumber,
+				direction: voiceSessions.direction,
+				status: voiceSessions.status,
+				startTime: voiceSessions.startTime,
+				endTime: voiceSessions.endTime,
+				duration: voiceSessions.duration,
+				transcript: voiceSessions.transcript,
+				summary: voiceSessions.summary,
+				sentiment: voiceSessions.sentiment,
+				recordingUrl: voiceSessions.recordingUrl,
+				cost: voiceSessions.cost,
+				createdAt: voiceSessions.createdAt,
+				updatedAt: voiceSessions.updatedAt,
+				agent: {
+					id: voiceAgents.id,
+					name: voiceAgents.name,
+					description: voiceAgents.description
+				}
+			})
+			.from(voiceSessions)
+			.leftJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(condition)
+			.orderBy(desc(voiceSessions.startTime))
+			.limit(filter?.limit || 50)
+
+		return { data: sessions, success: true, error: null }
+	} catch (error) {
+		console.error("Error getting inbound call history:", error)
+		return {
+			error: "Failed to get inbound call history",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// ============================================================================
+// OUTBOUND CALL OPERATIONS
+// ============================================================================
+
+// Initiate an outbound call using a voice agent
+export async function initiateOutboundCall(data: {
+	fromPhoneNumberId: number
+	toPhoneNumber: string
+	agentId: number
+	leadId?: number
+	metadata?: Record<string, unknown>
+	scheduledTime?: Date
+}) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Verify ownership of phone number and agent
+		const [phoneNumber, agent] = await Promise.all([
+			db_ws
+				.select()
+				.from(phoneNumbers)
+				.where(
+					and(
+						eq(phoneNumbers.id, data.fromPhoneNumberId),
+						eq(phoneNumbers.userId, userId),
+						eq(phoneNumbers.status, "active")
+					)
+				)
+				.limit(1),
+			db_ws
+				.select()
+				.from(voiceAgents)
+				.where(
+					and(
+						eq(voiceAgents.id, data.agentId),
+						eq(voiceAgents.userId, userId),
+						eq(voiceAgents.status, "active")
+					)
+				)
+				.limit(1)
+		])
+
+		if (!phoneNumber || phoneNumber.length === 0) {
+			return {
+				error: "Phone number not found or inactive",
+				success: false,
+				data: null
+			}
+		}
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found or inactive",
+				success: false,
+				data: null
+			}
+		}
+
+		// Check if this is a scheduled call for the future
+		if (data.scheduledTime && data.scheduledTime > new Date()) {
+			// For scheduled calls, we'll store the session as pending
+			const sessionResult = await createVoiceSession({
+				agentId: data.agentId,
+				leadId: data.leadId,
+				phoneNumber: data.toPhoneNumber,
+				direction: "outgoing",
+				metadata: {
+					...data.metadata,
+					custom_data: {
+						from_phone_number_id: data.fromPhoneNumberId,
+						from_phone_number: phoneNumber[0].number,
+						scheduled_time: data.scheduledTime.toISOString(),
+						status: "scheduled"
+					}
+				}
+			})
+
+			if (!sessionResult.success) {
+				return sessionResult
+			}
+
+			// Update session status to scheduled
+			if (sessionResult.data) {
+				await updateVoiceSession(sessionResult.data.id, {
+					status: "active" // We'll implement a "scheduled" status later
+				})
+			}
+
+			return {
+				success: true,
+				data: {
+					session: sessionResult.data,
+					agent: agent[0],
+					phoneNumber: phoneNumber[0],
+					scheduled: true
+				},
+				error: null
+			}
+		}
+
+		// For immediate calls, create active session
+		const sessionResult = await createVoiceSession({
+			agentId: data.agentId,
+			leadId: data.leadId,
+			phoneNumber: data.toPhoneNumber,
+			direction: "outgoing",
+			metadata: {
+				...data.metadata,
+				custom_data: {
+					from_phone_number_id: data.fromPhoneNumberId,
+					from_phone_number: phoneNumber[0].number
+				}
+			}
+		})
+
+		if (!sessionResult.success) {
+			return sessionResult
+		}
+
+		return {
+			success: true,
+			data: {
+				session: sessionResult.data,
+				agent: agent[0],
+				phoneNumber: phoneNumber[0],
+				scheduled: false
+			},
+			error: null
+		}
+	} catch (error) {
+		console.error("Error initiating outbound call:", error)
+		return {
+			error: "Failed to initiate outbound call",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Schedule an outbound call for future execution
+export async function scheduleOutboundCall(
+	callData: {
+		fromPhoneNumberId: number
+		toPhoneNumber: string
+		agentId: number
+		leadId?: number
+		metadata?: Record<string, unknown>
+	},
+	scheduledTime: Date
+) {
+	return initiateOutboundCall({
+		...callData,
+		scheduledTime
+	})
+}
+
+// Get status of an outbound call
+export async function getOutboundCallStatus(sessionId: number) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		const session = await db_ws
+			.select({
+				id: voiceSessions.id,
+				sessionId: voiceSessions.sessionId,
+				status: voiceSessions.status,
+				startTime: voiceSessions.startTime,
+				endTime: voiceSessions.endTime,
+				duration: voiceSessions.duration,
+				direction: voiceSessions.direction,
+				phoneNumber: voiceSessions.phoneNumber,
+				metadata: voiceSessions.metadata,
+				agent: {
+					id: voiceAgents.id,
+					name: voiceAgents.name
+				}
+			})
+			.from(voiceSessions)
+			.leftJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					eq(voiceSessions.id, sessionId),
+					eq(voiceSessions.userId, userId),
+					eq(voiceSessions.direction, "outgoing")
+				)
+			)
+			.limit(1)
+
+		if (!session || session.length === 0) {
+			return {
+				error: "Outbound call session not found",
+				success: false,
+				data: null
+			}
+		}
+
+		return { data: session[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error getting outbound call status:", error)
+		return {
+			error: "Failed to get outbound call status",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Cancel a scheduled outbound call
+export async function cancelScheduledCall(sessionId: number) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Check if this is a scheduled call that hasn't started yet
+		const session = await db_ws
+			.select()
+			.from(voiceSessions)
+			.where(
+				and(
+					eq(voiceSessions.id, sessionId),
+					eq(voiceSessions.userId, userId),
+					eq(voiceSessions.direction, "outgoing"),
+					eq(voiceSessions.status, "active") // Scheduled calls are marked as active
+				)
+			)
+			.limit(1)
+
+		if (!session || session.length === 0) {
+			return {
+				error: "Scheduled call not found or cannot be cancelled",
+				success: false,
+				data: null
+			}
+		}
+
+		// Check metadata to see if it's actually scheduled
+		const metadata = session[0].metadata as {
+			custom_data?: { scheduled_time?: string }
+		}
+		if (!metadata?.custom_data?.scheduled_time) {
+			return {
+				error: "This call is not scheduled and cannot be cancelled",
+				success: false,
+				data: null
+			}
+		}
+
+		// Update session status to failed (cancelled)
+		const result = updateVoiceSession(sessionId, {
+			status: "failed",
+			endTime: new Date()
+		})
+
+		return result
+	} catch (error) {
+		console.error("Error cancelling scheduled call:", error)
+		return {
+			error: "Failed to cancel scheduled call",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Get outbound call history and statistics
+export async function getOutboundCallHistory(filter?: {
+	agentId?: number
+	leadId?: number
+	status?: "active" | "completed" | "failed" | "timeout"
+	startDate?: Date
+	endDate?: Date
+	limit?: number
+}) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		const whereConditions: SQL[] = [
+			eq(voiceSessions.userId, userId),
+			eq(voiceSessions.direction, "outgoing")
+		]
+
+		// Apply filters
+		if (filter?.agentId) {
+			whereConditions.push(eq(voiceSessions.agentId, filter.agentId))
+		}
+
+		if (filter?.leadId) {
+			whereConditions.push(eq(voiceSessions.leadId, filter.leadId))
+		}
+
+		if (filter?.status) {
+			whereConditions.push(eq(voiceSessions.status, filter.status))
+		}
+
+		if (filter?.startDate) {
+			whereConditions.push(gte(voiceSessions.startTime, filter.startDate))
+		}
+
+		if (filter?.endDate) {
+			whereConditions.push(lte(voiceSessions.startTime, filter.endDate))
+		}
+
+		const condition = and(...whereConditions)
+
+		const sessions = await db_ws
+			.select({
+				id: voiceSessions.id,
+				sessionId: voiceSessions.sessionId,
+				agentId: voiceSessions.agentId,
+				leadId: voiceSessions.leadId,
+				phoneNumber: voiceSessions.phoneNumber,
+				direction: voiceSessions.direction,
+				status: voiceSessions.status,
+				startTime: voiceSessions.startTime,
+				endTime: voiceSessions.endTime,
+				duration: voiceSessions.duration,
+				transcript: voiceSessions.transcript,
+				summary: voiceSessions.summary,
+				sentiment: voiceSessions.sentiment,
+				recordingUrl: voiceSessions.recordingUrl,
+				cost: voiceSessions.cost,
+				metadata: voiceSessions.metadata,
+				createdAt: voiceSessions.createdAt,
+				updatedAt: voiceSessions.updatedAt,
+				agent: {
+					id: voiceAgents.id,
+					name: voiceAgents.name,
+					description: voiceAgents.description
+				}
+			})
+			.from(voiceSessions)
+			.leftJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(condition)
+			.orderBy(desc(voiceSessions.startTime))
+			.limit(filter?.limit || 50)
+
+		return { data: sessions, success: true, error: null }
+	} catch (error) {
+		console.error("Error getting outbound call history:", error)
+		return {
+			error: "Failed to get outbound call history",
+			success: false,
+			data: null
+		}
+	}
+}
+
+// Test call function for web-based voice testing (no phone numbers required)
+export async function createTestVoiceSession(
+	agentId: number,
+	metadata?: Record<string, unknown>
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Verify the agent exists and belongs to the user
+		const agent = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, userId))
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		if (agent[0].status !== "active") {
+			return {
+				error: "Voice agent is not active",
+				success: false,
+				data: null
+			}
+		}
+
+		// Generate a unique session ID for the test call
+		const sessionId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+		// Create the test session
+		const result = await db_ws
+			.insert(voiceSessions)
+			.values({
+				sessionId,
+				agentId,
+				userId,
+				direction: "outgoing", // Use outgoing for test calls
+				status: "active",
+				startTime: new Date(),
+				phoneNumber: "test-call", // Placeholder for test calls
+				metadata: {
+					custom_data: {
+						test_call: true,
+						agent_name: agent[0].name,
+						...metadata
+					}
+				}
+			})
+			.returning()
+
+		if (!result || result.length === 0) {
+			return {
+				error: "Failed to create test session",
+				success: false,
+				data: null
+			}
+		}
+
+		const session = result[0]
+
+		return {
+			data: {
+				id: session.id,
+				sessionId: session.sessionId,
+				agentId: session.agentId,
+				status: session.status,
+				startTime: session.startTime,
+				metadata: session.metadata,
+				agent: {
+					id: agent[0].id,
+					name: agent[0].name,
+					prompt: agent[0].prompt,
+					voice: agent[0].voice,
+					language: agent[0].language,
+					configuration: agent[0].configuration
+				}
+			},
+			success: true,
+			error: null
+		}
+	} catch (error) {
+		console.error("Error creating test voice session:", error)
+		return {
+			error: "Failed to create test voice session",
+			success: false,
+			data: null
+		}
+	}
+}
