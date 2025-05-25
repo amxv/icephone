@@ -86,6 +86,34 @@ export const taskTypeEnum = pgEnum("task_type", [
 	"other"
 ])
 
+// Define campaign status enum
+export const campaignStatusEnum = pgEnum("campaign_status", [
+	"draft",
+	"scheduled",
+	"running",
+	"paused",
+	"completed",
+	"cancelled"
+])
+
+// Define campaign lead status enum
+export const campaignLeadStatusEnum = pgEnum("campaign_lead_status", [
+	"pending",
+	"attempted",
+	"completed",
+	"failed",
+	"excluded"
+])
+
+// Define campaign queue status enum
+export const campaignQueueStatusEnum = pgEnum("campaign_queue_status", [
+	"queued",
+	"processing",
+	"paused",
+	"completed",
+	"failed"
+])
+
 // Leads table - stores information about leads/prospects
 export const leads = pgTable(
 	"leads",
@@ -147,7 +175,44 @@ export const campaigns = pgTable(
 		description: text("description"),
 		startDate: timestamp("start_date"),
 		endDate: timestamp("end_date"),
-		status: varchar("status", { length: 50 }).default("draft"), // e.g., draft, active, completed, archived
+		status: campaignStatusEnum("status").default("draft"),
+		voiceAgentId: integer("voice_agent_id").references(
+			() => voiceAgents.id
+		), // Voice agent assignment for cold calls
+		campaignSettings: jsonb("campaign_settings")
+			.$type<{
+				callTiming?: {
+					businessHours?: {
+						enabled: boolean
+						timezone: string
+						schedule: {
+							[key: string]: { start: string; end: string } | null
+						}
+					}
+					maxCallsPerDay?: number
+					callInterval?: number // minutes between calls
+				}
+				retryLogic?: {
+					maxAttempts: number
+					retryIntervals: number[] // hours between retries
+					retryConditions: string[] // which statuses trigger retries
+				}
+				successCriteria?: {
+					convertedStatuses: string[] // lead statuses that count as success
+					qualifiedStatuses: string[] // lead statuses that count as qualified
+				}
+				goals?: {
+					targetLeads?: number
+					targetConversions?: number
+					targetCallsPerDay?: number
+				}
+				automation?: {
+					autoProgressLeads: boolean
+					autoScheduleFollowups: boolean
+					autoUpdateScores: boolean
+				}
+			}>()
+			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
@@ -155,6 +220,7 @@ export const campaigns = pgTable(
 	(table) => [
 		index("campaign_name_idx").on(table.name),
 		index("campaign_status_idx").on(table.status),
+		index("campaign_voice_agent_idx").on(table.voiceAgentId),
 		index("campaign_user_id_idx").on(table.userId)
 	]
 )
@@ -352,7 +418,8 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
 	chats: many(chats),
 	voiceSessions: many(voiceSessions),
 	interactions: many(leadInteractions),
-	tasks: many(tasks)
+	tasks: many(tasks),
+	campaignLeads: many(campaignLeads)
 }))
 
 export const appointmentsRelations = relations(appointments, ({ one }) => ({
@@ -423,7 +490,13 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
 }))
 
 // Add campaign relations
-export const campaignsRelations = relations(campaigns, ({ many }) => ({
+export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
+	voiceAgent: one(voiceAgents, {
+		fields: [campaigns.voiceAgentId],
+		references: [voiceAgents.id]
+	}),
+	campaignLeads: many(campaignLeads),
+	campaignQueue: many(campaignQueue),
 	calls: many(calls)
 }))
 
@@ -1224,6 +1297,108 @@ export const leadInteractions = pgTable(
 	]
 )
 
+// Campaign Leads table - junction table for many-to-many relationship between campaigns and leads
+export const campaignLeads = pgTable(
+	"campaign_leads",
+	{
+		id: serial("id").primaryKey(),
+		campaignId: integer("campaign_id")
+			.notNull()
+			.references(() => campaigns.id, { onDelete: "cascade" }),
+		leadId: integer("lead_id")
+			.notNull()
+			.references(() => leads.id, { onDelete: "cascade" }),
+		status: campaignLeadStatusEnum("status").default("pending"),
+		priority: integer("priority").default(0), // 0 = normal, higher numbers = higher priority
+		assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+		lastAttemptAt: timestamp("last_attempt_at"),
+		nextAttemptAt: timestamp("next_attempt_at"), // Scheduled time for next call attempt
+		attemptCount: integer("attempt_count").default(0),
+		maxAttempts: integer("max_attempts").default(3),
+		notes: text("notes"), // Campaign-specific notes for this lead
+		metadata: jsonb("metadata")
+			.$type<{
+				customFields?: Record<string, unknown>
+				campaignContext?: string
+				skipReasons?: string[]
+				successMetrics?: Record<string, unknown>
+			}>()
+			.default({}),
+		completedAt: timestamp("completed_at"),
+		excludedAt: timestamp("excluded_at"),
+		excludeReason: text("exclude_reason"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("campaign_leads_campaign_id_idx").on(table.campaignId),
+		index("campaign_leads_lead_id_idx").on(table.leadId),
+		index("campaign_leads_status_idx").on(table.status),
+		index("campaign_leads_priority_idx").on(table.priority),
+		index("campaign_leads_next_attempt_idx").on(table.nextAttemptAt),
+		index("campaign_leads_user_id_idx").on(table.userId),
+		// Unique constraint to prevent duplicate lead assignments to same campaign
+		index("campaign_leads_unique_idx").on(table.campaignId, table.leadId)
+	]
+)
+
+// Campaign Queue table - manages call scheduling and execution queue
+export const campaignQueue = pgTable(
+	"campaign_queue",
+	{
+		id: serial("id").primaryKey(),
+		campaignId: integer("campaign_id")
+			.notNull()
+			.references(() => campaigns.id, { onDelete: "cascade" }),
+		campaignLeadId: integer("campaign_lead_id")
+			.notNull()
+			.references(() => campaignLeads.id, { onDelete: "cascade" }),
+		status: campaignQueueStatusEnum("status").default("queued"),
+		priority: integer("priority").default(0), // Higher numbers = higher priority
+		scheduledTime: timestamp("scheduled_time").notNull(), // When this call should be made
+		startedAt: timestamp("started_at"), // When call processing started
+		completedAt: timestamp("completed_at"), // When call was completed or failed
+		retryCount: integer("retry_count").default(0),
+		maxRetries: integer("max_retries").default(3),
+		retryInterval: integer("retry_interval").default(60), // Minutes between retries
+		lastError: text("last_error"), // Error message if call failed
+		callResult: jsonb("call_result")
+			.$type<{
+				callId?: string
+				sessionId?: string
+				duration?: number
+				outcome?: string // answered, voicemail, busy, no_answer, failed
+				nextAction?: string
+				reschedule?: {
+					scheduledTime: string
+					reason: string
+				}
+			}>()
+			.default({}),
+		metadata: jsonb("metadata")
+			.$type<{
+				voiceAgentId?: number
+				phoneNumberId?: number
+				callConfiguration?: Record<string, unknown>
+				context?: Record<string, unknown>
+			}>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("campaign_queue_campaign_id_idx").on(table.campaignId),
+		index("campaign_queue_campaign_lead_id_idx").on(table.campaignLeadId),
+		index("campaign_queue_status_idx").on(table.status),
+		index("campaign_queue_priority_idx").on(table.priority),
+		index("campaign_queue_scheduled_time_idx").on(table.scheduledTime),
+		index("campaign_queue_retry_count_idx").on(table.retryCount),
+		index("campaign_queue_user_id_idx").on(table.userId)
+	]
+)
+
 // Define relationships
 export const knowledgeBaseSourcesRelations = relations(
 	knowledgeBaseSources,
@@ -1337,5 +1512,33 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
 	lead: one(leads, {
 		fields: [tasks.leadId],
 		references: [leads.id]
+	})
+}))
+
+// Campaign Leads relations
+export const campaignLeadsRelations = relations(
+	campaignLeads,
+	({ one, many }) => ({
+		campaign: one(campaigns, {
+			fields: [campaignLeads.campaignId],
+			references: [campaigns.id]
+		}),
+		lead: one(leads, {
+			fields: [campaignLeads.leadId],
+			references: [leads.id]
+		}),
+		queueEntries: many(campaignQueue)
+	})
+)
+
+// Campaign Queue relations
+export const campaignQueueRelations = relations(campaignQueue, ({ one }) => ({
+	campaign: one(campaigns, {
+		fields: [campaignQueue.campaignId],
+		references: [campaigns.id]
+	}),
+	campaignLead: one(campaignLeads, {
+		fields: [campaignQueue.campaignLeadId],
+		references: [campaignLeads.id]
 	})
 }))

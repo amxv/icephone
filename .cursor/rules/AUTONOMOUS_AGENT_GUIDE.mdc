@@ -571,6 +571,83 @@ className="hover:bg-primary/5 transition"
 className="animate-spin mr-2 h-4 w-4 border-2 border-primary-foreground border-r-transparent rounded-full"
 ```
 
+### 🎭 Modal & Dialog Design Patterns
+
+**Perfect Modal Structure (Reference: add-leads-modal.tsx):**
+
+```tsx
+<Dialog open={open} onOpenChange={onOpenChange}>
+  <DialogContent className="sm:max-w-lg p-6 border border-border bg-white shadow-lg rounded-3xl">
+    <DialogHeader className="pb-4">
+      <DialogTitle className="text-2xl font-medium tracking-tight">
+        Modal Title
+      </DialogTitle>
+      <DialogDescription className="text-muted-foreground">
+        Modal description text
+      </DialogDescription>
+    </DialogHeader>
+    {/* Content with pt-2 */}
+    <div className="pt-2">
+      {/* Modal content */}
+    </div>
+  </DialogContent>
+</Dialog>
+```
+
+**Elegant Tabs Pattern:**
+
+```tsx
+<TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto">
+  <TabsTrigger
+    value="tab1"
+    className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+  >
+    <Icon className="h-4 w-4 mr-2" />
+    Tab Label
+  </TabsTrigger>
+</TabsList>
+```
+
+**Perfect Form Field Spacing:**
+
+```tsx
+<div className="space-y-4">
+  <div>
+    <Label htmlFor="field-id">Field Label</Label>
+    <Input
+      id="field-id"
+      className="rounded-lg mt-1.5"
+      placeholder="Placeholder text"
+    />
+  </div>
+  <div>
+    <Label htmlFor="textarea-id">Textarea Label</Label>
+    <Textarea
+      id="textarea-id"
+      className="rounded-lg resize-none min-h-[100px] mt-1.5"
+      placeholder="Placeholder text"
+    />
+  </div>
+</div>
+
+<DialogFooter className="mt-6">
+  <Button variant="outline" className="rounded-lg">Cancel</Button>
+  <Button className="bg-primary hover:bg-primary/90 rounded-lg">Submit</Button>
+</DialogFooter>
+```
+
+**Key Modal Design Rules:**
+
+- ✅ Modal container: `rounded-3xl p-6 bg-white shadow-lg`
+- ✅ Header spacing: `pb-4` on DialogHeader
+- ✅ Content spacing: `pt-2` on main content wrapper
+- ✅ Form fields: `space-y-4` with `mt-1.5` between label and input
+- ✅ Input/Textarea: Always `rounded-lg`
+- ✅ Dialog footer: `mt-6` spacing
+- ✅ Tab container: `rounded-xl bg-slate-100 p-1 mb-6`
+- ✅ Tab triggers: `rounded-lg px-3 py-2.5 h-10`
+- ✅ Tab icons: `h-4 w-4 mr-2`
+
 ### 🚨 Critical Design Rules
 
 **Never Violate These Principles:**
@@ -582,6 +659,8 @@ className="animate-spin mr-2 h-4 w-4 border-2 border-primary-foreground border-r
 5. **❌ Don't use solid backgrounds** - Prefer translucent with backdrop-blur
 6. **❌ Don't mix different status color schemes** - Use the established color mapping
 7. **❌ Don't skip loading states** - Every data-loading component needs a skeleton
+8. **❌ Don't use inconsistent form spacing** - Always use `mt-1.5` between labels and inputs
+9. **❌ Don't forget modal content padding** - Always use `pt-2` on content wrapper
 
 ### 🎯 Design Implementation Checklist
 
@@ -1286,6 +1365,29 @@ Before marking complete:
 - ✅ Mobile responsive
 - ✅ Errors handled gracefully
 - ✅ Performance optimized
+
+
+## Best Practices Checklist
+
+### Before Starting Implementation
+
+- [ ] **User Flow Mapped**: Clear understanding of user journey
+- [ ] **Database Schema Designed**: All tables and relationships planned
+- [ ] **API Endpoints Identified**: Know what server actions you need
+- [ ] **Component Architecture**: Server vs Client components decided
+- [ ] **Authentication Strategy**: User permissions and data isolation planned
+- [ ] **Performance Considerations**: Caching, lazy loading, pagination
+- [ ] **Mobile Responsiveness**: Design works on all screen sizes
+- [ ] **Error Handling**: Plan for edge cases and failures
+
+### During Implementation
+
+- [ ] **Test Incrementally**: Test each piece before moving to next
+- [ ] **Type Safety**: Use TypeScript throughout the stack
+- [ ] **Security First**: Always validate user permissions
+- [ ] **Performance Monitor**: Watch for N+1 queries and bundle size
+- [ ] **Accessibility**: Follow WCAG guidelines
+- [ ] **Code Quality**: Follow project conventions and linting rules
 
 ## 🚀 Quick Command Reference
 

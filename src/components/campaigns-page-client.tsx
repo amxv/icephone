@@ -2,6 +2,7 @@
 
 import { getCampaigns } from "@/actions/campaigns" // Changed from getCalls
 import { CampaignsTable } from "@/components/campaigns-table" // Changed from CallsTable
+import { CampaignCreationDialog } from "@/components/campaign-creation-dialog"
 import type { CampaignItem } from "@/components/campaigns-table" // Changed from CallItem
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -49,7 +50,7 @@ function CampaignsTableSkeleton() {
 }
 
 // Main page component with title and description
-function PageHeader() {
+function PageHeader({ onCampaignCreated }: { onCampaignCreated: () => void }) {
 	return (
 		<div className="flex items-center justify-between">
 			<div>
@@ -57,9 +58,14 @@ function PageHeader() {
 					Campaigns
 				</h1>
 			</div>
-			<Button className="rounded-xl" variant="outline">
-				<PlusIcon className="mr-2 h-4 w-4" /> Create Campaign
-			</Button>
+			<CampaignCreationDialog
+				trigger={
+					<Button className="rounded-xl" variant="outline">
+						<PlusIcon className="mr-2 h-4 w-4" /> Create Campaign
+					</Button>
+				}
+				onCampaignCreated={onCampaignCreated}
+			/>
 		</div>
 	)
 }
@@ -169,41 +175,42 @@ export function CampaignsPageClient() {
 		[searchParams, pathname, router]
 	)
 
+	// Function to refresh campaigns data
+	const refreshCampaigns = useCallback(async () => {
+		setLoading(true)
+		try {
+			const result = await getCampaigns()
+
+			if (result.success && result.data) {
+				const transformedData = result.data.map((campaign) => ({
+					id: campaign.id,
+					name: campaign.name,
+					status: campaign.status || null,
+					leadsCount: campaign.leadsCount,
+					leadsConverted: campaign.leadsConverted,
+					updatedAt: campaign.updatedAt.toISOString() // Convert Date to string
+				}))
+				setCampaignsData(transformedData as CampaignItem[])
+			} else {
+				setError(result.error || "Failed to fetch campaigns data")
+			}
+		} catch (err) {
+			console.error("Error fetching campaigns:", err)
+			setError("An unexpected error occurred")
+		} finally {
+			setLoading(false)
+		}
+	}, [])
+
 	// Fetch campaigns data
 	useEffect(() => {
-		async function fetchData() {
-			setLoading(true)
-			try {
-				const result = await getCampaigns()
-
-				if (result.success && result.data) {
-					const transformedData = result.data.map((campaign) => ({
-						id: campaign.id,
-						name: campaign.name,
-						status: campaign.status || null,
-						leadsCount: campaign.leadsCount,
-						leadsConverted: campaign.leadsConverted,
-						updatedAt: campaign.updatedAt.toISOString() // Convert Date to string
-					}))
-					setCampaignsData(transformedData as CampaignItem[])
-				} else {
-					setError(result.error || "Failed to fetch campaigns data")
-				}
-			} catch (err) {
-				console.error("Error fetching campaigns:", err)
-				setError("An unexpected error occurred")
-			} finally {
-				setLoading(false)
-			}
-		}
-
-		fetchData()
-	}, [])
+		refreshCampaigns()
+	}, [refreshCampaigns])
 
 	return (
 		<div className="container flex flex-col h-full overflow-hidden">
 			<div className="flex flex-col gap-4 h-full overflow-hidden">
-				<PageHeader />
+				<PageHeader onCampaignCreated={refreshCampaigns} />
 
 				{loading ? (
 					<CampaignsTableSkeleton />
@@ -237,10 +244,15 @@ export function CampaignsPageClient() {
 									Create your first campaign to start reaching
 									out to leads.
 								</p>
-								<Button className="mt-6 rounded-xl">
-									<ZapIcon className="mr-2 h-4 w-4" /> Create
-									First Campaign
-								</Button>
+								<CampaignCreationDialog
+									trigger={
+										<Button className="mt-6 rounded-xl">
+											<ZapIcon className="mr-2 h-4 w-4" />{" "}
+											Create First Campaign
+										</Button>
+									}
+									onCampaignCreated={refreshCampaigns}
+								/>
 							</div>
 						</CardContent>
 					</Card>

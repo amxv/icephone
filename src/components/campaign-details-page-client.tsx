@@ -4,6 +4,8 @@ import { getCalls } from "@/actions/calls"
 import { AddLeadsModal } from "@/components/add-leads-modal"
 import { type CallItem, CallsTable } from "@/components/calls-table"
 import { CampaignStatsDashboard } from "@/components/campaign-stats-dashboard"
+import { CampaignLeadsDashboard } from "@/components/campaign-leads-dashboard"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -321,6 +323,7 @@ export function CampaignDetailsPageClient({
 	const [selectedCall, setSelectedCall] = useState<CallItem | null>(null)
 	const [isMobile, setIsMobile] = useState(false)
 	const [isAddLeadsModalOpen, setIsAddLeadsModalOpen] = useState(false)
+	const [activeTab, setActiveTab] = useState("calls")
 
 	// Simplified state for CallsTable interaction
 	const [currentSearchQuery, setCurrentSearchQuery] = useState<string>(
@@ -490,130 +493,180 @@ export function CampaignDetailsPageClient({
 				onAddLeadsClick={() => setIsAddLeadsModalOpen(true)}
 			/>
 			<CampaignStatsDashboard />
-			{error ? (
-				<Card className="rounded-3xl border-destructive bg-destructive/10 p-6 text-center">
-					<h3 className="text-lg font-semibold text-destructive">
-						Error loading calls
-					</h3>
-					<p className="text-destructive/80">{error}</p>
-					<Button
-						variant="outline"
-						className="mt-4"
-						onClick={fetchData}
+
+			<Tabs
+				value={activeTab}
+				onValueChange={setActiveTab}
+				className="w-full"
+			>
+				<TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto">
+					<TabsTrigger
+						value="calls"
+						className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
 					>
-						Try Again
-					</Button>
-				</Card>
-			) : calls.length === 0 ? (
-				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-					<CardContent className="py-12">
-						<div className="flex flex-col items-center justify-center text-center">
-							<div className="rounded-full p-3 border border-border/40 shadow-sm">
-								<PhoneCallIcon className="h-8 w-8 text-muted-foreground" />
-							</div>
-							<h3 className="mt-4 text-lg font-medium">
-								No Calls For This Campaign Yet
+						<PhoneCallIcon className="h-4 w-4 mr-2" />
+						Calls
+					</TabsTrigger>
+					<TabsTrigger
+						value="leads"
+						className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+					>
+						<FileTextIcon className="h-4 w-4 mr-2" />
+						Leads
+					</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value="calls" className="mt-0">
+					{error ? (
+						<Card className="rounded-3xl border-destructive bg-destructive/10 p-6 text-center">
+							<h3 className="text-lg font-semibold text-destructive">
+								Error loading calls
 							</h3>
-							<p className="mt-2 text-sm text-muted-foreground max-w-xs">
-								As calls are made for this campaign, they will
-								appear here.
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-			) : (
-				<div className="flex flex-col gap-4 flex-1 overflow-hidden">
-					{/* Mobile Dialog for Call Details */}
-					<Dialog
-						open={!!selectedCall && isMobile}
-						onOpenChange={(isOpen) => {
-							if (!isOpen) handleClosePanel()
-						}}
-					>
-						<DialogContent className="max-w-3xl h-[80vh] sm:h-[90vh] p-0 flex flex-col bg-background/80 backdrop-blur-xl !rounded-3xl">
-							{selectedCall && (
-								<>
-									<DialogHeader className="p-4 border-b border-border/50">
-										<DialogTitle className="flex items-center justify-between">
-											Call Details
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={handleClosePanel}
-												className="rounded-full"
-											>
-												<XIcon className="h-5 w-5" />
-											</Button>
-										</DialogTitle>
-									</DialogHeader>
-									<CampaignCallDetailsPanel
-										call={selectedCall}
-									/>
-								</>
-							)}
-						</DialogContent>
-					</Dialog>
-
-					{/* Desktop Layout: Table and Side Panel */}
-					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm flex-1 flex flex-col overflow-hidden">
-						<CardContent className="px-6 pb-3 h-full flex flex-col overflow-hidden">
-							<div className="flex h-full overflow-hidden">
-								<div
-									className={
-										selectedCall && !isMobile
-											? "w-2/3 pr-4 flex flex-col overflow-hidden"
-											: "w-full flex flex-col overflow-hidden"
-									}
-								>
-									<div className="custom-calls-table flex-1 flex flex-col overflow-y-auto">
-										<CallsTable
-											data={calls}
-											onRowClick={handleRowClick}
-											selectedCallId={selectedCall?.id}
-											searchQuery={currentSearchQuery}
-											onSearchChange={
-												setCurrentSearchQuery
-											}
-											initialColumnFilters={
-												currentColumnFilters
-											}
-											onFilterChange={
-												setCurrentColumnFilters
-											}
-										/>
+							<p className="text-destructive/80">{error}</p>
+							<Button
+								variant="outline"
+								className="mt-4"
+								onClick={fetchData}
+							>
+								Try Again
+							</Button>
+						</Card>
+					) : calls.length === 0 ? (
+						<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+							<CardContent className="py-12">
+								<div className="flex flex-col items-center justify-center text-center">
+									<div className="rounded-full p-3 border border-border/40 shadow-sm">
+										<PhoneCallIcon className="h-8 w-8 text-muted-foreground" />
 									</div>
+									<h3 className="mt-4 text-lg font-medium">
+										No Calls For This Campaign Yet
+									</h3>
+									<p className="mt-2 text-sm text-muted-foreground max-w-xs">
+										As calls are made for this campaign,
+										they will appear here.
+									</p>
 								</div>
+							</CardContent>
+						</Card>
+					) : (
+						<div className="flex flex-col gap-4 flex-1 overflow-hidden">
+							{/* Mobile Dialog for Call Details */}
+							<Dialog
+								open={!!selectedCall && isMobile}
+								onOpenChange={(isOpen) => {
+									if (!isOpen) handleClosePanel()
+								}}
+							>
+								<DialogContent className="max-w-3xl h-[80vh] sm:h-[90vh] p-0 flex flex-col bg-background/80 backdrop-blur-xl !rounded-3xl">
+									{selectedCall && (
+										<>
+											<DialogHeader className="p-4 border-b border-border/50">
+												<DialogTitle className="flex items-center justify-between">
+													Call Details
+													<Button
+														variant="ghost"
+														size="icon"
+														onClick={
+															handleClosePanel
+														}
+														className="rounded-full"
+													>
+														<XIcon className="h-5 w-5" />
+													</Button>
+												</DialogTitle>
+											</DialogHeader>
+											<CampaignCallDetailsPanel
+												call={selectedCall}
+											/>
+										</>
+									)}
+								</DialogContent>
+							</Dialog>
 
-								{selectedCall && !isMobile && (
-									<div className="w-1/3 border-l border-border pl-4 h-full flex flex-col overflow-hidden">
-										<div className="flex items-center justify-between mb-2 py-1 sticky top-0 bg-card/80 backdrop-blur-sm z-10">
-											<h3 className="font-medium text-lg">
-												Call Details
-											</h3>
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={handleClosePanel}
-												className="h-8 w-8 p-0 rounded-full"
-												aria-label="Close panel"
-											>
-												<XIcon className="h-4 w-4" />
-											</Button>
+							{/* Desktop Layout: Table and Side Panel */}
+							<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm flex-1 flex flex-col overflow-hidden">
+								<CardContent className="px-6 pb-3 h-full flex flex-col overflow-hidden">
+									<div className="flex h-full overflow-hidden">
+										<div
+											className={
+												selectedCall && !isMobile
+													? "w-2/3 pr-4 flex flex-col overflow-hidden"
+													: "w-full flex flex-col overflow-hidden"
+											}
+										>
+											<div className="custom-calls-table flex-1 flex flex-col overflow-y-auto">
+												<CallsTable
+													data={calls}
+													onRowClick={handleRowClick}
+													selectedCallId={
+														selectedCall?.id
+													}
+													searchQuery={
+														currentSearchQuery
+													}
+													onSearchChange={
+														setCurrentSearchQuery
+													}
+													initialColumnFilters={
+														currentColumnFilters
+													}
+													onFilterChange={
+														setCurrentColumnFilters
+													}
+												/>
+											</div>
 										</div>
-										<CampaignCallDetailsPanel
-											call={selectedCall}
-										/>
+
+										{selectedCall && !isMobile && (
+											<div className="w-1/3 border-l border-border pl-4 h-full flex flex-col overflow-hidden">
+												<div className="flex items-center justify-between mb-2 py-1 sticky top-0 bg-card/80 backdrop-blur-sm z-10">
+													<h3 className="font-medium text-lg">
+														Call Details
+													</h3>
+													<Button
+														size="sm"
+														variant="outline"
+														onClick={
+															handleClosePanel
+														}
+														className="h-8 w-8 p-0 rounded-full"
+														aria-label="Close panel"
+													>
+														<XIcon className="h-4 w-4" />
+													</Button>
+												</div>
+												<CampaignCallDetailsPanel
+													call={selectedCall}
+												/>
+											</div>
+										)}
 									</div>
-								)}
-							</div>
-						</CardContent>
-					</Card>
-				</div>
-			)}
+								</CardContent>
+							</Card>
+						</div>
+					)}
+				</TabsContent>
+
+				<TabsContent value="leads" className="mt-0">
+					<CampaignLeadsDashboard
+						campaignId={campaignId}
+						onLeadsChange={() => {
+							// Optional: refresh data if needed
+						}}
+					/>
+				</TabsContent>
+			</Tabs>
+
 			<AddLeadsModal
 				open={isAddLeadsModalOpen}
 				onOpenChange={setIsAddLeadsModalOpen}
 				campaignId={campaignId}
+				onLeadsAdded={() => {
+					// Refresh leads if on leads tab
+					if (activeTab === "leads") {
+						// The dashboard will refresh automatically
+					}
+				}}
 			/>
 		</>
 	)

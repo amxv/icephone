@@ -58,6 +58,14 @@
 				},
 				"noInferrableTypes": {
 					"level": "off"
+				},
+				"useSelfClosingElements": {
+					"level": "off"
+				}
+			},
+			"complexity": {
+				"useOptionalChain": {
+					"level": "off"
 				}
 			}
 		},
