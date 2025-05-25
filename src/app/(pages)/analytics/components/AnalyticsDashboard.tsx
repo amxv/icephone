@@ -28,7 +28,10 @@ import {
 	Activity,
 	Download,
 	Calendar,
-	PhoneCall
+	PhoneCall,
+	DollarSign,
+	ArrowUpIcon,
+	ArrowDownIcon
 } from "lucide-react"
 import {
 	Area,
@@ -118,6 +121,67 @@ interface RecentCall {
 	}
 }
 
+// New interfaces for enhanced analytics
+interface PerformanceTrends {
+	timeRange: string
+	weeklyTrends: Array<{
+		week: string
+		totalCalls: number
+		successRate: number
+		averageDuration: number
+		totalCost: number
+		positiveCallsPercent: number
+		growthRates: {
+			calls: number
+			cost: number
+			duration: number
+		}
+	}>
+	overallTrend: {
+		totalPeriodCalls: number
+		averageSuccessRate: number
+		totalPeriodCost: number
+		averagePositiveSentiment: number
+	}
+}
+
+interface CostAnalytics {
+	timeRange: string
+	summary: {
+		totalCost: number
+		totalCalls: number
+		averageCostPerCall: number
+		costPerMinute: number
+	}
+	agentBreakdown: Array<{
+		agentId: number | null
+		agentName: string | null
+		totalCost: number
+		callCount: number
+		averageCostPerCall: number
+		totalDuration: number
+		costShare: number
+	}>
+	directionBreakdown: Array<{
+		direction: string | null
+		totalCost: number
+		callCount: number
+		averageCostPerCall: number
+	}>
+}
+
+interface CallActivityData {
+	date: string
+	inbound: number
+	outbound: number
+}
+
+interface LeadAcquisitionData {
+	date: string
+	newLeads: number
+	qualifiedLeads: number
+}
+
 interface Props {
 	initialAnalytics: CallAnalytics
 	voiceAgents: VoiceAgent[]
@@ -125,6 +189,10 @@ interface Props {
 	agentMetrics: AgentMetrics | null
 	initialTimeRange: string
 	initialAgentId?: number
+	performanceTrends: PerformanceTrends
+	costAnalytics: CostAnalytics
+	callActivityData: CallActivityData[]
+	leadAcquisitionData: LeadAcquisitionData[]
 }
 
 const timeRangeOptions = [
@@ -146,7 +214,11 @@ export default function AnalyticsDashboard({
 	recentCalls,
 	agentMetrics,
 	initialTimeRange,
-	initialAgentId
+	initialAgentId,
+	performanceTrends,
+	costAnalytics,
+	callActivityData,
+	leadAcquisitionData
 }: Props) {
 	const [timeRange, setTimeRange] = useState(initialTimeRange)
 	const [selectedAgentId, setSelectedAgentId] = useState<string>(
@@ -188,6 +260,22 @@ export default function AnalyticsDashboard({
 			style: "currency",
 			currency: "USD"
 		}).format(amount)
+	}
+
+	const formatGrowthRate = (rate: number) => {
+		const isPositive = rate > 0
+		return (
+			<span
+				className={`flex items-center gap-1 ${isPositive ? "text-green-600" : "text-red-600"}`}
+			>
+				{isPositive ? (
+					<ArrowUpIcon className="h-3 w-3" />
+				) : (
+					<ArrowDownIcon className="h-3 w-3" />
+				)}
+				{Math.abs(rate)}%
+			</span>
+		)
 	}
 
 	const exportData = () => {
@@ -232,6 +320,15 @@ export default function AnalyticsDashboard({
 			color: SENTIMENT_COLORS.negative
 		}
 	].filter((item) => item.value > 0)
+
+	// Prepare cost breakdown data for pie chart
+	const costByAgentData = costAnalytics.agentBreakdown
+		.filter((agent) => agent.totalCost > 0)
+		.map((agent, index) => ({
+			name: agent.agentName || "Unknown Agent",
+			value: agent.totalCost,
+			color: `hsl(${(index * 45) % 360}, 70%, 50%)`
+		}))
 
 	return (
 		<div className="space-y-6">
@@ -289,7 +386,7 @@ export default function AnalyticsDashboard({
 				</Button>
 			</div>
 
-			{/* Metrics Cards */}
+			{/* Enhanced Metrics Cards with Trends */}
 			<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 					<CardHeader className="pb-2">
@@ -302,9 +399,21 @@ export default function AnalyticsDashboard({
 						<div className="text-2xl font-bold">
 							{initialAnalytics.totalCalls}
 						</div>
-						<p className="text-xs text-muted-foreground">
-							{initialAnalytics.successfulCalls} successful
-						</p>
+						<div className="flex items-center justify-between">
+							<p className="text-xs text-muted-foreground">
+								{initialAnalytics.successfulCalls} successful
+							</p>
+							{performanceTrends.weeklyTrends.length > 1 && (
+								<div className="text-xs">
+									{formatGrowthRate(
+										performanceTrends.weeklyTrends[
+											performanceTrends.weeklyTrends
+												.length - 1
+										]?.growthRates.calls || 0
+									)}
+								</div>
+							)}
+						</div>
 					</CardContent>
 				</Card>
 
@@ -338,19 +447,31 @@ export default function AnalyticsDashboard({
 								Math.round(initialAnalytics.averageDuration)
 							)}
 						</div>
-						<p className="text-xs text-muted-foreground">
-							{formatDuration(
-								Math.round(initialAnalytics.totalDuration)
-							)}{" "}
-							total
-						</p>
+						<div className="flex items-center justify-between">
+							<p className="text-xs text-muted-foreground">
+								{formatDuration(
+									Math.round(initialAnalytics.totalDuration)
+								)}{" "}
+								total
+							</p>
+							{performanceTrends.weeklyTrends.length > 1 && (
+								<div className="text-xs">
+									{formatGrowthRate(
+										performanceTrends.weeklyTrends[
+											performanceTrends.weeklyTrends
+												.length - 1
+										]?.growthRates.duration || 0
+									)}
+								</div>
+							)}
+						</div>
 					</CardContent>
 				</Card>
 
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 					<CardHeader className="pb-2">
 						<CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-							<Activity className="h-4 w-4" />
+							<DollarSign className="h-4 w-4" />
 							Total Cost
 						</CardTitle>
 					</CardHeader>
@@ -358,10 +479,22 @@ export default function AnalyticsDashboard({
 						<div className="text-2xl font-bold">
 							{formatCurrency(initialAnalytics.totalCost)}
 						</div>
-						<p className="text-xs text-muted-foreground">
-							{formatCurrency(initialAnalytics.averageCost)} avg
-							per call
-						</p>
+						<div className="flex items-center justify-between">
+							<p className="text-xs text-muted-foreground">
+								{formatCurrency(initialAnalytics.averageCost)}{" "}
+								avg per call
+							</p>
+							{performanceTrends.weeklyTrends.length > 1 && (
+								<div className="text-xs">
+									{formatGrowthRate(
+										performanceTrends.weeklyTrends[
+											performanceTrends.weeklyTrends
+												.length - 1
+										]?.growthRates.cost || 0
+									)}
+								</div>
+							)}
+						</div>
 					</CardContent>
 				</Card>
 
@@ -387,7 +520,7 @@ export default function AnalyticsDashboard({
 				</Card>
 			</div>
 
-			{/* Charts */}
+			{/* Enhanced Charts Grid */}
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 				{/* Call Volume Over Time */}
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
@@ -469,6 +602,97 @@ export default function AnalyticsDashboard({
 					</CardContent>
 				</Card>
 
+				{/* Cost Breakdown by Agent */}
+				{costByAgentData.length > 0 && (
+					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<DollarSign className="h-5 w-5 text-muted-foreground" />
+								Cost by Agent
+							</CardTitle>
+							<CardDescription>
+								Cost distribution across voice agents
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="h-[300px] w-full">
+								<ResponsiveContainer width="100%" height="100%">
+									<PieChart>
+										<Pie
+											data={costByAgentData}
+											cx="50%"
+											cy="50%"
+											innerRadius={60}
+											outerRadius={100}
+											paddingAngle={2}
+											dataKey="value"
+										>
+											{costByAgentData.map(
+												(entry, index) => (
+													<Cell
+														key={`cell-${index}`}
+														fill={entry.color}
+													/>
+												)
+											)}
+										</Pie>
+										<Tooltip
+											content={({ active, payload }) => {
+												if (
+													active &&
+													payload &&
+													payload.length
+												) {
+													const data =
+														payload[0].payload
+													return (
+														<div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+															<p className="font-medium">
+																{data.name}
+															</p>
+															<p
+																style={{
+																	color: data.color
+																}}
+															>
+																Cost:{" "}
+																{formatCurrency(
+																	data.value
+																)}
+															</p>
+														</div>
+													)
+												}
+												return null
+											}}
+										/>
+									</PieChart>
+								</ResponsiveContainer>
+							</div>
+
+							{/* Legend */}
+							<div className="flex flex-wrap justify-center gap-2 mt-4">
+								{costByAgentData.slice(0, 4).map((item) => (
+									<div
+										key={item.name}
+										className="flex items-center gap-2"
+									>
+										<div
+											className="w-3 h-3 rounded-full"
+											style={{
+												backgroundColor: item.color
+											}}
+										/>
+										<span className="text-sm text-muted-foreground">
+											{item.name}
+										</span>
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
+				)}
+
 				{/* Sentiment Distribution */}
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 					<CardHeader>
@@ -549,7 +773,322 @@ export default function AnalyticsDashboard({
 						</div>
 					</CardContent>
 				</Card>
+
+				{/* User Activity Trends - Calls and Leads */}
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Activity className="h-5 w-5 text-muted-foreground" />
+							Activity Trends
+						</CardTitle>
+						<CardDescription>
+							Call activity and lead acquisition over time
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<ChartContainer
+							className="h-[300px] w-full"
+							config={{}}
+						>
+							<LineChart data={callActivityData.slice(-14)}>
+								<CartesianGrid strokeDasharray="3 3" />
+								<XAxis
+									dataKey="date"
+									tickFormatter={(value) =>
+										format(new Date(value), "MM/dd")
+									}
+								/>
+								<YAxis />
+								<ChartTooltip
+									content={({ active, payload, label }) => {
+										if (
+											active &&
+											payload &&
+											payload.length
+										) {
+											return (
+												<div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+													<p className="font-medium">
+														{format(
+															new Date(label),
+															"MMM dd, yyyy"
+														)}
+													</p>
+													{payload.map(
+														(entry, index) => (
+															<p
+																key={index}
+																style={{
+																	color: entry.color
+																}}
+															>
+																{entry.dataKey}:{" "}
+																{entry.value}
+															</p>
+														)
+													)}
+												</div>
+											)
+										}
+										return null
+									}}
+								/>
+								<Line
+									type="monotone"
+									dataKey="inbound"
+									stroke="#10b981"
+									strokeWidth={2}
+								/>
+								<Line
+									type="monotone"
+									dataKey="outbound"
+									stroke="#3b82f6"
+									strokeWidth={2}
+								/>
+							</LineChart>
+						</ChartContainer>
+					</CardContent>
+				</Card>
 			</div>
+
+			{/* Performance Trends Analysis */}
+			{performanceTrends.weeklyTrends.length > 0 && (
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<TrendingUp className="h-5 w-5 text-muted-foreground" />
+							Performance Trends Analysis
+						</CardTitle>
+						<CardDescription>
+							Weekly performance trends with growth rates
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-4">
+							{/* Overall Trend Summary */}
+							<div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-2xl bg-muted/20">
+								<div className="text-center">
+									<p className="text-sm text-muted-foreground">
+										Total Period Calls
+									</p>
+									<p className="text-lg font-bold">
+										{
+											performanceTrends.overallTrend
+												.totalPeriodCalls
+										}
+									</p>
+								</div>
+								<div className="text-center">
+									<p className="text-sm text-muted-foreground">
+										Avg Success Rate
+									</p>
+									<p className="text-lg font-bold">
+										{Math.round(
+											performanceTrends.overallTrend
+												.averageSuccessRate
+										)}
+										%
+									</p>
+								</div>
+								<div className="text-center">
+									<p className="text-sm text-muted-foreground">
+										Total Period Cost
+									</p>
+									<p className="text-lg font-bold">
+										{formatCurrency(
+											performanceTrends.overallTrend
+												.totalPeriodCost
+										)}
+									</p>
+								</div>
+								<div className="text-center">
+									<p className="text-sm text-muted-foreground">
+										Avg Positive Sentiment
+									</p>
+									<p className="text-lg font-bold">
+										{Math.round(
+											performanceTrends.overallTrend
+												.averagePositiveSentiment
+										)}
+										%
+									</p>
+								</div>
+							</div>
+
+							{/* Weekly Performance Chart */}
+							<ChartContainer
+								className="h-[300px] w-full"
+								config={{}}
+							>
+								<LineChart
+									data={performanceTrends.weeklyTrends}
+								>
+									<CartesianGrid strokeDasharray="3 3" />
+									<XAxis
+										dataKey="week"
+										tickFormatter={(value) =>
+											format(new Date(value), "MMM dd")
+										}
+									/>
+									<YAxis />
+									<ChartTooltip
+										content={({
+											active,
+											payload,
+											label
+										}) => {
+											if (
+												active &&
+												payload &&
+												payload.length
+											) {
+												const data = payload[0].payload
+												return (
+													<div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+														<p className="font-medium">
+															Week of{" "}
+															{format(
+																new Date(label),
+																"MMM dd, yyyy"
+															)}
+														</p>
+														<p className="text-blue-600">
+															Calls:{" "}
+															{data.totalCalls}
+														</p>
+														<p className="text-green-600">
+															Success Rate:{" "}
+															{Math.round(
+																data.successRate
+															)}
+															%
+														</p>
+														<p className="text-purple-600">
+															Cost:{" "}
+															{formatCurrency(
+																data.totalCost
+															)}
+														</p>
+													</div>
+												)
+											}
+											return null
+										}}
+									/>
+									<Line
+										type="monotone"
+										dataKey="totalCalls"
+										stroke="#3b82f6"
+										strokeWidth={2}
+									/>
+									<Line
+										type="monotone"
+										dataKey="successRate"
+										stroke="#10b981"
+										strokeWidth={2}
+									/>
+								</LineChart>
+							</ChartContainer>
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Cost Analytics */}
+			<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2">
+						<DollarSign className="h-5 w-5 text-muted-foreground" />
+						Cost Analytics
+					</CardTitle>
+					<CardDescription>
+						Detailed cost breakdown and efficiency metrics
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-6">
+						{/* Cost Summary */}
+						<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+							<div className="p-4 rounded-2xl bg-muted/20">
+								<p className="text-sm text-muted-foreground">
+									Total Cost
+								</p>
+								<p className="text-xl font-bold">
+									{formatCurrency(
+										costAnalytics.summary.totalCost
+									)}
+								</p>
+							</div>
+							<div className="p-4 rounded-2xl bg-muted/20">
+								<p className="text-sm text-muted-foreground">
+									Avg Cost Per Call
+								</p>
+								<p className="text-xl font-bold">
+									{formatCurrency(
+										costAnalytics.summary.averageCostPerCall
+									)}
+								</p>
+							</div>
+							<div className="p-4 rounded-2xl bg-muted/20">
+								<p className="text-sm text-muted-foreground">
+									Cost Per Minute
+								</p>
+								<p className="text-xl font-bold">
+									{formatCurrency(
+										costAnalytics.summary.costPerMinute
+									)}
+								</p>
+							</div>
+						</div>
+
+						{/* Agent Cost Breakdown */}
+						{costAnalytics.agentBreakdown.length > 0 && (
+							<div className="space-y-3">
+								<h4 className="font-medium">Cost by Agent</h4>
+								{costAnalytics.agentBreakdown.map((agent) => (
+									<div
+										key={agent.agentId}
+										className="flex items-center justify-between p-3 rounded-2xl bg-muted/10 hover:bg-muted/20 transition-colors"
+									>
+										<div className="flex items-center gap-3">
+											<div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm font-medium">
+												{agent.agentName?.charAt(0) ||
+													"U"}
+											</div>
+											<div>
+												<p className="font-medium">
+													{agent.agentName ||
+														"Unknown Agent"}
+												</p>
+												<p className="text-sm text-muted-foreground">
+													{agent.callCount} calls •{" "}
+													{formatDuration(
+														agent.totalDuration || 0
+													)}
+												</p>
+											</div>
+										</div>
+										<div className="text-right">
+											<p className="font-bold">
+												{formatCurrency(
+													agent.totalCost || 0
+												)}
+											</p>
+											<p className="text-sm text-muted-foreground">
+												{formatCurrency(
+													agent.averageCostPerCall ||
+														0
+												)}{" "}
+												avg
+											</p>
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+					</div>
+				</CardContent>
+			</Card>
 
 			{/* Top Performing Agents */}
 			{initialAnalytics.topPerformingAgents.length > 0 && (

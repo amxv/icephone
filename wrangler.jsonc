@@ -2,8 +2,11 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": ".open-next/worker.js",
 	"name": "icephone",
-	"compatibility_date": "2025-04-19",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_date": "2025-05-24",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"nodejs_compat_populate_process_env"
+	],
 	"assets": {
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"

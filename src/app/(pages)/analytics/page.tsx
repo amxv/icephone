@@ -4,9 +4,15 @@ import { redirect } from "next/navigation"
 import {
 	getCallAnalytics,
 	getAgentPerformanceMetrics,
-	getRecentCalls
+	getRecentCalls,
+	getPerformanceTrends,
+	getCostAnalytics
 } from "@/actions/call-analytics"
 import { getVoiceAgents } from "@/actions/voice-agents"
+import {
+	getCallActivityData,
+	getLeadAcquisitionData
+} from "@/actions/dashboard-analytics"
 import AnalyticsDashboard from "./components/AnalyticsDashboard"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -63,17 +69,32 @@ export default async function AnalyticsPage({
 
 	// Parse search params with defaults
 	const timeRange = params.timeRange || "week"
-	const agentId = params.agentId
-		? Number.parseInt(params.agentId)
-		: undefined
+	const agentId = params.agentId ? Number.parseInt(params.agentId) : undefined
 
-	// Fetch initial data
-	const [analyticsResult, voiceAgentsResult, recentCallsResult] =
-		await Promise.all([
-			getCallAnalytics(timeRange),
-			getVoiceAgents(),
-			getRecentCalls(10)
-		])
+	// Fetch initial data including new analytics features
+	const [
+		analyticsResult,
+		voiceAgentsResult,
+		recentCallsResult,
+		performanceTrendsResult,
+		costAnalyticsResult,
+		callActivityResult,
+		leadAcquisitionResult
+	] = await Promise.all([
+		getCallAnalytics(timeRange),
+		getVoiceAgents(),
+		getRecentCalls(10),
+		getPerformanceTrends(
+			timeRange === "today"
+				? "month"
+				: timeRange === "week"
+					? "quarter"
+					: "year"
+		),
+		getCostAnalytics(timeRange),
+		getCallActivityData(30), // Last 30 days for user activity
+		getLeadAcquisitionData(30) // Last 30 days for lead acquisition trends
+	])
 
 	const analytics = analyticsResult
 
@@ -118,8 +139,8 @@ export default async function AnalyticsPage({
 							Voice Analytics
 						</h1>
 						<p className="text-muted-foreground">
-							Monitor your voice agent performance and call
-							metrics
+							Monitor your voice agent performance, call metrics,
+							and comparative trends
 						</p>
 					</div>
 				</div>
@@ -134,6 +155,10 @@ export default async function AnalyticsPage({
 							agentMetrics={agentMetrics}
 							initialTimeRange={timeRange}
 							initialAgentId={agentId}
+							performanceTrends={performanceTrendsResult}
+							costAnalytics={costAnalyticsResult}
+							callActivityData={callActivityResult}
+							leadAcquisitionData={leadAcquisitionResult}
 						/>
 					</Suspense>
 				</Suspense>

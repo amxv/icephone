@@ -98,8 +98,8 @@ export async function getCallAnalytics(
 			endDate = endOfWeek(now)
 	}
 
-	// Get basic call statistics
-	const callStats = await db
+	// Get basic call statistics from voice sessions (VAPI data)
+	const voiceSessionStats = await db
 		.select({
 			totalCalls: count(voiceSessions.id),
 			totalDuration: sum(voiceSessions.duration),
@@ -122,7 +122,47 @@ export async function getCallAnalytics(
 			)
 		)
 
-	const stats = callStats[0]
+	// Get legacy call statistics (from calls table)
+	const legacyCallStats = await db
+		.select({
+			totalCalls: count(calls.id),
+			totalDuration: sum(calls.duration),
+			averageDuration: avg(calls.duration),
+			successfulCalls: count(
+				sql`CASE WHEN ${calls.status} = 'completed' THEN 1 END`
+			),
+			failedCalls: count(
+				sql`CASE WHEN ${calls.status} = 'failed' THEN 1 END`
+			)
+		})
+		.from(calls)
+		.where(
+			and(
+				eq(calls.userId, user.id),
+				gte(calls.startTime, startDate),
+				lte(calls.startTime, endDate)
+			)
+		)
+
+	// Combine statistics from both tables
+	const voiceStats = voiceSessionStats[0]
+	const legacyStats = legacyCallStats[0]
+
+	const combinedStats = {
+		totalCalls: voiceStats.totalCalls + legacyStats.totalCalls,
+		totalDuration:
+			(Number(voiceStats.totalDuration) || 0) +
+			(Number(legacyStats.totalDuration) || 0),
+		averageDuration:
+			((Number(voiceStats.averageDuration) || 0) +
+				(Number(legacyStats.averageDuration) || 0)) /
+			2,
+		totalCost: Number(voiceStats.totalCost) || 0, // Only voice sessions have cost data
+		averageCost: Number(voiceStats.averageCost) || 0,
+		successfulCalls:
+			voiceStats.successfulCalls + legacyStats.successfulCalls,
+		failedCalls: voiceStats.failedCalls + legacyStats.failedCalls
+	}
 
 	// Get sentiment breakdown
 	const sentimentStats = await db
@@ -190,8 +230,8 @@ export async function getCallAnalytics(
 				: 0
 	}))
 
-	// Get daily call volume (last 7 days for week view, etc.)
-	const dailyStats = await db
+	// Get daily call volume from voice sessions (VAPI data)
+	const dailyVoiceStats = await db
 		.select({
 			date: sql<string>`DATE(${voiceSessions.startTime})`,
 			calls: count(voiceSessions.id),
@@ -209,24 +249,77 @@ export async function getCallAnalytics(
 		.groupBy(sql`DATE(${voiceSessions.startTime})`)
 		.orderBy(sql`DATE(${voiceSessions.startTime})`)
 
-	const dailyCallVolume = dailyStats.map((day) => ({
-		date: day.date,
-		calls: day.calls,
-		duration: Number(day.duration) || 0,
-		cost: Number(day.cost) || 0
-	}))
+	// Get daily call volume from legacy calls table
+	const dailyLegacyStats = await db
+		.select({
+			date: sql<string>`DATE(${calls.startTime})`,
+			calls: count(calls.id),
+			duration: sum(calls.duration)
+		})
+		.from(calls)
+		.where(
+			and(
+				eq(calls.userId, user.id),
+				gte(calls.startTime, startDate),
+				lte(calls.startTime, endDate)
+			)
+		)
+		.groupBy(sql`DATE(${calls.startTime})`)
+		.orderBy(sql`DATE(${calls.startTime})`)
+
+	// Combine daily stats from both sources
+	const dailyStatsMap = new Map<
+		string,
+		{ calls: number; duration: number; cost: number }
+	>()
+
+	// Add voice session data
+	for (const day of dailyVoiceStats) {
+		dailyStatsMap.set(day.date, {
+			calls: day.calls,
+			duration: Number(day.duration) || 0,
+			cost: Number(day.cost) || 0
+		})
+	}
+
+	// Add legacy call data
+	for (const day of dailyLegacyStats) {
+		const existing = dailyStatsMap.get(day.date) || {
+			calls: 0,
+			duration: 0,
+			cost: 0
+		}
+		dailyStatsMap.set(day.date, {
+			calls: existing.calls + day.calls,
+			duration: existing.duration + (Number(day.duration) || 0),
+			cost: existing.cost // Only voice sessions have cost data
+		})
+	}
+
+	const dailyCallVolume = Array.from(dailyStatsMap.entries())
+		.map(([date, stats]) => ({
+			date,
+			calls: stats.calls,
+			duration: stats.duration,
+			cost: stats.cost
+		}))
+		.sort((a, b) => a.date.localeCompare(b.date))
 
 	return {
-		totalCalls: stats.totalCalls,
-		totalDuration: Number(stats.totalDuration) || 0,
-		averageDuration: Math.round(Number(stats.averageDuration) || 0),
-		totalCost: Number(stats.totalCost) || 0,
-		averageCost: Number(stats.averageCost) || 0,
-		successfulCalls: stats.successfulCalls,
-		failedCalls: stats.failedCalls,
+		totalCalls: combinedStats.totalCalls,
+		totalDuration: combinedStats.totalDuration,
+		averageDuration: Math.round(combinedStats.averageDuration),
+		totalCost: combinedStats.totalCost,
+		averageCost: combinedStats.averageCost,
+		successfulCalls: combinedStats.successfulCalls,
+		failedCalls: combinedStats.failedCalls,
 		successRate:
-			stats.totalCalls > 0
-				? Math.round((stats.successfulCalls / stats.totalCalls) * 100)
+			combinedStats.totalCalls > 0
+				? Math.round(
+						(combinedStats.successfulCalls /
+							combinedStats.totalCalls) *
+							100
+					)
 				: 0,
 		sentimentBreakdown,
 		topPerformingAgents,
@@ -548,4 +641,246 @@ export async function getActiveCallsStatus() {
 		...call,
 		duration: Math.round(call.duration)
 	}))
+}
+
+// Get comprehensive performance trends and predictions
+export async function getPerformanceTrends(
+	timeRange: "month" | "quarter" | "year" = "quarter"
+) {
+	const user = await currentUser()
+	if (!user) throw new Error("Unauthorized")
+
+	const now = new Date()
+	let startDate: Date
+	let endDate: Date
+
+	switch (timeRange) {
+		case "month":
+			startDate = startOfMonth(subDays(now, 30))
+			endDate = endOfMonth(now)
+			break
+		case "quarter":
+			startDate = startOfMonth(subDays(now, 90))
+			endDate = endOfMonth(now)
+			break
+		case "year":
+			startDate = startOfMonth(subDays(now, 365))
+			endDate = endOfMonth(now)
+			break
+	}
+
+	// Get weekly performance data for trend analysis
+	const weeklyTrends = await db
+		.select({
+			week: sql<string>`date_trunc('week', ${voiceSessions.startTime})`,
+			totalCalls: count(voiceSessions.id),
+			successfulCalls: count(
+				sql`CASE WHEN ${voiceSessions.status} = 'completed' THEN 1 END`
+			),
+			averageDuration: avg(voiceSessions.duration),
+			totalCost: sum(voiceSessions.cost),
+			positiveCallsPercent: sql<number>`
+				ROUND(
+					(COUNT(CASE WHEN ${voiceSessions.sentiment} = 'positive' THEN 1 END) * 100.0) /
+					NULLIF(COUNT(${voiceSessions.id}), 0),
+					2
+				)
+			`
+		})
+		.from(voiceSessions)
+		.where(
+			and(
+				eq(voiceSessions.userId, user.id),
+				gte(voiceSessions.startTime, startDate),
+				lte(voiceSessions.startTime, endDate)
+			)
+		)
+		.groupBy(sql`date_trunc('week', ${voiceSessions.startTime})`)
+		.orderBy(sql`date_trunc('week', ${voiceSessions.startTime})`)
+
+	// Calculate growth rates and trends
+	const trends = weeklyTrends.map((week, index) => {
+		const previousWeek = weeklyTrends[index - 1]
+		let callGrowthRate = 0
+		let costGrowthRate = 0
+		let durationGrowthRate = 0
+
+		if (previousWeek && previousWeek.totalCalls > 0) {
+			callGrowthRate =
+				((week.totalCalls - previousWeek.totalCalls) /
+					previousWeek.totalCalls) *
+				100
+		}
+
+		if (previousWeek && Number(previousWeek.totalCost) > 0) {
+			const currentCost = Number(week.totalCost) || 0
+			const prevCost = Number(previousWeek.totalCost) || 0
+			costGrowthRate = ((currentCost - prevCost) / prevCost) * 100
+		}
+
+		if (previousWeek && Number(previousWeek.averageDuration) > 0) {
+			const currentDuration = Number(week.averageDuration) || 0
+			const prevDuration = Number(previousWeek.averageDuration) || 0
+			durationGrowthRate =
+				((currentDuration - prevDuration) / prevDuration) * 100
+		}
+
+		return {
+			week: week.week,
+			totalCalls: week.totalCalls,
+			successRate:
+				week.totalCalls > 0
+					? (week.successfulCalls / week.totalCalls) * 100
+					: 0,
+			averageDuration: Math.round(Number(week.averageDuration) || 0),
+			totalCost: Number(week.totalCost) || 0,
+			positiveCallsPercent: week.positiveCallsPercent || 0,
+			growthRates: {
+				calls: Math.round(callGrowthRate * 100) / 100,
+				cost: Math.round(costGrowthRate * 100) / 100,
+				duration: Math.round(durationGrowthRate * 100) / 100
+			}
+		}
+	})
+
+	return {
+		timeRange,
+		weeklyTrends: trends,
+		overallTrend: {
+			totalPeriodCalls: trends.reduce(
+				(sum, week) => sum + week.totalCalls,
+				0
+			),
+			averageSuccessRate:
+				trends.length > 0
+					? trends.reduce((sum, week) => sum + week.successRate, 0) /
+						trends.length
+					: 0,
+			totalPeriodCost: trends.reduce(
+				(sum, week) => sum + week.totalCost,
+				0
+			),
+			averagePositiveSentiment:
+				trends.length > 0
+					? trends.reduce(
+							(sum, week) => sum + week.positiveCallsPercent,
+							0
+						) / trends.length
+					: 0
+		}
+	}
+}
+
+// Get cost breakdown and budget analytics
+export async function getCostAnalytics(
+	timeRange: "today" | "week" | "month" | "quarter" = "month"
+) {
+	const user = await currentUser()
+	if (!user) throw new Error("Unauthorized")
+
+	const now = new Date()
+	let startDate: Date
+	let endDate: Date
+
+	switch (timeRange) {
+		case "today":
+			startDate = startOfDay(now)
+			endDate = endOfDay(now)
+			break
+		case "week":
+			startDate = startOfWeek(now)
+			endDate = endOfWeek(now)
+			break
+		case "month":
+			startDate = startOfMonth(now)
+			endDate = endOfMonth(now)
+			break
+		case "quarter":
+			startDate = startOfMonth(subDays(now, 90))
+			endDate = endOfMonth(now)
+			break
+	}
+
+	// Get cost breakdown by agent
+	const agentCosts = await db
+		.select({
+			agentId: voiceSessions.agentId,
+			agentName: voiceAgents.name,
+			totalCost: sum(voiceSessions.cost),
+			callCount: count(voiceSessions.id),
+			averageCostPerCall: avg(voiceSessions.cost),
+			totalDuration: sum(voiceSessions.duration)
+		})
+		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+		.where(
+			and(
+				eq(voiceSessions.userId, user.id),
+				gte(voiceSessions.startTime, startDate),
+				lte(voiceSessions.startTime, endDate)
+			)
+		)
+		.groupBy(voiceSessions.agentId, voiceAgents.name)
+		.orderBy(desc(sum(voiceSessions.cost)))
+
+	// Get cost breakdown by call direction
+	const directionCosts = await db
+		.select({
+			direction: voiceSessions.direction,
+			totalCost: sum(voiceSessions.cost),
+			callCount: count(voiceSessions.id),
+			averageCostPerCall: avg(voiceSessions.cost)
+		})
+		.from(voiceSessions)
+		.where(
+			and(
+				eq(voiceSessions.userId, user.id),
+				gte(voiceSessions.startTime, startDate),
+				lte(voiceSessions.startTime, endDate)
+			)
+		)
+		.groupBy(voiceSessions.direction)
+
+	// Calculate cost efficiency metrics
+	const totalCost = agentCosts.reduce(
+		(sum, agent) => sum + (Number(agent.totalCost) || 0),
+		0
+	)
+	const totalCalls = agentCosts.reduce(
+		(sum, agent) => sum + agent.callCount,
+		0
+	)
+	const totalDuration = agentCosts.reduce(
+		(sum, agent) => sum + (Number(agent.totalDuration) || 0),
+		0
+	)
+
+	return {
+		timeRange,
+		summary: {
+			totalCost,
+			totalCalls,
+			averageCostPerCall: totalCalls > 0 ? totalCost / totalCalls : 0,
+			costPerMinute:
+				totalDuration > 0 ? (totalCost / totalDuration) * 60 : 0
+		},
+		agentBreakdown: agentCosts.map((agent) => ({
+			agentId: agent.agentId,
+			agentName: agent.agentName,
+			totalCost: Number(agent.totalCost) || 0,
+			callCount: agent.callCount,
+			averageCostPerCall: Number(agent.averageCostPerCall) || 0,
+			totalDuration: Number(agent.totalDuration) || 0,
+			costShare:
+				totalCost > 0
+					? ((Number(agent.totalCost) || 0) / totalCost) * 100
+					: 0
+		})),
+		directionBreakdown: directionCosts.map((direction) => ({
+			direction: direction.direction,
+			totalCost: Number(direction.totalCost) || 0,
+			callCount: direction.callCount,
+			averageCostPerCall: Number(direction.averageCostPerCall) || 0
+		}))
+	}
 }

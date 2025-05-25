@@ -23,6 +23,14 @@ interface VapiCallData {
 	started_at?: string
 	ended_at?: string
 	cost?: number
+	cost_breakdown?: {
+		transport?: number
+		stt?: number
+		llm?: number
+		tts?: number
+		vapi?: number
+		total?: number
+	}
 	transcript?: string
 	recording_url?: string
 	summary?: string
@@ -423,7 +431,28 @@ async function handleCallEnded(callData: VapiCallData) {
 			? Math.floor((endTime.getTime() - startTime.getTime()) / 1000)
 			: null
 
-		// Update voice session
+		// Enhanced cost breakdown storage
+		const costBreakdown = callData.cost_breakdown || {}
+		const enhancedMetadata = {
+			custom_data: {
+				cost_breakdown: {
+					transport: costBreakdown.transport || 0,
+					stt: costBreakdown.stt || 0,
+					llm: costBreakdown.llm || 0,
+					tts: costBreakdown.tts || 0,
+					vapi: costBreakdown.vapi || 0,
+					total: costBreakdown.total || callData.cost || 0
+				},
+				call_quality: {
+					duration_seconds: duration,
+					transcript_length: callData.transcript?.length || 0,
+					has_recording: !!callData.recording_url,
+					sentiment_detected: !!callData.analysis?.sentiment
+				}
+			}
+		}
+
+		// Update voice session with enhanced data
 		const sessionResult = await db_ws
 			.update(voiceSessions)
 			.set({
@@ -435,6 +464,7 @@ async function handleCallEnded(callData: VapiCallData) {
 				sentiment: callData.analysis?.sentiment,
 				recordingUrl: callData.recording_url,
 				cost: callData.cost?.toString(),
+				metadata: enhancedMetadata,
 				updatedAt: new Date()
 			})
 			.where(eq(voiceSessions.sessionId, callData.id))
@@ -470,6 +500,114 @@ async function handleCallEnded(callData: VapiCallData) {
 		console.log("Call session updated successfully")
 	} catch (error) {
 		console.error("Error handling call ended:", error)
+	}
+}
+
+// Handle real-time transcript updates during calls
+async function handleTranscriptUpdate(
+	callId?: string,
+	message?: { transcript?: string; timestamp?: string }
+) {
+	try {
+		if (!callId || !message?.transcript) return
+
+		console.log(`Transcript update for call ${callId}:`, message.transcript)
+
+		// Update the voice session with real-time transcript
+		const currentTranscript = await db_ws
+			.select({ transcript: voiceSessions.transcript })
+			.from(voiceSessions)
+			.where(eq(voiceSessions.sessionId, callId))
+			.limit(1)
+
+		if (currentTranscript.length > 0) {
+			const existing = currentTranscript[0].transcript || ""
+			const updatedTranscript = existing
+				? `${existing}\n[${new Date().toISOString()}] ${message.transcript}`
+				: `[${new Date().toISOString()}] ${message.transcript}`
+
+			// Update voice session with incremental transcript
+			await db_ws
+				.update(voiceSessions)
+				.set({
+					transcript: updatedTranscript,
+					updatedAt: new Date()
+				})
+				.where(eq(voiceSessions.sessionId, callId))
+
+			// Extract keywords from transcript for real-time analysis
+			await extractAndStoreKeywords(callId, message.transcript)
+		}
+
+		console.log("Transcript updated successfully")
+	} catch (error) {
+		console.error("Error handling transcript update:", error)
+	}
+}
+
+// Extract keywords and insights from transcript segments
+async function extractAndStoreKeywords(
+	callId: string,
+	transcriptSegment: string
+) {
+	try {
+		// Simple keyword extraction (can be enhanced with AI/NLP later)
+		const keywords = transcriptSegment
+			.toLowerCase()
+			.split(/\s+/)
+			.filter((word) => word.length > 3)
+			.filter(
+				(word) =>
+					![
+						"this",
+						"that",
+						"with",
+						"have",
+						"will",
+						"your",
+						"from",
+						"they",
+						"been",
+						"their"
+					].includes(word)
+			)
+			.slice(0, 5) // Top 5 keywords
+
+		if (keywords.length > 0) {
+			// Store keywords in session metadata
+			const session = await db_ws
+				.select()
+				.from(voiceSessions)
+				.where(eq(voiceSessions.sessionId, callId))
+				.limit(1)
+
+			if (session.length > 0) {
+				const currentMetadata = session[0].metadata || {}
+				const customData =
+					(currentMetadata.custom_data as Record<string, unknown>) ||
+					{}
+				const existingKeywords = (customData.keywords as string[]) || []
+				const updatedKeywords = [
+					...new Set([...existingKeywords, ...keywords])
+				]
+
+				await db_ws
+					.update(voiceSessions)
+					.set({
+						metadata: {
+							...currentMetadata,
+							custom_data: {
+								...customData,
+								keywords: updatedKeywords
+							}
+						},
+						updatedAt: new Date()
+					})
+					.where(eq(voiceSessions.sessionId, callId))
+			}
+		}
+	} catch (error) {
+		console.error("Error extracting keywords:", error)
 	}
 }
 
@@ -578,11 +716,8 @@ export async function POST(request: NextRequest) {
 				break
 
 			case "transcript":
-				// Handle real-time transcript updates if needed
-				console.log(
-					"Transcript update received:",
-					event.message?.transcript
-				)
+				// Handle real-time transcript updates
+				await handleTranscriptUpdate(event.call?.id, event.message)
 				break
 
 			case "hang":

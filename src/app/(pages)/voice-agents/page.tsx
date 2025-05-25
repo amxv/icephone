@@ -5,6 +5,9 @@ export const metadata: Metadata = {
 	description: "Manage your AI voice agents for inbound and outbound calls"
 }
 
+// Force dynamic rendering for this page
+export const dynamic = "force-dynamic"
+
 import { getPhoneNumbers } from "@/actions/phone-numbers"
 import { getVoiceAgents } from "@/actions/voice-agents"
 import { VoiceAgentsPageClient } from "@/components/voice-agents-page-client"

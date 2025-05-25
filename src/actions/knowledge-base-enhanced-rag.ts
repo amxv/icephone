@@ -6,6 +6,9 @@ import type { VectorQueryResult } from "@/types"
 import { currentUser } from "@clerk/nextjs/server"
 import { and, asc, desc, eq, sql } from "drizzle-orm"
 
+// Import EmbeddingService for real Voyage API integration
+import { EmbeddingService } from "../../workers/document-ingestion/src/services/EmbeddingService"
+
 // Enhanced RAG Query System with Local Processing
 
 interface QueryAnalysis {
@@ -256,9 +259,8 @@ export async function performEnhancedVectorSearch(
 			return { success: false, error: "Unauthorized" }
 		}
 
-		// For now, simulate embeddings since we don't have Voyage API key
-		// In production, this would call the embedding API
-		const queryEmbedding = await generateMockQueryEmbedding(query)
+		// Use real Voyage API for embeddings
+		const queryEmbedding = await generateRealQueryEmbedding(query)
 
 		// Perform vector similarity search
 		let vectorQuery = sql`
@@ -344,7 +346,39 @@ export async function performEnhancedVectorSearch(
 	}
 }
 
-// Mock embedding generation (replace with real Voyage API when available)
+// Real Voyage API embedding generation
+async function generateRealQueryEmbedding(query: string): Promise<number[]> {
+	try {
+		// Get Voyage API key from environment variables
+		const voyageApiKey = process.env.VOYAGE_API_KEY
+
+		if (!voyageApiKey) {
+			console.warn(
+				"VOYAGE_API_KEY not found, falling back to mock embedding"
+			)
+			return generateMockQueryEmbedding(query)
+		}
+
+		// Initialize EmbeddingService with real API key
+		const embeddingService = new EmbeddingService(voyageApiKey)
+
+		// Generate real embedding using Voyage API
+		const embedding = await embeddingService.generateQueryEmbedding(
+			query,
+			"voyage-3"
+		)
+
+		return embedding
+	} catch (error) {
+		console.error(
+			"Failed to generate real embedding, falling back to mock:",
+			error
+		)
+		return generateMockQueryEmbedding(query)
+	}
+}
+
+// Fallback mock embedding generation for development/error cases
 async function generateMockQueryEmbedding(query: string): Promise<number[]> {
 	// Generate a consistent pseudo-random embedding based on query content
 	// This is for testing purposes only

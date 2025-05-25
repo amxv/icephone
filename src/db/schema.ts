@@ -28,6 +28,16 @@ export const leadStatusEnum = pgEnum("lead_status", [
 	"lost"
 ])
 
+// Define deal stage enum
+export const dealStageEnum = pgEnum("deal_stage", [
+	"prospect",
+	"qualified",
+	"proposal",
+	"negotiation",
+	"closed_won",
+	"closed_lost"
+])
+
 // Define communication type enum
 export const communicationTypeEnum = pgEnum("communication_type", [
 	"incoming",
@@ -49,6 +59,33 @@ export const phoneNumberStatusEnum = pgEnum("phone_number_status", [
 	"suspended"
 ])
 
+// Define task priority enum
+export const taskPriorityEnum = pgEnum("task_priority", [
+	"low",
+	"medium",
+	"high",
+	"urgent"
+])
+
+// Define task status enum
+export const taskStatusEnum = pgEnum("task_status", [
+	"pending",
+	"in_progress",
+	"completed",
+	"cancelled",
+	"overdue"
+])
+
+// Define task type enum
+export const taskTypeEnum = pgEnum("task_type", [
+	"call",
+	"email",
+	"follow_up",
+	"meeting",
+	"research",
+	"other"
+])
+
 // Leads table - stores information about leads/prospects
 export const leads = pgTable(
 	"leads",
@@ -59,6 +96,9 @@ export const leads = pgTable(
 		phone: varchar("phone", { length: 50 }),
 		score: integer("score").default(0), // Lead score/rating (0-100)
 		status: leadStatusEnum("status").default("new"),
+		dealStage: dealStageEnum("deal_stage"),
+		dealValue: decimal("deal_value", { precision: 12, scale: 2 }),
+		expectedCloseDate: timestamp("expected_close_date"),
 		source: varchar("source", { length: 100 }),
 		notes: text("notes"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -69,6 +109,7 @@ export const leads = pgTable(
 		index("lead_name_idx").on(table.name),
 		index("lead_email_idx").on(table.email),
 		index("lead_status_idx").on(table.status),
+		index("lead_deal_stage_idx").on(table.dealStage),
 		index("lead_user_id_idx").on(table.userId)
 	]
 )
@@ -269,6 +310,7 @@ export const emails = pgTable(
 		subject: varchar("subject", { length: 255 }).notNull(),
 		content: text("content").notNull(),
 		sentAt: timestamp("sent_at").notNull(),
+		status: varchar("status", { length: 50 }).default("pending"), // pending, sent, failed, opened
 		openedAt: timestamp("opened_at"),
 		clickedAt: timestamp("clicked_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -308,7 +350,9 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
 	textMessages: many(textMessages),
 	emails: many(emails),
 	chats: many(chats),
-	voiceSessions: many(voiceSessions)
+	voiceSessions: many(voiceSessions),
+	interactions: many(leadInteractions),
+	tasks: many(tasks)
 }))
 
 export const appointmentsRelations = relations(appointments, ({ one }) => ({
@@ -1074,6 +1118,112 @@ export const adminSettings = pgTable(
 	]
 )
 
+// Tool Calls table - tracks all Vapi tool API calls for monitoring and analytics
+export const toolCalls = pgTable(
+	"tool_calls",
+	{
+		id: serial("id").primaryKey(),
+		toolCallId: varchar("tool_call_id", { length: 255 }).notNull(), // Vapi tool call ID
+		callId: varchar("call_id", { length: 255 }), // Vapi call ID
+		sessionId: varchar("session_id", { length: 255 }), // Voice session ID
+		toolName: varchar("tool_name", { length: 100 }).notNull(), // e.g., 'updateLeadScore', 'sendFollowUpEmail'
+		parameters: jsonb("parameters").$type<Record<string, unknown>>(), // Tool call parameters
+		result: jsonb("result").$type<{
+			success: boolean
+			message: string
+			data?: Record<string, unknown>
+			error?: string
+		}>(), // Tool execution result
+		executionTime: integer("execution_time"), // Execution time in milliseconds
+		userId: varchar("user_id", { length: 255 }).notNull(), // User who triggered the call
+		ipAddress: varchar("ip_address", { length: 45 }), // Request IP address
+		userAgent: text("user_agent"), // Request user agent
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("tool_calls_tool_call_id_idx").on(table.toolCallId),
+		index("tool_calls_call_id_idx").on(table.callId),
+		index("tool_calls_tool_name_idx").on(table.toolName),
+		index("tool_calls_user_id_idx").on(table.userId),
+		index("tool_calls_created_at_idx").on(table.createdAt)
+	]
+)
+
+// Tasks table - stores follow-up tasks and activities for leads
+export const tasks = pgTable(
+	"tasks",
+	{
+		id: serial("id").primaryKey(),
+		leadId: integer("lead_id")
+			.notNull()
+			.references(() => leads.id, { onDelete: "cascade" }),
+		title: varchar("title", { length: 200 }).notNull(),
+		description: text("description"),
+		priority: taskPriorityEnum("priority").default("medium"),
+		status: taskStatusEnum("status").default("pending"),
+		taskType: taskTypeEnum("task_type").default("follow_up"),
+		dueDate: timestamp("due_date"),
+		completedAt: timestamp("completed_at"),
+		assignedTo: varchar("assigned_to", { length: 255 }), // User ID assigned to
+		createdBy: varchar("created_by", { length: 255 }).notNull(), // User ID who created
+		notes: text("notes"), // Additional notes or completion notes
+		metadata: jsonb("metadata").$type<{
+			source?: string // e.g., 'vapi_tool', 'manual', 'automation'
+			toolCallId?: string
+			callId?: string
+			sessionId?: string
+			automation_trigger?: string
+			[key: string]: unknown
+		}>(),
+		userId: varchar("user_id", { length: 255 }).notNull(), // Owner/context user
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("tasks_lead_id_idx").on(table.leadId),
+		index("tasks_status_idx").on(table.status),
+		index("tasks_priority_idx").on(table.priority),
+		index("tasks_assigned_to_idx").on(table.assignedTo),
+		index("tasks_due_date_idx").on(table.dueDate),
+		index("tasks_user_id_idx").on(table.userId),
+		index("tasks_created_at_idx").on(table.createdAt)
+	]
+)
+
+// Lead Interactions table - tracks automated updates and interactions with leads
+export const leadInteractions = pgTable(
+	"lead_interactions",
+	{
+		id: serial("id").primaryKey(),
+		leadId: integer("lead_id")
+			.notNull()
+			.references(() => leads.id, { onDelete: "cascade" }),
+		interactionType: varchar("interaction_type", { length: 100 }).notNull(), // e.g., 'score_update', 'note_added', 'email_sent', 'status_change'
+		source: varchar("source", { length: 100 }).notNull(), // e.g., 'vapi_tool', 'manual', 'automation'
+		sourceId: varchar("source_id", { length: 255 }), // Reference to source (tool call ID, user ID, etc.)
+		oldValue: jsonb("old_value").$type<Record<string, unknown>>(), // Previous value before interaction
+		newValue: jsonb("new_value").$type<Record<string, unknown>>(), // New value after interaction
+		metadata: jsonb("metadata").$type<{
+			toolCallId?: string
+			callId?: string
+			sessionId?: string
+			reason?: string
+			confidence?: number
+			automation_rules?: string[]
+			[key: string]: unknown
+		}>(), // Additional interaction metadata
+		userId: varchar("user_id", { length: 255 }).notNull(), // User context
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("lead_interactions_lead_id_idx").on(table.leadId),
+		index("lead_interactions_type_idx").on(table.interactionType),
+		index("lead_interactions_source_idx").on(table.source),
+		index("lead_interactions_user_id_idx").on(table.userId),
+		index("lead_interactions_created_at_idx").on(table.createdAt)
+	]
+)
+
 // Define relationships
 export const knowledgeBaseSourcesRelations = relations(
 	knowledgeBaseSources,
@@ -1161,4 +1311,31 @@ export const voicePresetsRelations = relations(voicePresets, ({ many }) => ({
 // Agent Roles relations
 export const agentRolesRelations = relations(agentRoles, ({ many }) => ({
 	voiceAgents: many(voiceAgents)
+}))
+
+// Tool Calls relations
+export const toolCallsRelations = relations(toolCalls, ({ one }) => ({
+	voiceSession: one(voiceSessions, {
+		fields: [toolCalls.sessionId],
+		references: [voiceSessions.sessionId]
+	})
+}))
+
+// Lead Interactions relations
+export const leadInteractionsRelations = relations(
+	leadInteractions,
+	({ one }) => ({
+		lead: one(leads, {
+			fields: [leadInteractions.leadId],
+			references: [leads.id]
+		})
+	})
+)
+
+// Tasks relations
+export const tasksRelations = relations(tasks, ({ one }) => ({
+	lead: one(leads, {
+		fields: [tasks.leadId],
+		references: [leads.id]
+	})
 }))

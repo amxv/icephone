@@ -11,6 +11,8 @@ You're building **IcePhone** - an AI-powered CRM and Voice Agent Platform that h
 
 **Environment Configuration**: Your development variables are in `.dev.vars`
 
+If you can't access a page with curl, check `src/middleware.ts` because we use clerk to protect most routes.
+
 ## 🎯 Getting Started: Check the Master Plan
 
 Before implementing ANY feature, always start here:

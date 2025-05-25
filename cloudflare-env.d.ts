@@ -22,6 +22,11 @@ declare namespace Cloudflare {
 		NEXT_PUBLIC_VAPI_PUBLIC_KEY: string
 		VAPI_SECRET_KEY: string
 		NEXT_PUBLIC_VAPI_ENDPOINT: string
+		// Vapi Tools API Security
+		VAPI_TOOLS_API_KEY: string
+		VAPI_ALLOWED_ORIGINS: string
+		// Email Integration
+		RESEND_API_KEY: string
 		// Database
 		DATABASE_URL: string;
 

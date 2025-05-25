@@ -6,6 +6,9 @@ import {
 import { AdminVoiceAgentsClient } from "./AdminVoiceAgentsClient"
 import { Skeleton } from "@/components/ui/skeleton"
 
+// Force dynamic rendering for admin pages
+export const dynamic = "force-dynamic"
+
 // Loading component for suspense
 function AdminVoiceAgentsLoading() {
 	return (
@@ -44,6 +47,39 @@ function AdminVoiceAgentsLoading() {
 	)
 }
 
+// Error state client component
+function ErrorState() {
+	return (
+		<div className="flex flex-col items-center justify-center h-full text-center">
+			<div className="rounded-full p-3 border border-border/40 shadow-sm mb-4">
+				<svg
+					className="h-6 w-6 text-muted-foreground"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+					xmlns="http://www.w3.org/2000/svg"
+					aria-label="Warning icon"
+				>
+					<title>Warning icon</title>
+					<path
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeWidth={2}
+						d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+					/>
+				</svg>
+			</div>
+			<h3 className="text-lg font-medium mb-2">
+				Failed to Load Voice Agents
+			</h3>
+			<p className="text-sm text-muted-foreground mb-4">
+				There was an error loading the voice agents data. Please try
+				refreshing the page.
+			</p>
+		</div>
+	)
+}
+
 export default async function AdminVoiceAgentsPage() {
 	return (
 		<div className="container h-[calc(100vh-5rem)]">
@@ -73,42 +109,7 @@ async function AdminVoiceAgentsData() {
 	} catch (error) {
 		console.error("Error loading voice agents data:", error)
 
-		// Error fallback
-		return (
-			<div className="flex flex-col items-center justify-center h-full text-center">
-				<div className="rounded-full p-3 border border-border/40 shadow-sm mb-4">
-					<svg
-						className="h-6 w-6 text-muted-foreground"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-						xmlns="http://www.w3.org/2000/svg"
-						aria-label="Warning icon"
-					>
-						<title>Warning icon</title>
-						<path
-							strokeLinecap="round"
-							strokeLinejoin="round"
-							strokeWidth={2}
-							d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-						/>
-					</svg>
-				</div>
-				<h3 className="text-lg font-medium mb-2">
-					Failed to Load Voice Agents
-				</h3>
-				<p className="text-sm text-muted-foreground mb-4">
-					There was an error loading the voice agents data. Please try
-					refreshing the page.
-				</p>
-				<button
-					type="button"
-					onClick={() => window.location.reload()}
-					className="px-4 py-2 bg-primary text-primary-foreground rounded-2xl hover:bg-primary/90 transition-colors"
-				>
-					Refresh Page
-				</button>
-			</div>
-		)
+		// Error fallback without client-side onClick
+		return <ErrorState />
 	}
 }
