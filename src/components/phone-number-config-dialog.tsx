@@ -31,7 +31,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import type { PhoneNumber } from "@/types"
+import type { PhoneNumber, VoiceAgent } from "@/types"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ClockIcon, SettingsIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -66,12 +66,14 @@ interface PhoneNumberConfigDialogProps {
 	phoneNumber: PhoneNumber
 	trigger?: React.ReactNode
 	onSuccess?: () => void
+	voiceAgents?: VoiceAgent[]
 }
 
 export function PhoneNumberConfigDialog({
 	phoneNumber,
 	trigger,
-	onSuccess
+	onSuccess,
+	voiceAgents
 }: PhoneNumberConfigDialogProps) {
 	const router = useRouter()
 	const [open, setOpen] = useState(false)

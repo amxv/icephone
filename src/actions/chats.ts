@@ -1,6 +1,6 @@
 "use server"
 
-import { db_ws } from "@/db"
+import { db } from "@/db/db"
 import { chatMessages, chats, leads } from "@/db/schema"
 import { auth } from "@clerk/nextjs/server"
 import { type SQL, and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
@@ -37,7 +37,7 @@ export async function getChats(filter: ChatFilter = {}) {
 
 		const condition = and(...whereConditions)
 
-		const chatsData = await db_ws
+		const chatsData = await db
 			.select({
 				id: chats.id,
 				leadId: chats.leadId,
@@ -73,7 +73,7 @@ export async function getChatById(chatId: number) {
 			return { success: false, error: "Unauthorized", data: null }
 		}
 
-		const chatResult = await db_ws
+		const chatResult = await db
 			.select({
 				id: chats.id,
 				leadId: chats.leadId,
@@ -95,7 +95,7 @@ export async function getChatById(chatId: number) {
 
 		const dbChat = chatResult[0]
 
-		const messagesData = await db_ws
+		const messagesData = await db
 			.select({
 				id: chatMessages.id,
 				chatId: chatMessages.chatId,

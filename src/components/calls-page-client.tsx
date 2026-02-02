@@ -18,6 +18,7 @@ import { format } from "date-fns"
 import {
 	ClockIcon,
 	FileTextIcon,
+	ListChecks,
 	MessageSquareIcon,
 	PhoneCallIcon,
 	PhoneIcon,
@@ -25,6 +26,7 @@ import {
 	PhoneOutgoingIcon,
 	XIcon
 } from "lucide-react"
+import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 
@@ -72,6 +74,14 @@ function PageHeader() {
 				<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
 					Calls
 				</h1>
+			</div>
+			<div>
+				<Button variant="outline" className="gap-2 rounded-2xl" asChild>
+					<Link href="/calls/call-queue">
+						<ListChecks className="h-4 w-4" />
+						Call Queue
+					</Link>
+				</Button>
 			</div>
 		</div>
 	)

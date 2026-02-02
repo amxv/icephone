@@ -2,7 +2,10 @@
 
 import {
 	createEnhancedCampaign,
-	type EnhancedCampaignData
+	getCampaignTemplates,
+	createCampaignFromTemplate,
+	type EnhancedCampaignData,
+	type CampaignStatus
 } from "@/actions/campaigns"
 import { getVoiceAgents } from "@/actions/voice-agents"
 import { Button } from "@/components/ui/button"
@@ -25,6 +28,9 @@ import {
 	SelectTrigger,
 	SelectValue
 } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import type { VoiceAgentWithPhoneNumber } from "@/types"
 import {
@@ -33,10 +39,13 @@ import {
 	BotIcon,
 	CheckIcon,
 	ClockIcon,
+	CopyIcon,
+	FileTextIcon,
 	PhoneIcon,
 	PlusIcon,
 	SettingsIcon,
 	TargetIcon,
+	BookTemplateIcon,
 	ZapIcon
 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
@@ -106,6 +115,7 @@ interface CampaignCreationDialogProps {
 }
 
 const STEP_LABELS = {
+	template: "Choose Template",
 	basic: "Basic Information",
 	agent: "Voice Agent",
 	timing: "Call Timing",
@@ -141,12 +151,34 @@ export function CampaignCreationDialog({
 	onCampaignCreated
 }: CampaignCreationDialogProps) {
 	const [open, setOpen] = useState(false)
-	const [currentStep, setCurrentStep] = useState("basic")
+	const [currentStep, setCurrentStep] = useState("template")
 	const [isLoading, setIsLoading] = useState(false)
 	const [voiceAgents, setVoiceAgents] = useState<VoiceAgentWithPhoneNumber[]>(
 		[]
 	)
 	const [agentsLoading, setAgentsLoading] = useState(false)
+	// Type for campaign template data (matches database schema)
+	type CampaignTemplate = {
+		id: number
+		name: string
+		description: string | null
+		startDate: Date | null
+		endDate: Date | null
+		status: CampaignStatus | null
+		voiceAgentId: number | null
+		campaignSettings: Record<string, unknown> | null
+		createdAt: Date
+		updatedAt: Date
+		userId: string
+	}
+
+	const [templates, setTemplates] = useState<CampaignTemplate[]>([])
+	const [templatesLoading, setTemplatesLoading] = useState(false)
+	const [selectedTemplate, setSelectedTemplate] =
+		useState<CampaignTemplate | null>(null)
+	const [creationMode, setCreationMode] = useState<"scratch" | "template">(
+		"scratch"
+	)
 
 	// Form data state
 	const [formData, setFormData] = useState<CampaignFormData>({
@@ -229,14 +261,34 @@ export function CampaignCreationDialog({
 		}
 	}, [])
 
+	const loadTemplates = useCallback(async () => {
+		try {
+			setTemplatesLoading(true)
+			const result = await getCampaignTemplates()
+			if (result.success && result.data) {
+				setTemplates(result.data)
+			}
+		} catch (error) {
+			console.error("Failed to load templates:", error)
+			toast.error("Failed to load templates")
+		} finally {
+			setTemplatesLoading(false)
+		}
+	}, [])
+
 	useEffect(() => {
 		if (open && currentStep === "agent") {
 			loadVoiceAgents()
 		}
-	}, [open, currentStep, loadVoiceAgents])
+		if (open && currentStep === "template") {
+			loadTemplates()
+		}
+	}, [open, currentStep, loadVoiceAgents, loadTemplates])
 
 	const resetForm = () => {
-		setCurrentStep("basic")
+		setCurrentStep("template")
+		setCreationMode("scratch")
+		setSelectedTemplate(null)
 		setFormData({
 			name: "",
 			description: "",
@@ -318,8 +370,54 @@ export function CampaignCreationDialog({
 		return Object.keys(newErrors).length === 0
 	}
 
+	const createFromTemplate = async () => {
+		if (!selectedTemplate) return
+
+		try {
+			setIsLoading(true)
+
+			const result = await createCampaignFromTemplate(
+				selectedTemplate.id,
+				{
+					name: `${selectedTemplate.name} (Copy)`,
+					description: selectedTemplate.description || undefined,
+					startDate: undefined,
+					endDate: undefined
+				}
+			)
+
+			if (result.success) {
+				toast.success("Campaign created from template successfully!")
+				setOpen(false)
+				resetForm()
+				onCampaignCreated?.()
+			} else {
+				toast.error(
+					result.error || "Failed to create campaign from template"
+				)
+			}
+		} catch (error) {
+			console.error("Error creating campaign from template:", error)
+			toast.error("Failed to create campaign from template")
+		} finally {
+			setIsLoading(false)
+		}
+	}
+
 	const onSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
+
+		// Handle template step
+		if (currentStep === "template") {
+			if (creationMode === "template" && selectedTemplate) {
+				await createFromTemplate()
+				return
+			}
+			if (creationMode === "scratch" || !selectedTemplate) {
+				nextStep()
+				return
+			}
+		}
 
 		if (!validateStep(currentStep)) {
 			return
@@ -449,6 +547,200 @@ export function CampaignCreationDialog({
 
 	const renderStep = () => {
 		switch (currentStep) {
+			case "template":
+				return (
+					<div className="space-y-6">
+						<div className="text-center">
+							<p className="text-muted-foreground mb-6">
+								Choose how you'd like to create your campaign
+							</p>
+						</div>
+
+						<Tabs
+							value={creationMode}
+							onValueChange={(value) =>
+								setCreationMode(value as "scratch" | "template")
+							}
+							className="w-full"
+						>
+							<TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto">
+								<TabsTrigger
+									value="scratch"
+									className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+								>
+									<PlusIcon className="h-4 w-4 mr-2" />
+									Start from Scratch
+								</TabsTrigger>
+								<TabsTrigger
+									value="template"
+									className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+								>
+									<BookTemplateIcon className="h-4 w-4 mr-2" />
+									Use Template
+								</TabsTrigger>
+							</TabsList>
+
+							<TabsContent value="scratch" className="mt-6">
+								<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+									<CardContent className="p-6">
+										<div className="text-center">
+											<div className="rounded-full p-3 border border-border/40 shadow-sm mx-auto w-fit mb-4">
+												<PlusIcon className="h-6 w-6 text-muted-foreground" />
+											</div>
+											<h3 className="text-lg font-medium mb-2">
+												Create New Campaign
+											</h3>
+											<p className="text-sm text-muted-foreground mb-4">
+												Build a campaign from scratch
+												with custom settings
+											</p>
+											<Button
+												onClick={() => {
+													setSelectedTemplate(null)
+													nextStep()
+												}}
+												className="gap-2"
+											>
+												<ZapIcon className="h-4 w-4" />
+												Start Building
+											</Button>
+										</div>
+									</CardContent>
+								</Card>
+							</TabsContent>
+
+							<TabsContent value="template" className="mt-6">
+								{templatesLoading ? (
+									<div className="space-y-4">
+										{[1, 2, 3].map((i) => (
+											<Card
+												key={i}
+												className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm"
+											>
+												<CardContent className="p-4">
+													<div className="animate-pulse">
+														<div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+														<div className="h-3 bg-muted rounded w-1/2"></div>
+													</div>
+												</CardContent>
+											</Card>
+										))}
+									</div>
+								) : templates.length === 0 ? (
+									<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+										<CardContent className="p-6">
+											<div className="text-center">
+												<div className="rounded-full p-3 border border-border/40 shadow-sm mx-auto w-fit mb-4">
+													<FileTextIcon className="h-6 w-6 text-muted-foreground" />
+												</div>
+												<h3 className="text-lg font-medium mb-2">
+													No Templates Available
+												</h3>
+												<p className="text-sm text-muted-foreground mb-4">
+													You haven't created any
+													campaign templates yet.
+													Create your first campaign
+													to save it as a template.
+												</p>
+												<Button
+													variant="outline"
+													onClick={() => {
+														setCreationMode(
+															"scratch"
+														)
+														setSelectedTemplate(
+															null
+														)
+														nextStep()
+													}}
+													className="gap-2"
+												>
+													<PlusIcon className="h-4 w-4" />
+													Create First Campaign
+												</Button>
+											</div>
+										</CardContent>
+									</Card>
+								) : (
+									<div className="space-y-4">
+										{templates.map((template) => (
+											<Card
+												key={template.id}
+												className={`rounded-2xl border cursor-pointer transition-all ${
+													selectedTemplate?.id ===
+													template.id
+														? "border-primary bg-primary/5 shadow-md"
+														: "border-border bg-card/40 backdrop-blur-sm shadow-sm hover:shadow-md"
+												}`}
+												onClick={() =>
+													setSelectedTemplate(
+														template
+													)
+												}
+											>
+												<CardContent className="p-4">
+													<div className="flex items-start justify-between">
+														<div className="flex-1">
+															<div className="flex items-center gap-2 mb-2">
+																<BookTemplateIcon className="h-4 w-4 text-muted-foreground" />
+																<h3 className="font-medium">
+																	{
+																		template.name
+																	}
+																</h3>
+															</div>
+															{template.description && (
+																<p className="text-sm text-muted-foreground mb-2">
+																	{
+																		template.description
+																	}
+																</p>
+															)}
+															<div className="flex items-center gap-4 text-xs text-muted-foreground">
+																<span>
+																	Created{" "}
+																	{new Date(
+																		template.createdAt
+																	).toLocaleDateString()}
+																</span>
+																{template.voiceAgentId && (
+																	<span className="flex items-center gap-1">
+																		<BotIcon className="h-3 w-3" />
+																		Voice
+																		Agent
+																		Configured
+																	</span>
+																)}
+															</div>
+														</div>
+														{selectedTemplate?.id ===
+															template.id && (
+															<CheckIcon className="h-5 w-5 text-primary" />
+														)}
+													</div>
+												</CardContent>
+											</Card>
+										))}
+
+										{selectedTemplate && (
+											<div className="pt-4">
+												<Button
+													onClick={() => nextStep()}
+													className="w-full gap-2"
+												>
+													<CopyIcon className="h-4 w-4" />
+													Use "{selectedTemplate.name}
+													" Template
+												</Button>
+											</div>
+										)}
+									</div>
+								)}
+							</TabsContent>
+						</Tabs>
+					</div>
+				)
+
 			case "basic":
 				return (
 					<div className="space-y-4">
@@ -1096,6 +1388,9 @@ export function CampaignCreationDialog({
 				<form onSubmit={onSubmit} className="space-y-6">
 					<div className="min-h-[400px]">
 						<h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+							{currentStep === "template" && (
+								<BookTemplateIcon className="h-5 w-5" />
+							)}
 							{currentStep === "basic" && (
 								<SettingsIcon className="h-5 w-5" />
 							)}
@@ -1128,7 +1423,7 @@ export function CampaignCreationDialog({
 							type="button"
 							variant="outline"
 							onClick={prevStep}
-							disabled={currentStep === "basic"}
+							disabled={currentStep === "template"}
 							className="gap-2"
 						>
 							<ArrowLeftIcon className="h-4 w-4" />

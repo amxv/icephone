@@ -14,6 +14,15 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { CallDialog } from "@/components/communication/call-dialog"
+import { EmailDialog } from "@/components/communication/email-dialog"
+import { TextMessageDialog } from "@/components/communication/text-message-dialog"
+import { AppointmentDialog } from "@/components/communication/appointment-dialog"
+import { EditLeadDialog } from "@/components/communication/edit-lead-dialog"
+import { CommunicationTimeline } from "@/components/communication/communication-timeline"
+import { QuickActionsFAB } from "@/components/communication/quick-actions-fab"
+import { FollowUpSuggestions } from "@/components/communication/follow-up-suggestions"
+import { KeyboardShortcutsHelper } from "@/components/communication/keyboard-shortcuts-helper"
 import type {
 	Appointment,
 	Call,
@@ -39,6 +48,10 @@ import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import {
+	useKeyboardShortcuts,
+	createCommunicationShortcuts
+} from "@/hooks/use-keyboard-shortcuts"
 
 // Status badges with appropriate colors
 const StatusBadge = ({ status }: { status: string }) => {
@@ -395,6 +408,43 @@ export default function LeadDetailPage() {
 	const [notes, setNotes] = useState<string>("")
 	const [isEditingNotes, setIsEditingNotes] = useState(false)
 	const [isSavingNotes, setIsSavingNotes] = useState(false)
+	const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+	// Communication dialog states
+	const [callDialogOpen, setCallDialogOpen] = useState(false)
+	const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+	const [textDialogOpen, setTextDialogOpen] = useState(false)
+	const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false)
+	const [editLeadDialogOpen, setEditLeadDialogOpen] = useState(false)
+
+	// Keyboard shortcuts for communication actions
+	const communicationShortcuts = createCommunicationShortcuts({
+		onCall: () => {
+			if (leadData?.lead.phone && !callDialogOpen) {
+				setCallDialogOpen(true)
+			}
+		},
+		onEmail: () => {
+			if (leadData?.lead.email && !emailDialogOpen) {
+				setEmailDialogOpen(true)
+			}
+		},
+		onText: () => {
+			if (leadData?.lead.phone && !textDialogOpen) {
+				setTextDialogOpen(true)
+			}
+		},
+		onAppointment: () => {
+			if (leadData && !appointmentDialogOpen) {
+				setAppointmentDialogOpen(true)
+			}
+		}
+	})
+
+	useKeyboardShortcuts({
+		shortcuts: communicationShortcuts,
+		enabled: !!leadData && !loading
+	})
 
 	// Header component for consistent styling
 	const StickyHeader = ({ disabled = false }: { disabled?: boolean }) => (
@@ -415,13 +465,14 @@ export default function LeadDetailPage() {
 						Back to Leads
 					</Button>
 
-					{!disabled && (
+					{!disabled && leadData && (
 						<div className="flex gap-2 justify-center">
 							<Button
 								size="sm"
 								className="w-28"
 								variant="outline"
-								disabled={disabled}
+								disabled={disabled || !leadData.lead.phone}
+								onClick={() => setCallDialogOpen(true)}
 							>
 								<PhoneCallIcon className="h-4 w-4" />
 								Call
@@ -430,7 +481,8 @@ export default function LeadDetailPage() {
 								size="sm"
 								className="w-28"
 								variant="outline"
-								disabled={disabled}
+								disabled={disabled || !leadData.lead.phone}
+								onClick={() => setTextDialogOpen(true)}
 							>
 								<MessageSquareIcon className="h-4 w-4" />
 								Text
@@ -439,7 +491,8 @@ export default function LeadDetailPage() {
 								size="sm"
 								className="w-28"
 								variant="outline"
-								disabled={disabled}
+								disabled={disabled || !leadData.lead.email}
+								onClick={() => setEmailDialogOpen(true)}
 							>
 								<MailIcon className="h-4 w-4" />
 								Email
@@ -449,6 +502,7 @@ export default function LeadDetailPage() {
 								className="w-28"
 								variant="outline"
 								disabled={disabled}
+								onClick={() => setAppointmentDialogOpen(true)}
 							>
 								<CalendarIcon className="h-4 w-4" />
 								Schedule
@@ -456,14 +510,18 @@ export default function LeadDetailPage() {
 						</div>
 					)}
 
-					<Button
-						variant="outline"
-						className="gap-2 rounded-full"
-						disabled={disabled}
-					>
-						<EditIcon className="h-4 w-4" />
-						Edit Lead
-					</Button>
+					<div className="flex gap-2">
+						<KeyboardShortcutsHelper />
+						<Button
+							variant="outline"
+							className="gap-2 rounded-full"
+							disabled={disabled}
+							onClick={() => setEditLeadDialogOpen(true)}
+						>
+							<EditIcon className="h-4 w-4" />
+							Edit Lead
+						</Button>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -528,6 +586,22 @@ export default function LeadDetailPage() {
 			toast.error("An unexpected error occurred while saving notes")
 		} finally {
 			setIsSavingNotes(false)
+		}
+	}
+
+	// Function to refresh lead data after communication actions
+	const refreshLeadData = async () => {
+		if (!leadData) return
+
+		try {
+			const result = await getLeadById(leadData.lead.id)
+			if (result.success && result.data) {
+				setLeadData(result.data as unknown as LeadDetailData)
+				// Trigger communication timeline refresh
+				setRefreshTrigger((prev) => prev + 1)
+			}
+		} catch (error) {
+			console.error("Error refreshing lead data:", error)
 		}
 	}
 
@@ -753,10 +827,47 @@ export default function LeadDetailPage() {
 								</div>
 							</CardContent>
 						</Card>
+
+						{/* Follow-up Suggestions */}
+						<FollowUpSuggestions
+							leadId={lead.id}
+							leadStatus={lead.status}
+							leadScore={lead.score}
+							lastActivity={
+								lead.updatedAt
+									? new Date(lead.updatedAt)
+									: undefined
+							}
+							onCallSuggestion={() => setCallDialogOpen(true)}
+							onEmailSuggestion={() => setEmailDialogOpen(true)}
+							onTextSuggestion={() => setTextDialogOpen(true)}
+							onAppointmentSuggestion={() =>
+								setAppointmentDialogOpen(true)
+							}
+						/>
 					</div>
 
 					{/* Right column - Communication sections */}
 					<div className="lg:col-span-8 space-y-6">
+						{/* Communication Timeline section */}
+						<div>
+							<SectionHeader
+								icon={ClockIcon}
+								title="Communication Timeline"
+								buttonText="View all communications"
+								buttonLink="#"
+								gradient="from-indigo-500 to-indigo-500/60"
+							/>
+							<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+								<CardContent className="p-0">
+									<CommunicationTimeline
+										leadId={lead.id}
+										refreshTrigger={refreshTrigger}
+									/>
+								</CardContent>
+							</Card>
+						</div>
+
 						{/* Appointments section */}
 						<div>
 							<SectionHeader
@@ -900,6 +1011,72 @@ export default function LeadDetailPage() {
 					</div>
 				</div>
 			</div>
+
+			{/* Communication Dialogs */}
+			{leadData && (
+				<>
+					<CallDialog
+						open={callDialogOpen}
+						onOpenChange={(open) => {
+							setCallDialogOpen(open)
+							if (!open) refreshLeadData()
+						}}
+						leadId={leadData.lead.id}
+						leadName={leadData.lead.name}
+						leadPhone={leadData.lead.phone || undefined}
+					/>
+					<EmailDialog
+						open={emailDialogOpen}
+						onOpenChange={(open) => {
+							setEmailDialogOpen(open)
+							if (!open) refreshLeadData()
+						}}
+						leadId={leadData.lead.id}
+						leadName={leadData.lead.name}
+						leadEmail={leadData.lead.email || undefined}
+					/>
+					<TextMessageDialog
+						open={textDialogOpen}
+						onOpenChange={(open) => {
+							setTextDialogOpen(open)
+							if (!open) refreshLeadData()
+						}}
+						leadId={leadData.lead.id}
+						leadName={leadData.lead.name}
+						leadPhone={leadData.lead.phone || undefined}
+					/>
+					<AppointmentDialog
+						open={appointmentDialogOpen}
+						onOpenChange={(open) => {
+							setAppointmentDialogOpen(open)
+							if (!open) refreshLeadData()
+						}}
+						leadId={leadData.lead.id}
+						leadName={leadData.lead.name}
+					/>
+					<EditLeadDialog
+						open={editLeadDialogOpen}
+						onOpenChange={(open) => {
+							setEditLeadDialogOpen(open)
+							if (!open) refreshLeadData()
+						}}
+						lead={leadData.lead}
+						onLeadUpdated={() => refreshLeadData()}
+					/>
+
+					{/* Quick Actions FAB */}
+					<QuickActionsFAB
+						onCallClick={() => setCallDialogOpen(true)}
+						onEmailClick={() => setEmailDialogOpen(true)}
+						onTextClick={() => setTextDialogOpen(true)}
+						onAppointmentClick={() =>
+							setAppointmentDialogOpen(true)
+						}
+						hasPhone={!!leadData.lead.phone}
+						hasEmail={!!leadData.lead.email}
+					/>
+				</>
+			)}
 		</>
 	)
 }

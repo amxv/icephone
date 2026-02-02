@@ -1,6 +1,7 @@
 "use client"
 
 import { AddPhoneNumberDialog } from "@/components/add-phone-number-dialog"
+import { AssignAgentDialog } from "@/components/assign-agent-dialog"
 import { PhoneNumberConfigDialog } from "@/components/phone-number-config-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,15 +21,25 @@ import {
 	TooltipProvider,
 	TooltipTrigger
 } from "@/components/ui/tooltip"
-import type { PhoneNumber } from "@/types"
+import type { PhoneNumber, VoiceAgent } from "@/types"
 import {
 	ClockIcon,
 	InfoIcon,
 	PhoneIcon,
 	PhoneIncomingIcon,
-	PhoneOutgoingIcon
+	PhoneOutgoingIcon,
+	BotIcon,
+	RefreshCwIcon,
+	WifiIcon,
+	AlertCircleIcon,
+	CheckCircleIcon,
+	FilterIcon
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
+import {
+	syncVapiPhoneStatus,
+	testVapiPhoneConnectivity
+} from "@/actions/phone-numbers"
 
 // Page header component with gradient title
 function PageHeader() {
@@ -44,13 +55,182 @@ function PageHeader() {
 	)
 }
 
-// Phone number display with status badge
+// VAPI status indicator component
+function VapiStatusIndicator({ phoneNumber }: { phoneNumber: PhoneNumber }) {
+	const isVapiNumber = phoneNumber.provider === "vapi"
+	const hasProviderSid = Boolean(phoneNumber.providerSid)
+
+	if (!isVapiNumber) {
+		return (
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Badge
+							variant="outline"
+							className="gap-1 bg-gray-100 text-gray-600 border-gray-200"
+						>
+							<WifiIcon className="h-3 w-3" />
+							Manual
+						</Badge>
+					</TooltipTrigger>
+					<TooltipContent>
+						<p>Manually configured number</p>
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		)
+	}
+
+	return (
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Badge
+						variant="outline"
+						className={`gap-1 ${
+							hasProviderSid
+								? "bg-green-100 text-green-700 border-green-200"
+								: "bg-yellow-100 text-yellow-700 border-yellow-200"
+						}`}
+					>
+						{hasProviderSid ? (
+							<CheckCircleIcon className="h-3 w-3" />
+						) : (
+							<AlertCircleIcon className="h-3 w-3" />
+						)}
+						VAPI
+					</Badge>
+				</TooltipTrigger>
+				<TooltipContent>
+					<p>
+						{hasProviderSid
+							? "Connected to VAPI"
+							: "VAPI integration pending"}
+					</p>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	)
+}
+
+// VAPI actions component
+function VapiActions({ phoneNumber }: { phoneNumber: PhoneNumber }) {
+	const [isSyncing, setIsSyncing] = useState(false)
+	const [isTesting, setIsTesting] = useState(false)
+
+	const handleSyncWithVapi = async () => {
+		if (!phoneNumber.providerSid) return
+
+		setIsSyncing(true)
+		try {
+			const result = await syncVapiPhoneStatus(phoneNumber.id)
+			if (result.success) {
+				console.log(
+					"Successfully synced with VAPI for number:",
+					phoneNumber.id
+				)
+				// Refresh the page to show updated data
+				window.location.reload()
+			}
+		} catch (error) {
+			console.error("Failed to sync with VAPI:", error)
+			alert("Failed to sync with VAPI. Please try again.")
+		} finally {
+			setIsSyncing(false)
+		}
+	}
+
+	const handleTestConnectivity = async () => {
+		if (!phoneNumber.providerSid) return
+
+		setIsTesting(true)
+		try {
+			const result = await testVapiPhoneConnectivity(phoneNumber.id)
+			if (result.success && result.connectivity) {
+				console.log("VAPI connectivity test successful:", result)
+				alert(
+					`VAPI connectivity test successful!\nPhone: ${result.connectivity.phoneNumber}\nStatus: ${result.connectivity.status}\nProvider: ${result.connectivity.provider}`
+				)
+			} else {
+				alert(
+					`VAPI connectivity test failed: ${result.error || "Unknown error"}`
+				)
+			}
+		} catch (error) {
+			console.error("Failed to test VAPI connectivity:", error)
+			alert("Failed to test VAPI connectivity. Please try again.")
+		} finally {
+			setIsTesting(false)
+		}
+	}
+
+	if (phoneNumber.provider !== "vapi" || !phoneNumber.providerSid) {
+		return null
+	}
+
+	return (
+		<div className="flex gap-1">
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={handleSyncWithVapi}
+							disabled={isSyncing}
+							className="h-8 w-8 p-0"
+						>
+							<RefreshCwIcon
+								className={`h-3 w-3 ${
+									isSyncing ? "animate-spin" : ""
+								}`}
+							/>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						<p>Sync with VAPI</p>
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={handleTestConnectivity}
+							disabled={isTesting}
+							className="h-8 w-8 p-0"
+						>
+							<WifiIcon
+								className={`h-3 w-3 ${
+									isTesting ? "animate-pulse" : ""
+								}`}
+							/>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						<p>Test VAPI connectivity</p>
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		</div>
+	)
+}
+
+// Enhanced phone number display with VAPI information
 function PhoneNumberDisplay({
-	phoneNumber
+	phoneNumber,
+	voiceAgents,
+	onUpdate
 }: {
 	phoneNumber: PhoneNumber
+	voiceAgents?: VoiceAgent[]
+	onUpdate?: () => void
 }) {
-	const { number, friendlyName, status, isDefault } = phoneNumber
+	const { number, friendlyName, status, isDefault, provider, providerSid } =
+		phoneNumber
 	const statusConfig = {
 		active: {
 			color: "bg-green-100 text-green-800 border-green-200",
@@ -72,6 +252,11 @@ function PhoneNumberDisplay({
 
 	const config = statusConfig[status] || statusConfig.inactive
 
+	// Find assigned voice agent
+	const assignedAgent = voiceAgents?.find(
+		(agent) => agent.phoneNumberId === phoneNumber.id
+	)
+
 	return (
 		<div className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 border border-border/50 rounded-2xl bg-card/30 mb-3">
 			<div className="flex items-center gap-3 mb-2 md:mb-0">
@@ -83,39 +268,204 @@ function PhoneNumberDisplay({
 					<div className="text-sm text-muted-foreground">
 						{friendlyName}
 					</div>
+					{/* Provider information */}
+					{provider && (
+						<div className="text-xs text-muted-foreground mt-1">
+							Provider: {provider}
+							{providerSid && (
+								<span className="ml-1 text-gray-400">
+									({providerSid.substring(0, 8)}...)
+								</span>
+							)}
+						</div>
+					)}
 				</div>
-				<div className="flex gap-2">
-					<Badge variant="outline" className={config.color}>
-						{config.label}
-					</Badge>
-					{isDefault && (
+				<div className="flex flex-col gap-2">
+					<div className="flex gap-2">
+						<Badge variant="outline" className={config.color}>
+							{config.label}
+						</Badge>
+						{isDefault && (
+							<Badge
+								variant="outline"
+								className="bg-blue-100 text-blue-800 border-blue-200"
+							>
+								Default
+							</Badge>
+						)}
+						<VapiStatusIndicator phoneNumber={phoneNumber} />
+					</div>
+				</div>
+			</div>
+
+			{/* Voice Agent Assignment */}
+			<div className="flex items-center gap-3 mb-2 md:mb-0">
+				<div className="flex items-center gap-2">
+					<BotIcon className="h-4 w-4 text-muted-foreground" />
+					<span className="text-sm font-medium">Agent:</span>
+				</div>
+				<div className="text-sm">
+					{assignedAgent ? (
 						<Badge
 							variant="outline"
-							className="bg-blue-100 text-blue-800 border-blue-200"
+							className="gap-1 px-3 py-1 bg-green-50 text-green-700 border-green-200"
 						>
-							Default
+							<BotIcon className="h-3 w-3" />
+							{assignedAgent.name}
 						</Badge>
+					) : (
+						<span className="text-muted-foreground">
+							Unassigned
+						</span>
 					)}
 				</div>
 			</div>
-			<div className="flex gap-2 w-full md:w-auto">
-				<PhoneNumberConfigDialog phoneNumber={phoneNumber} />
+
+			<div className="flex gap-2 w-full md:w-auto items-center">
+				<VapiActions phoneNumber={phoneNumber} />
+				<AssignAgentDialog
+					phoneNumber={phoneNumber}
+					voiceAgents={voiceAgents || []}
+					onSuccess={onUpdate}
+				/>
+				<PhoneNumberConfigDialog
+					phoneNumber={phoneNumber}
+					voiceAgents={voiceAgents}
+					onSuccess={onUpdate}
+				/>
 			</div>
 		</div>
 	)
 }
 
-// Inbound numbers section
+// Define filter types
+interface PhoneNumberFilters {
+	provider?: string
+	status?: string
+	vapiConnected?: boolean
+}
+
+// Enhanced filtering component
+function PhoneNumberFilters({
+	onFilterChange
+}: {
+	onFilterChange: (filters: PhoneNumberFilters) => void
+}) {
+	const [provider, setProvider] = useState<string>("all")
+	const [status, setStatus] = useState<string>("all")
+	const [vapiConnected, setVapiConnected] = useState<string>("all")
+
+	const handleFilterChange = useCallback(() => {
+		onFilterChange({
+			provider: provider === "all" ? undefined : provider,
+			status: status === "all" ? undefined : status,
+			vapiConnected:
+				vapiConnected === "all"
+					? undefined
+					: vapiConnected === "connected"
+		})
+	}, [provider, status, vapiConnected, onFilterChange])
+
+	useEffect(() => {
+		handleFilterChange()
+	}, [handleFilterChange])
+
+	return (
+		<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm mb-4">
+			<CardContent className="p-4">
+				<div className="flex items-center gap-4">
+					<div className="flex items-center gap-2">
+						<FilterIcon className="h-4 w-4 text-muted-foreground" />
+						<span className="text-sm font-medium">Filters:</span>
+					</div>
+
+					<Select value={provider} onValueChange={setProvider}>
+						<SelectTrigger className="w-[140px] h-8 text-sm">
+							<SelectValue placeholder="Provider" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Providers</SelectItem>
+							<SelectItem value="vapi">VAPI</SelectItem>
+							<SelectItem value="twilio">Twilio</SelectItem>
+							<SelectItem value="vonage">Vonage</SelectItem>
+							<SelectItem value="manual">Manual</SelectItem>
+						</SelectContent>
+					</Select>
+
+					<Select value={status} onValueChange={setStatus}>
+						<SelectTrigger className="w-[120px] h-8 text-sm">
+							<SelectValue placeholder="Status" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Status</SelectItem>
+							<SelectItem value="active">Active</SelectItem>
+							<SelectItem value="inactive">Inactive</SelectItem>
+							<SelectItem value="pending">Pending</SelectItem>
+							<SelectItem value="suspended">Suspended</SelectItem>
+						</SelectContent>
+					</Select>
+
+					<Select
+						value={vapiConnected}
+						onValueChange={setVapiConnected}
+					>
+						<SelectTrigger className="w-[150px] h-8 text-sm">
+							<SelectValue placeholder="VAPI Status" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All VAPI</SelectItem>
+							<SelectItem value="connected">
+								VAPI Connected
+							</SelectItem>
+							<SelectItem value="disconnected">
+								Not Connected
+							</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+			</CardContent>
+		</Card>
+	)
+}
+
+// Inbound numbers section with enhanced filtering
 function InboundNumbersSection({
-	phoneNumbers
-}: { phoneNumbers: PhoneNumber[] }) {
+	phoneNumbers,
+	voiceAgents,
+	onUpdate,
+	filters
+}: {
+	phoneNumbers: PhoneNumber[]
+	voiceAgents?: VoiceAgent[]
+	onUpdate?: () => void
+	filters: PhoneNumberFilters
+}) {
+	const filteredNumbers = phoneNumbers.filter((number) => {
+		if (filters.provider && number.provider !== filters.provider) {
+			return false
+		}
+		if (filters.status && number.status !== filters.status) {
+			return false
+		}
+		if (typeof filters.vapiConnected === "boolean") {
+			const hasVapiConnection =
+				number.provider === "vapi" && Boolean(number.providerSid)
+			if (filters.vapiConnected !== hasVapiConnection) {
+				return false
+			}
+		}
+		return true
+	})
+
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 			<CardHeader className="pb-3">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						<PhoneIncomingIcon className="h-5 w-5 text-green-600" />
-						<CardTitle>Inbound Numbers</CardTitle>
+						<CardTitle>
+							Inbound Numbers ({filteredNumbers.length})
+						</CardTitle>
 					</div>
 					<TooltipProvider>
 						<Tooltip>
@@ -136,19 +486,21 @@ function InboundNumbersSection({
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-4">
-					{phoneNumbers.length > 0 ? (
-						phoneNumbers.map((phoneNumber) => (
+					{filteredNumbers.length > 0 ? (
+						filteredNumbers.map((phoneNumber) => (
 							<PhoneNumberDisplay
 								key={phoneNumber.id}
 								phoneNumber={phoneNumber}
+								voiceAgents={voiceAgents}
+								onUpdate={onUpdate}
 							/>
 						))
 					) : (
 						<div className="text-center py-8 text-muted-foreground">
 							<PhoneIncomingIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-							<p>No inbound numbers configured</p>
+							<p>No inbound numbers match your filters</p>
 							<p className="text-sm">
-								Add a number to start receiving calls
+								Try adjusting your filter settings
 							</p>
 						</div>
 					)}
@@ -158,12 +510,37 @@ function InboundNumbersSection({
 	)
 }
 
-// Outbound numbers section with settings
+// Outbound numbers section with enhanced filtering
 function OutboundNumbersSection({
-	phoneNumbers
-}: { phoneNumbers: PhoneNumber[] }) {
+	phoneNumbers,
+	voiceAgents,
+	onUpdate,
+	filters
+}: {
+	phoneNumbers: PhoneNumber[]
+	voiceAgents?: VoiceAgent[]
+	onUpdate?: () => void
+	filters: PhoneNumberFilters
+}) {
 	const [callerId, setCallerId] = useState("default")
 	const [scheduleEnabled, setScheduleEnabled] = useState(true)
+
+	const filteredNumbers = phoneNumbers.filter((number) => {
+		if (filters.provider && number.provider !== filters.provider) {
+			return false
+		}
+		if (filters.status && number.status !== filters.status) {
+			return false
+		}
+		if (typeof filters.vapiConnected === "boolean") {
+			const hasVapiConnection =
+				number.provider === "vapi" && Boolean(number.providerSid)
+			if (filters.vapiConnected !== hasVapiConnection) {
+				return false
+			}
+		}
+		return true
+	})
 
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
@@ -171,7 +548,9 @@ function OutboundNumbersSection({
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						<PhoneOutgoingIcon className="h-5 w-5 text-blue-600" />
-						<CardTitle>Outbound Numbers</CardTitle>
+						<CardTitle>
+							Outbound Numbers ({filteredNumbers.length})
+						</CardTitle>
 					</div>
 					<TooltipProvider>
 						<Tooltip>
@@ -192,19 +571,21 @@ function OutboundNumbersSection({
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-4">
-					{phoneNumbers.length > 0 ? (
-						phoneNumbers.map((phoneNumber) => (
+					{filteredNumbers.length > 0 ? (
+						filteredNumbers.map((phoneNumber) => (
 							<PhoneNumberDisplay
 								key={phoneNumber.id}
 								phoneNumber={phoneNumber}
+								voiceAgents={voiceAgents}
+								onUpdate={onUpdate}
 							/>
 						))
 					) : (
 						<div className="text-center py-8 text-muted-foreground">
 							<PhoneOutgoingIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-							<p>No outbound numbers configured</p>
+							<p>No outbound numbers match your filters</p>
 							<p className="text-sm">
-								Add a number to start making calls
+								Try adjusting your filter settings
 							</p>
 						</div>
 					)}
@@ -283,12 +664,15 @@ function OutboundNumbersSection({
 
 // Main Phone Numbers Page Client Component
 export function PhoneNumbersPageClient({
-	initialPhoneNumbers = []
+	initialPhoneNumbers = [],
+	voiceAgents = []
 }: {
 	initialPhoneNumbers?: PhoneNumber[]
+	voiceAgents?: VoiceAgent[]
 }) {
 	const [phoneNumbers, setPhoneNumbers] =
 		useState<PhoneNumber[]>(initialPhoneNumbers)
+	const [filters, setFilters] = useState<PhoneNumberFilters>({})
 
 	// Filter numbers by type
 	const inboundNumbers = phoneNumbers.filter(
@@ -298,9 +682,16 @@ export function PhoneNumbersPageClient({
 		(num) => num.type === "outbound" || num.type === "both"
 	)
 
+	const handleUpdate = () => {
+		// Refresh the page to get updated data
+		window.location.reload()
+	}
+
 	return (
 		<>
 			<PageHeader />
+
+			<PhoneNumberFilters onFilterChange={setFilters} />
 
 			<Tabs defaultValue="all" className="mb-6">
 				<TabsList className="rounded-full bg-muted/80 shadow-inner">
@@ -325,16 +716,36 @@ export function PhoneNumbersPageClient({
 				</TabsList>
 
 				<TabsContent value="all" className="space-y-6 mt-6">
-					<InboundNumbersSection phoneNumbers={inboundNumbers} />
-					<OutboundNumbersSection phoneNumbers={outboundNumbers} />
+					<InboundNumbersSection
+						phoneNumbers={inboundNumbers}
+						voiceAgents={voiceAgents}
+						onUpdate={handleUpdate}
+						filters={filters}
+					/>
+					<OutboundNumbersSection
+						phoneNumbers={outboundNumbers}
+						voiceAgents={voiceAgents}
+						onUpdate={handleUpdate}
+						filters={filters}
+					/>
 				</TabsContent>
 
 				<TabsContent value="inbound" className="mt-6">
-					<InboundNumbersSection phoneNumbers={inboundNumbers} />
+					<InboundNumbersSection
+						phoneNumbers={inboundNumbers}
+						voiceAgents={voiceAgents}
+						onUpdate={handleUpdate}
+						filters={filters}
+					/>
 				</TabsContent>
 
 				<TabsContent value="outbound" className="mt-6">
-					<OutboundNumbersSection phoneNumbers={outboundNumbers} />
+					<OutboundNumbersSection
+						phoneNumbers={outboundNumbers}
+						voiceAgents={voiceAgents}
+						onUpdate={handleUpdate}
+						filters={filters}
+					/>
 				</TabsContent>
 			</Tabs>
 		</>

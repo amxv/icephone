@@ -5,6 +5,9 @@ import { AddLeadsModal } from "@/components/add-leads-modal"
 import { type CallItem, CallsTable } from "@/components/calls-table"
 import { CampaignStatsDashboard } from "@/components/campaign-stats-dashboard"
 import { CampaignLeadsDashboard } from "@/components/campaign-leads-dashboard"
+import { CampaignControls } from "@/components/campaign-controls"
+import { CampaignVoiceConfigurationComponent } from "@/components/campaign-voice-configuration"
+import { CampaignAnalyticsDashboard } from "@/components/campaign-analytics-dashboard"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +22,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { ColumnFiltersState } from "@tanstack/react-table"
 import { format } from "date-fns"
 import {
+	BarChart3,
+	Bot,
 	ClockIcon,
 	FileTextIcon,
 	MessageSquareIcon,
@@ -492,14 +497,21 @@ export function CampaignDetailsPageClient({
 				campaignId={campaignId}
 				onAddLeadsClick={() => setIsAddLeadsModalOpen(true)}
 			/>
-			<CampaignStatsDashboard />
+			<CampaignStatsDashboard campaignId={campaignId} />
+			<CampaignControls
+				campaignId={campaignId}
+				onStatusChange={() => {
+					// Refresh data when campaign status changes
+					fetchData()
+				}}
+			/>
 
 			<Tabs
 				value={activeTab}
 				onValueChange={setActiveTab}
 				className="w-full"
 			>
-				<TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto">
+				<TabsList className="grid w-full grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto">
 					<TabsTrigger
 						value="calls"
 						className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
@@ -513,6 +525,20 @@ export function CampaignDetailsPageClient({
 					>
 						<FileTextIcon className="h-4 w-4 mr-2" />
 						Leads
+					</TabsTrigger>
+					<TabsTrigger
+						value="voice"
+						className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+					>
+						<Bot className="h-4 w-4 mr-2" />
+						Voice Config
+					</TabsTrigger>
+					<TabsTrigger
+						value="analytics"
+						className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+					>
+						<BarChart3 className="h-4 w-4 mr-2" />
+						Analytics
 					</TabsTrigger>
 				</TabsList>
 
@@ -653,6 +679,23 @@ export function CampaignDetailsPageClient({
 						onLeadsChange={() => {
 							// Optional: refresh data if needed
 						}}
+					/>
+				</TabsContent>
+
+				<TabsContent value="voice" className="mt-0">
+					<CampaignVoiceConfigurationComponent
+						campaignId={Number(campaignId)}
+						campaignName={`Campaign ${campaignId}`}
+						onConfigurationSaved={() => {
+							// Optional: handle configuration saved
+						}}
+					/>
+				</TabsContent>
+
+				<TabsContent value="analytics" className="mt-0">
+					<CampaignAnalyticsDashboard
+						campaignId={campaignId}
+						campaignName={`Campaign ${campaignId}`}
 					/>
 				</TabsContent>
 			</Tabs>

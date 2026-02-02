@@ -2,16 +2,30 @@
 
 import { SimpleAgentCreator } from "@/components/simple-agent-creator"
 import { EssentialSettings } from "@/components/essential-settings"
+import {
+	assignPhoneNumberToAgent,
+	updateVoiceAgentStatus
+} from "@/actions/voice-agents"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger
 } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
 	Tooltip,
@@ -23,7 +37,8 @@ import { VoiceCallWidget } from "@/components/voice-call-widget"
 import type {
 	PhoneNumber,
 	VoiceAgent,
-	VoiceAgentWithPhoneNumber
+	VoiceAgentWithPhoneNumber,
+	VoiceAgentStatus
 } from "@/types"
 import {
 	BotIcon,
@@ -35,7 +50,8 @@ import {
 	MessageSquareIcon,
 	UserIcon,
 	CalendarIcon,
-	BarChartIcon
+	BarChartIcon,
+	EditIcon
 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -138,6 +154,13 @@ function VoiceAgentCard({
 	onAgentUpdated?: () => void
 }) {
 	const [isTestCallOpen, setIsTestCallOpen] = useState(false)
+	const [isPhoneAssignOpen, setIsPhoneAssignOpen] = useState(false)
+	const [isStatusChangeOpen, setIsStatusChangeOpen] = useState(false)
+	const [selectedPhoneId, setSelectedPhoneId] = useState<string>("")
+	const [selectedStatus, setSelectedStatus] =
+		useState<VoiceAgentStatus>("active")
+	const [isUpdating, setIsUpdating] = useState(false)
+
 	const roleInfo = getRoleInfo(agent.prompt || "")
 	const voiceDisplayName = getVoiceDisplayName(agent.voice)
 
@@ -169,6 +192,73 @@ function VoiceAgentCard({
 	const StatusIcon = config.icon
 	const RoleIcon = roleInfo.icon
 
+	// Available phone numbers (not assigned to other agents)
+	const availablePhoneNumbers = phoneNumbers.filter(
+		(phone) =>
+			!phoneNumbers.some((p) =>
+				phoneNumbers.some(
+					(num) =>
+						num.id !== phone.id &&
+						// This would need to be checked against other agents
+						false // Placeholder - we'd need all agents to check this properly
+				)
+			)
+	)
+
+	const handlePhoneAssignment = async () => {
+		if (!selectedPhoneId) return
+
+		setIsUpdating(true)
+		try {
+			const phoneId =
+				selectedPhoneId === "unassign"
+					? null
+					: parseInt(selectedPhoneId)
+			const result = await assignPhoneNumberToAgent(agent.id, phoneId)
+
+			if (result.success) {
+				toast.success(
+					phoneId
+						? "Phone number assigned successfully"
+						: "Phone number unassigned successfully"
+				)
+				setIsPhoneAssignOpen(false)
+				setSelectedPhoneId("")
+				onAgentUpdated?.()
+			} else {
+				toast.error(result.error || "Failed to update phone assignment")
+			}
+		} catch (error) {
+			console.error("Error updating phone assignment:", error)
+			toast.error("Failed to update phone assignment")
+		} finally {
+			setIsUpdating(false)
+		}
+	}
+
+	const handleStatusChange = async () => {
+		setIsUpdating(true)
+		try {
+			const result = await updateVoiceAgentStatus(
+				agent.id,
+				selectedStatus
+			)
+
+			if (result.success) {
+				toast.success(`Agent status updated to ${selectedStatus}`)
+				setIsStatusChangeOpen(false)
+				onAgentUpdated?.()
+			} else {
+				toast.error(result.error || "Failed to update agent status")
+			}
+		} catch (error) {
+			console.error("Error updating agent status:", error)
+			toast.error("Failed to update agent status")
+		} finally {
+			setIsUpdating(false)
+		}
+	}
+
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm hover:bg-primary/5 transition">
 			<CardHeader className="pb-3">
@@ -194,12 +284,104 @@ function VoiceAgentCard({
 						</div>
 					</div>
 					<div className="flex gap-2">
-						<Badge
-							variant="outline"
-							className={`px-3 py-1 ${config.color}`}
+						<Dialog
+							open={isStatusChangeOpen}
+							onOpenChange={setIsStatusChangeOpen}
 						>
-							{config.label}
-						</Badge>
+							<DialogTrigger asChild>
+								<Badge
+									variant="outline"
+									className={`px-3 py-1 cursor-pointer hover:bg-primary/10 ${config.color}`}
+									onClick={() => {
+										setSelectedStatus(
+											agent.status || "inactive"
+										)
+										setIsStatusChangeOpen(true)
+									}}
+								>
+									{config.label}
+									<EditIcon className="h-3 w-3 ml-1" />
+								</Badge>
+							</DialogTrigger>
+							<DialogContent className="sm:max-w-md p-6 border border-border bg-white shadow-lg rounded-3xl">
+								<DialogHeader className="pb-4">
+									<DialogTitle className="text-2xl font-medium tracking-tight">
+										Change Agent Status
+									</DialogTitle>
+									<DialogDescription className="text-muted-foreground">
+										Update the status of {agent.name}
+									</DialogDescription>
+								</DialogHeader>
+
+								<div className="pt-2">
+									<Label className="text-sm font-medium">
+										Select Status
+									</Label>
+									<Select
+										value={selectedStatus}
+										onValueChange={(value) =>
+											setSelectedStatus(
+												value as VoiceAgentStatus
+											)
+										}
+									>
+										<SelectTrigger className="rounded-lg mt-1.5">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="active">
+												<div className="flex items-center gap-2">
+													<BotIcon className="h-4 w-4" />
+													<span>Active</span>
+												</div>
+											</SelectItem>
+											<SelectItem value="inactive">
+												<div className="flex items-center gap-2">
+													<VolumeXIcon className="h-4 w-4" />
+													<span>Inactive</span>
+												</div>
+											</SelectItem>
+											<SelectItem value="training">
+												<div className="flex items-center gap-2">
+													<SettingsIcon className="h-4 w-4" />
+													<span>Training</span>
+												</div>
+											</SelectItem>
+											<SelectItem value="error">
+												<div className="flex items-center gap-2">
+													<VolumeXIcon className="h-4 w-4" />
+													<span>Error</span>
+												</div>
+											</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+
+								<DialogFooter className="mt-6">
+									<Button
+										variant="outline"
+										onClick={() =>
+											setIsStatusChangeOpen(false)
+										}
+										className="rounded-lg"
+									>
+										Cancel
+									</Button>
+									<Button
+										onClick={handleStatusChange}
+										disabled={
+											isUpdating ||
+											selectedStatus === agent.status
+										}
+										className="bg-primary hover:bg-primary/90 rounded-lg"
+									>
+										{isUpdating
+											? "Updating..."
+											: "Update Status"}
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
 					</div>
 				</div>
 			</CardHeader>
@@ -213,7 +395,7 @@ function VoiceAgentCard({
 								Phone Number
 							</span>
 						</div>
-						<div className="text-sm text-muted-foreground">
+						<div className="flex items-center gap-2">
 							{agent.phoneNumber ? (
 								<Badge
 									variant="outline"
@@ -223,10 +405,115 @@ function VoiceAgentCard({
 									{agent.phoneNumber.number}
 								</Badge>
 							) : (
-								<span className="text-muted-foreground">
+								<span className="text-muted-foreground text-sm">
 									Not assigned
 								</span>
 							)}
+							<Dialog
+								open={isPhoneAssignOpen}
+								onOpenChange={setIsPhoneAssignOpen}
+							>
+								<DialogTrigger asChild>
+									<Button
+										variant="outline"
+										size="sm"
+										className="rounded-lg text-xs"
+										onClick={() => {
+											setSelectedPhoneId(
+												agent.phoneNumber?.id.toString() ||
+													""
+											)
+											setIsPhoneAssignOpen(true)
+										}}
+									>
+										<EditIcon className="h-3 w-3 mr-1" />
+										{agent.phoneNumber
+											? "Change"
+											: "Assign"}
+									</Button>
+								</DialogTrigger>
+								<DialogContent className="sm:max-w-md p-6 border border-border bg-white shadow-lg rounded-3xl">
+									<DialogHeader className="pb-4">
+										<DialogTitle className="text-2xl font-medium tracking-tight">
+											{agent.phoneNumber
+												? "Change Phone Number"
+												: "Assign Phone Number"}
+										</DialogTitle>
+										<DialogDescription className="text-muted-foreground">
+											{agent.phoneNumber
+												? `Currently assigned to ${agent.phoneNumber.number}`
+												: `Assign a phone number to ${agent.name}`}
+										</DialogDescription>
+									</DialogHeader>
+
+									<div className="pt-2">
+										<Label className="text-sm font-medium">
+											Select Phone Number
+										</Label>
+										<Select
+											value={selectedPhoneId}
+											onValueChange={setSelectedPhoneId}
+										>
+											<SelectTrigger className="rounded-lg mt-1.5">
+												<SelectValue placeholder="Select a phone number" />
+											</SelectTrigger>
+											<SelectContent>
+												{agent.phoneNumber && (
+													<SelectItem value="unassign">
+														<div className="flex items-center gap-2">
+															<VolumeXIcon className="h-4 w-4" />
+															<span>
+																Unassign
+															</span>
+														</div>
+													</SelectItem>
+												)}
+												{phoneNumbers.map((phone) => (
+													<SelectItem
+														key={phone.id}
+														value={phone.id.toString()}
+													>
+														<div className="flex items-center gap-2">
+															<PhoneIcon className="h-4 w-4" />
+															<span>
+																{phone.number}
+															</span>
+															<span className="text-xs text-muted-foreground ml-auto">
+																{
+																	phone.friendlyName
+																}
+															</span>
+														</div>
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+
+									<DialogFooter className="mt-6">
+										<Button
+											variant="outline"
+											onClick={() =>
+												setIsPhoneAssignOpen(false)
+											}
+											className="rounded-lg"
+										>
+											Cancel
+										</Button>
+										<Button
+											onClick={handlePhoneAssignment}
+											disabled={
+												isUpdating || !selectedPhoneId
+											}
+											className="bg-primary hover:bg-primary/90 rounded-lg"
+										>
+											{isUpdating
+												? "Updating..."
+												: "Update"}
+										</Button>
+									</DialogFooter>
+								</DialogContent>
+							</Dialog>
 						</div>
 					</div>
 

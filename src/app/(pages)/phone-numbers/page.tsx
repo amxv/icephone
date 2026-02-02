@@ -7,15 +7,22 @@ export const metadata: Metadata = {
 }
 
 import { getPhoneNumbers } from "@/actions/phone-numbers"
-import { PhoneNumbersPageClient } from "@/components/phone-numbers-page-client"
+import { getVoiceAgents } from "@/actions/voice-agents"
+import { CustomerPhoneNumbersPageClient } from "@/components/customer-phone-numbers-page-client"
 
 export default async function PhoneNumbersPage() {
-	const phoneNumbers = await getPhoneNumbers()
+	const [phoneNumbers, voiceAgentsResult] = await Promise.all([
+		getPhoneNumbers(),
+		getVoiceAgents()
+	])
 
 	return (
 		<div className="container h-[calc(100vh-5rem)]">
 			<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
-				<PhoneNumbersPageClient initialPhoneNumbers={phoneNumbers} />
+				<CustomerPhoneNumbersPageClient
+					initialPhoneNumbers={phoneNumbers}
+					voiceAgents={voiceAgentsResult.data || []}
+				/>
 			</div>
 		</div>
 	)

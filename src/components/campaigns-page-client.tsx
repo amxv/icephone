@@ -1,9 +1,9 @@
 "use client"
 
 import { getCampaigns } from "@/actions/campaigns" // Changed from getCalls
-import { CampaignsTable } from "@/components/campaigns-table" // Changed from CallsTable
+import { EnhancedCampaignsTable } from "@/components/enhanced-campaigns-table" // Changed from CampaignsTable
 import { CampaignCreationDialog } from "@/components/campaign-creation-dialog"
-import type { CampaignItem } from "@/components/campaigns-table" // Changed from CallItem
+import type { EnhancedCampaignItem } from "@/components/enhanced-campaigns-table" // Changed from CampaignItem
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -77,7 +77,9 @@ export function CampaignsPageClient() {
 	const searchParams = useSearchParams()
 
 	const [loading, setLoading] = useState(true)
-	const [campaignsData, setCampaignsData] = useState<CampaignItem[]>([])
+	const [campaignsData, setCampaignsData] = useState<EnhancedCampaignItem[]>(
+		[]
+	)
 	const [error, setError] = useState<string | null>(null)
 	const [searchQuery, setSearchQuery] = useState<string>(
 		searchParams.get("search") || ""
@@ -188,9 +190,18 @@ export function CampaignsPageClient() {
 					status: campaign.status || null,
 					leadsCount: campaign.leadsCount,
 					leadsConverted: campaign.leadsConverted,
-					updatedAt: campaign.updatedAt.toISOString() // Convert Date to string
+					leadsContacted: Math.floor(campaign.leadsCount * 0.7), // Mock calculation
+					callsCompleted: Math.floor(campaign.leadsCount * 0.6), // Mock calculation
+					conversionRate:
+						campaign.leadsCount > 0
+							? (campaign.leadsConverted / campaign.leadsCount) *
+								100
+							: 0,
+					avgCallDuration: 180, // Mock 3 minutes average
+					updatedAt: campaign.updatedAt.toISOString(), // Convert Date to string
+					voiceAgentName: null // Will be enhanced later
 				}))
-				setCampaignsData(transformedData as CampaignItem[])
+				setCampaignsData(transformedData as EnhancedCampaignItem[])
 			} else {
 				setError(result.error || "Failed to fetch campaigns data")
 			}
@@ -260,11 +271,11 @@ export function CampaignsPageClient() {
 					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm flex-1 flex flex-col overflow-hidden">
 						<CardContent className="px-6 pb-3 h-full flex flex-col overflow-hidden">
 							<div className="custom-campaigns-table overflow-y-auto">
-								<CampaignsTable
+								<EnhancedCampaignsTable
 									data={campaignsData}
 									initialColumnFilters={initialColumnFilters}
 									onFilterChange={handleFilterChange}
-									onRowClick={(row: CampaignItem) => {
+									onRowClick={(row: EnhancedCampaignItem) => {
 										router.push(`/campaigns/${row.id}`)
 									}}
 									searchQuery={searchQuery}

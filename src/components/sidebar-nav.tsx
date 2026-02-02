@@ -16,6 +16,7 @@ import {
 	Megaphone,
 	MessagesSquare,
 	Phone,
+	PhoneCall,
 	Settings,
 	Users
 } from "lucide-react"
@@ -61,6 +62,7 @@ export function SidebarNav() {
 				<Headset className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
 			)
 		},
+
 		{
 			label: "Voice Agents",
 			href: "/voice-agents",
@@ -122,9 +124,9 @@ export function SidebarNav() {
 	return (
 		<Sidebar open={open} setOpen={setOpen}>
 			<SidebarBody className="justify-between gap-10">
-				<div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+				<div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
 					{/* {open ? <Logo /> : <LogoIcon />} */}
-					<div className="mt-8 flex flex-col gap-2">
+					<div className="mt-6 flex flex-col gap-2">
 						{links.map((link, idx) => (
 							<SidebarLink
 								key={`${link.label}-${idx}`}

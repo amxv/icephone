@@ -32,6 +32,7 @@ import {
 	ilike,
 	inArray,
 	lte,
+	ne,
 	or,
 	sql
 } from "drizzle-orm"
@@ -1407,13 +1408,6 @@ export async function initiateOutboundCall(data: {
 				return sessionResult
 			}
 
-			// Update session status to scheduled
-			if (sessionResult.data) {
-				await updateVoiceSession(sessionResult.data.id, {
-					status: "active" // We'll implement a "scheduled" status later
-				})
-			}
-
 			return {
 				success: true,
 				data: {
@@ -1426,7 +1420,7 @@ export async function initiateOutboundCall(data: {
 			}
 		}
 
-		// For immediate calls, create active session
+		// For immediate calls, create active session first
 		const sessionResult = await createVoiceSession({
 			agentId: data.agentId,
 			leadId: data.leadId,
@@ -1445,15 +1439,90 @@ export async function initiateOutboundCall(data: {
 			return sessionResult
 		}
 
-		return {
-			success: true,
-			data: {
-				session: sessionResult.data,
-				agent: agent[0],
-				phoneNumber: phoneNumber[0],
-				scheduled: false
-			},
-			error: null
+		// Actually initiate the VAPI call
+		try {
+			const { vapiCallClient } = await import("@/lib/vapi-call-client")
+
+			const vapiCallResult = await vapiCallClient.initiateOutboundCall({
+				phoneNumberId: phoneNumber[0].number,
+				customerPhoneNumber: data.toPhoneNumber,
+				assistantId: agent[0].vapiAssistantId || undefined,
+				assistantOverrides: agent[0].vapiAssistantId
+					? undefined
+					: {
+							name: agent[0].name,
+							firstMessage:
+								agent[0].firstMessage ||
+								`Hello! I'm ${agent[0].name}. How can I help you today?`,
+							prompt:
+								agent[0].prompt ||
+								"You are a helpful AI assistant making an outbound call.",
+							voice: agent[0].voice
+								? {
+										provider: agent[0].voice.provider as
+											| "11labs"
+											| "playht"
+											| "cartesia",
+										voiceId: agent[0].voice.voice_id
+									}
+								: undefined
+						},
+				metadata: {
+					sessionId: sessionResult.data?.sessionId,
+					leadId: data.leadId,
+					agentId: data.agentId,
+					...data.metadata
+				}
+			})
+
+			if (!vapiCallResult.success) {
+				// Update session to failed
+				if (sessionResult.data) {
+					await updateVoiceSession(sessionResult.data.id, {
+						status: "failed"
+					})
+				}
+				return {
+					success: false,
+					error:
+						vapiCallResult.error || "Failed to initiate VAPI call",
+					data: null
+				}
+			}
+
+			// Update session with VAPI call ID
+			if (sessionResult.data && vapiCallResult.data) {
+				await updateVoiceSession(sessionResult.data.id, {
+					status: "active"
+				})
+			}
+
+			return {
+				success: true,
+				data: {
+					session: sessionResult.data,
+					agent: agent[0],
+					phoneNumber: phoneNumber[0],
+					scheduled: false,
+					vapiCallId: vapiCallResult.data?.callId
+				},
+				error: null
+			}
+		} catch (error) {
+			console.error("Error initiating VAPI call:", error)
+
+			// Update session to failed
+			if (sessionResult.data) {
+				await updateVoiceSession(sessionResult.data.id, {
+					status: "failed"
+				})
+			}
+
+			return {
+				success: false,
+				error: "Failed to initiate VAPI call",
+				data: null
+			}
 		}
 	} catch (error) {
 		console.error("Error initiating outbound call:", error)
@@ -1849,6 +1918,508 @@ export async function syncVoiceAgentsWithVapi() {
 		console.error("Error syncing voice agents with VAPI:", error)
 		return {
 			error: "Failed to sync voice agents with VAPI",
+			success: false,
+			data: null
+		}
+	}
+}
+
+/**
+ * Assign a phone number to a voice agent
+ */
+export async function assignPhoneNumberToAgent(
+	agentId: number,
+	phoneNumberId: number | null
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Verify agent ownership
+		const agent = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, userId))
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		// If phoneNumberId is provided, verify phone number ownership
+		if (phoneNumberId) {
+			const phoneNumber = await db_ws
+				.select()
+				.from(phoneNumbers)
+				.where(
+					and(
+						eq(phoneNumbers.id, phoneNumberId),
+						eq(phoneNumbers.userId, userId)
+					)
+				)
+				.limit(1)
+
+			if (!phoneNumber || phoneNumber.length === 0) {
+				return {
+					error: "Phone number not found or not owned by user",
+					success: false,
+					data: null
+				}
+			}
+
+			// Check if the phone number is already assigned to another agent
+			const existingAssignment = await db_ws
+				.select()
+				.from(voiceAgents)
+				.where(
+					and(
+						eq(voiceAgents.phoneNumberId, phoneNumberId),
+						ne(voiceAgents.id, agentId),
+						eq(voiceAgents.userId, userId)
+					)
+				)
+				.limit(1)
+
+			if (existingAssignment && existingAssignment.length > 0) {
+				return {
+					error: "Phone number is already assigned to another agent",
+					success: false,
+					data: null
+				}
+			}
+		}
+
+		// Update the agent's phone number assignment
+		const result = await db_ws
+			.update(voiceAgents)
+			.set({
+				phoneNumberId,
+				updatedAt: new Date()
+			})
+			.where(
+				and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, userId))
+			)
+			.returning()
+
+		if (!result || result.length === 0) {
+			return {
+				error: "Failed to update voice agent",
+				success: false,
+				data: null
+			}
+		}
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error assigning phone number to agent:", error)
+		return {
+			error: "Failed to assign phone number to agent",
+			success: false,
+			data: null
+		}
+	}
+}
+
+/**
+ * Update voice agent status
+ */
+export async function updateVoiceAgentStatus(
+	agentId: number,
+	status: VoiceAgentStatus
+) {
+	try {
+		const { userId } = await auth()
+		if (!userId) {
+			return { error: "Unauthorized", success: false, data: null }
+		}
+
+		// Verify agent ownership
+		const agent = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, userId))
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		// Update the agent's status
+		const result = await db_ws
+			.update(voiceAgents)
+			.set({
+				status,
+				updatedAt: new Date()
+			})
+			.where(
+				and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, userId))
+			)
+			.returning()
+
+		if (!result || result.length === 0) {
+			return {
+				error: "Failed to update voice agent status",
+				success: false,
+				data: null
+			}
+		}
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error updating voice agent status:", error)
+		return {
+			error: "Failed to update voice agent status",
+			success: false,
+			data: null
+		}
+	}
+}
+
+/**
+ * Internal function for initiating outbound calls from background processors
+ * This bypasses Clerk authentication and accepts userId as a parameter
+ * Should only be called from authenticated background processes
+ */
+export async function initiateOutboundCallForBackgroundProcessor(
+	userId: string,
+	data: {
+		fromPhoneNumberId: number
+		toPhoneNumber: string
+		agentId: number
+		leadId?: number
+		metadata?: Record<string, unknown>
+		scheduledTime?: Date
+	}
+) {
+	try {
+		// Note: No Clerk auth check here - userId is provided by the processor
+		// The caller is responsible for ensuring the userId is valid and authorized
+
+		// Verify ownership of phone number and agent
+		const [phoneNumber, agent] = await Promise.all([
+			db_ws
+				.select()
+				.from(phoneNumbers)
+				.where(
+					and(
+						eq(phoneNumbers.id, data.fromPhoneNumberId),
+						eq(phoneNumbers.userId, userId),
+						eq(phoneNumbers.status, "active")
+					)
+				)
+				.limit(1),
+			db_ws
+				.select()
+				.from(voiceAgents)
+				.where(
+					and(
+						eq(voiceAgents.id, data.agentId),
+						eq(voiceAgents.userId, userId),
+						eq(voiceAgents.status, "active")
+					)
+				)
+				.limit(1)
+		])
+
+		if (!phoneNumber || phoneNumber.length === 0) {
+			return {
+				error: "Phone number not found or inactive",
+				success: false,
+				data: null
+			}
+		}
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found or inactive",
+				success: false,
+				data: null
+			}
+		}
+
+		// Check if this is a scheduled call for the future
+		if (data.scheduledTime && data.scheduledTime > new Date()) {
+			// For scheduled calls, we'll store the session as pending
+			const sessionResult =
+				await createVoiceSessionForBackgroundProcessor(userId, {
+					agentId: data.agentId,
+					leadId: data.leadId,
+					phoneNumber: data.toPhoneNumber,
+					direction: "outgoing",
+					metadata: {
+						...data.metadata,
+						custom_data: {
+							from_phone_number_id: data.fromPhoneNumberId,
+							from_phone_number: phoneNumber[0].number,
+							scheduled_time: data.scheduledTime.toISOString(),
+							status: "scheduled"
+						}
+					}
+				})
+
+			if (!sessionResult.success) {
+				return sessionResult
+			}
+
+			return {
+				success: true,
+				data: {
+					session: sessionResult.data,
+					agent: agent[0],
+					phoneNumber: phoneNumber[0],
+					scheduled: true
+				},
+				error: null
+			}
+		}
+
+		// For immediate calls, create active session first
+		const sessionResult = await createVoiceSessionForBackgroundProcessor(
+			userId,
+			{
+				agentId: data.agentId,
+				leadId: data.leadId,
+				phoneNumber: data.toPhoneNumber,
+				direction: "outgoing",
+				metadata: {
+					...data.metadata,
+					custom_data: {
+						from_phone_number_id: data.fromPhoneNumberId,
+						from_phone_number: phoneNumber[0].number
+					}
+				}
+			}
+		)
+
+		if (!sessionResult.success) {
+			return sessionResult
+		}
+
+		// Actually initiate the VAPI call
+		try {
+			const { vapiCallClient } = await import("@/lib/vapi-call-client")
+
+			const vapiCallResult = await vapiCallClient.initiateOutboundCall({
+				phoneNumberId: phoneNumber[0].number,
+				customerPhoneNumber: data.toPhoneNumber,
+				assistantId: agent[0].vapiAssistantId || undefined,
+				assistantOverrides: agent[0].vapiAssistantId
+					? undefined
+					: {
+							name: agent[0].name,
+							firstMessage:
+								agent[0].firstMessage ||
+								`Hello! I'm ${agent[0].name}. How can I help you today?`,
+							prompt:
+								agent[0].prompt ||
+								"You are a helpful AI assistant making an outbound call.",
+							voice: agent[0].voice
+								? {
+										provider: agent[0].voice.provider as
+											| "11labs"
+											| "playht"
+											| "cartesia",
+										voiceId: agent[0].voice.voice_id
+									}
+								: undefined
+						},
+				metadata: {
+					sessionId: sessionResult.data?.sessionId,
+					leadId: data.leadId,
+					agentId: data.agentId,
+					...data.metadata
+				}
+			})
+
+			if (!vapiCallResult.success) {
+				// Update session to failed
+				if (sessionResult.data) {
+					await updateVoiceSessionForBackgroundProcessor(
+						userId,
+						sessionResult.data.id,
+						{
+							status: "failed"
+						}
+					)
+				}
+				return {
+					success: false,
+					error:
+						vapiCallResult.error || "Failed to initiate VAPI call",
+					data: null
+				}
+			}
+
+			// Update session with VAPI call ID
+			if (sessionResult.data && vapiCallResult.data) {
+				await updateVoiceSessionForBackgroundProcessor(
+					userId,
+					sessionResult.data.id,
+					{
+						status: "active"
+					}
+				)
+			}
+
+			return {
+				success: true,
+				data: {
+					session: sessionResult.data,
+					agent: agent[0],
+					phoneNumber: phoneNumber[0],
+					scheduled: false,
+					vapiCallId: vapiCallResult.data?.callId
+				},
+				error: null
+			}
+		} catch (error) {
+			console.error("Error initiating VAPI call:", error)
+
+			// Update session to failed
+			if (sessionResult.data) {
+				await updateVoiceSessionForBackgroundProcessor(
+					userId,
+					sessionResult.data.id,
+					{
+						status: "failed"
+					}
+				)
+			}
+
+			return {
+				success: false,
+				error: "Failed to initiate VAPI call",
+				data: null
+			}
+		}
+	} catch (error) {
+		console.error("Error initiating outbound call:", error)
+		return {
+			error: "Failed to initiate outbound call",
+			success: false,
+			data: null
+		}
+	}
+}
+
+/**
+ * Internal function for creating voice sessions from background processors
+ * This bypasses Clerk authentication and accepts userId as a parameter
+ */
+export async function createVoiceSessionForBackgroundProcessor(
+	userId: string,
+	data: VoiceSessionCreateRequest
+) {
+	try {
+		// Note: No Clerk auth check here - userId is provided by the processor
+
+		// Verify agent ownership
+		const agent = await db_ws
+			.select()
+			.from(voiceAgents)
+			.where(
+				and(
+					eq(voiceAgents.id, data.agentId),
+					eq(voiceAgents.userId, userId)
+				)
+			)
+			.limit(1)
+
+		if (!agent || agent.length === 0) {
+			return {
+				error: "Voice agent not found",
+				success: false,
+				data: null
+			}
+		}
+
+		// Generate a unique session ID for Vapi AI
+		const vapiSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+		const result = await db_ws
+			.insert(voiceSessions)
+			.values({
+				sessionId: vapiSessionId,
+				agentId: data.agentId,
+				leadId: data.leadId,
+				phoneNumber: data.phoneNumber,
+				direction: data.direction,
+				status: "active",
+				metadata: data.metadata || {},
+				userId
+			})
+			.returning()
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error creating voice session:", error)
+		return {
+			error: "Failed to create voice session",
+			success: false,
+			data: null
+		}
+	}
+}
+
+/**
+ * Internal function for updating voice sessions from background processors
+ * This bypasses Clerk authentication and accepts userId as a parameter
+ */
+export async function updateVoiceSessionForBackgroundProcessor(
+	userId: string,
+	id: number,
+	data: {
+		status?: "active" | "completed" | "failed" | "timeout"
+		endTime?: Date
+		duration?: number
+		transcript?: string
+		summary?: string
+		sentiment?: string
+		recordingUrl?: string
+		cost?: string
+	}
+) {
+	try {
+		// Note: No Clerk auth check here - userId is provided by the processor
+
+		const result = await db_ws
+			.update(voiceSessions)
+			.set({
+				...data,
+				updatedAt: new Date()
+			})
+			.where(
+				and(eq(voiceSessions.id, id), eq(voiceSessions.userId, userId))
+			)
+			.returning()
+
+		if (!result || result.length === 0) {
+			return {
+				error: "Voice session not found",
+				success: false,
+				data: null
+			}
+		}
+
+		return { data: result[0], success: true, error: null }
+	} catch (error) {
+		console.error("Error updating voice session:", error)
+		return {
+			error: "Failed to update voice session",
 			success: false,
 			data: null
 		}

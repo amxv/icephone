@@ -93,7 +93,8 @@ export const campaignStatusEnum = pgEnum("campaign_status", [
 	"running",
 	"paused",
 	"completed",
-	"cancelled"
+	"cancelled",
+	"archived"
 ])
 
 // Define campaign lead status enum
@@ -112,6 +113,16 @@ export const campaignQueueStatusEnum = pgEnum("campaign_queue_status", [
 	"paused",
 	"completed",
 	"failed"
+])
+
+// Define call queue status enum (for manual calls)
+export const callQueueStatusEnum = pgEnum("call_queue_status", [
+	"pending",
+	"queued",
+	"calling",
+	"completed",
+	"failed",
+	"cancelled"
 ])
 
 // Leads table - stores information about leads/prospects
@@ -237,6 +248,63 @@ export const phoneNumbers = pgTable(
 		isDefault: boolean("is_default").default(false), // Default number for outbound calls
 		provider: varchar("provider", { length: 100 }), // Telephony provider (Twilio, etc.)
 		providerSid: varchar("provider_sid", { length: 255 }), // Provider's unique identifier
+
+		// VAPI-specific fields for Phase 3 enhancement
+		vapiPhoneNumberId: varchar("vapi_phone_number_id", { length: 255 }), // VAPI phone number reference
+		vapiProviderDetails: jsonb("vapi_provider_details")
+			.$type<{
+				providerId?: string
+				providerName?: string
+				region?: string
+				country?: string
+				capabilities?: {
+					sms?: boolean
+					voice?: boolean
+					mms?: boolean
+				}
+				cost?: {
+					monthly?: number
+					perMinute?: number
+					currency?: string
+				}
+			}>()
+			.default({}), // Provider-specific metadata from VAPI
+		vapiCapabilities: jsonb("vapi_capabilities")
+			.$type<{
+				inbound?: boolean
+				outbound?: boolean
+				sms?: boolean
+				recording?: boolean
+				voicemail?: boolean
+				conferencing?: boolean
+				transcription?: boolean
+			}>()
+			.default({}), // Phone number capabilities from VAPI
+		vapiStatusLastSync: timestamp("vapi_status_last_sync"), // VAPI status synchronization timestamp
+		vapiWebhookEvents: jsonb("vapi_webhook_events")
+			.$type<{
+				lastEventId?: string
+				lastEventType?: string
+				lastEventTime?: string
+				eventCount?: number
+				failedEvents?: Array<{
+					eventType: string
+					timestamp: string
+					error: string
+				}>
+			}>()
+			.default({}), // Tracking webhook events from VAPI
+		vapiErrorCount: integer("vapi_error_count").default(0), // Count of VAPI errors
+		vapiLastError: jsonb("vapi_last_error")
+			.$type<{
+				message?: string
+				code?: string
+				timestamp?: string
+				operation?: string
+				details?: Record<string, unknown>
+			}>()
+			.default({}), // Last VAPI error details
+
 		capabilities: jsonb("capabilities")
 			.$type<{
 				voice: boolean
@@ -281,7 +349,11 @@ export const phoneNumbers = pgTable(
 		index("phone_type_idx").on(table.type),
 		index("phone_status_idx").on(table.status),
 		index("phone_user_id_idx").on(table.userId),
-		index("phone_is_default_idx").on(table.isDefault)
+		index("phone_is_default_idx").on(table.isDefault),
+		// VAPI-specific indexes for Phase 3
+		index("phone_vapi_id_idx").on(table.vapiPhoneNumberId),
+		index("phone_vapi_sync_idx").on(table.vapiStatusLastSync),
+		index("phone_vapi_errors_idx").on(table.vapiErrorCount)
 	]
 )
 
@@ -309,6 +381,73 @@ export const phoneNumberUsage = pgTable(
 		index("phone_usage_user_id_idx").on(table.userId),
 		// Unique constraint to prevent duplicate usage records for same phone number on same date
 		index("phone_usage_unique_idx").on(table.phoneNumberId, table.date)
+	]
+)
+
+// VAPI Operations Log table - audit trail for VAPI API operations (Phase 3)
+export const vapiPhoneOperations = pgTable(
+	"vapi_phone_operations",
+	{
+		id: serial("id").primaryKey(),
+		vapiPhoneNumberId: varchar("vapi_phone_number_id", {
+			length: 255
+		}).notNull(), // VAPI phone number ID
+		operationType: varchar("operation_type", { length: 100 }).notNull(), // create, update, delete, sync, test
+		requestData: jsonb("request_data")
+			.$type<Record<string, unknown>>()
+			.default({}), // Request payload sent to VAPI
+		responseData: jsonb("response_data")
+			.$type<Record<string, unknown>>()
+			.default({}), // Response received from VAPI
+		status: varchar("status", { length: 50 }).notNull(), // success, error, timeout, retry
+		errorDetails: jsonb("error_details")
+			.$type<{
+				message?: string
+				code?: string
+				statusCode?: number
+				details?: Record<string, unknown>
+			}>()
+			.default({}), // Error details if operation failed
+		duration: integer("duration"), // Operation duration in milliseconds
+		retryCount: integer("retry_count").default(0), // Number of retries attempted
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("vapi_ops_phone_id_idx").on(table.vapiPhoneNumberId),
+		index("vapi_ops_type_idx").on(table.operationType),
+		index("vapi_ops_status_idx").on(table.status),
+		index("vapi_ops_created_idx").on(table.createdAt),
+		index("vapi_ops_user_id_idx").on(table.userId)
+	]
+)
+
+// VAPI Webhooks table - webhook event tracking for phone numbers (Phase 3)
+export const vapiPhoneWebhooks = pgTable(
+	"vapi_phone_webhooks",
+	{
+		id: serial("id").primaryKey(),
+		vapiPhoneNumberId: varchar("vapi_phone_number_id", { length: 255 }), // VAPI phone number ID (nullable for account-level events)
+		eventType: varchar("event_type", { length: 100 }).notNull(), // call.started, call.ended, phone.updated, etc.
+		eventId: varchar("event_id", { length: 255 }).notNull().unique(), // VAPI event ID for deduplication
+		payload: jsonb("payload").$type<Record<string, unknown>>().default({}), // Full webhook payload from VAPI
+		signature: varchar("signature", { length: 512 }), // Webhook signature for verification
+		processedAt: timestamp("processed_at"), // When the event was processed
+		processingStatus: varchar("processing_status", { length: 50 }).default(
+			"pending"
+		), // pending, processed, failed, ignored
+		processingError: text("processing_error"), // Error details if processing failed
+		retryCount: integer("retry_count").default(0), // Number of processing retries
+		createdAt: timestamp("created_at").defaultNow().notNull(), // When webhook was received
+		userId: varchar("user_id", { length: 255 }) // Clerk user ID (if applicable)
+	},
+	(table) => [
+		index("vapi_webhook_phone_id_idx").on(table.vapiPhoneNumberId),
+		index("vapi_webhook_type_idx").on(table.eventType),
+		index("vapi_webhook_event_id_idx").on(table.eventId),
+		index("vapi_webhook_status_idx").on(table.processingStatus),
+		index("vapi_webhook_created_idx").on(table.createdAt),
+		index("vapi_webhook_user_id_idx").on(table.userId)
 	]
 )
 
@@ -419,7 +558,9 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
 	voiceSessions: many(voiceSessions),
 	interactions: many(leadInteractions),
 	tasks: many(tasks),
-	campaignLeads: many(campaignLeads)
+	campaignLeads: many(campaignLeads),
+	callQueue: many(callQueue),
+	communicationLogs: many(communicationLogs)
 }))
 
 export const appointmentsRelations = relations(appointments, ({ one }) => ({
@@ -888,7 +1029,9 @@ export const phoneNumbersRelations = relations(
 	phoneNumbers,
 	({ many, one }) => ({
 		usage: many(phoneNumberUsage),
-		voiceAgents: many(voiceAgents)
+		voiceAgents: many(voiceAgents),
+		vapiOperations: many(vapiPhoneOperations),
+		vapiWebhooks: many(vapiPhoneWebhooks)
 	})
 )
 
@@ -898,6 +1041,28 @@ export const phoneNumberUsageRelations = relations(
 		phoneNumber: one(phoneNumbers, {
 			fields: [phoneNumberUsage.phoneNumberId],
 			references: [phoneNumbers.id]
+		})
+	})
+)
+
+// VAPI Operations Relations
+export const vapiPhoneOperationsRelations = relations(
+	vapiPhoneOperations,
+	({ one }) => ({
+		phoneNumber: one(phoneNumbers, {
+			fields: [vapiPhoneOperations.vapiPhoneNumberId],
+			references: [phoneNumbers.vapiPhoneNumberId]
+		})
+	})
+)
+
+// VAPI Webhooks Relations
+export const vapiPhoneWebhooksRelations = relations(
+	vapiPhoneWebhooks,
+	({ one }) => ({
+		phoneNumber: one(phoneNumbers, {
+			fields: [vapiPhoneWebhooks.vapiPhoneNumberId],
+			references: [phoneNumbers.vapiPhoneNumberId]
 		})
 	})
 )
@@ -1343,6 +1508,138 @@ export const campaignLeads = pgTable(
 	]
 )
 
+// Call Queue table - manages manual call queue for leads
+export const callQueue = pgTable(
+	"call_queue",
+	{
+		id: serial("id").primaryKey(),
+		leadId: integer("lead_id")
+			.notNull()
+			.references(() => leads.id, { onDelete: "cascade" }),
+		voiceAgentId: integer("voice_agent_id").references(
+			() => voiceAgents.id
+		),
+		status: callQueueStatusEnum("status").default("pending"),
+		priority: integer("priority").default(0), // Higher numbers = higher priority
+		scheduledTime: timestamp("scheduled_time"), // When this call should be made (optional)
+		instructions: text("instructions"), // Special instructions for the call
+		phoneNumber: varchar("phone_number", { length: 50 }), // Override phone number if needed
+		startedAt: timestamp("started_at"), // When call processing started
+		completedAt: timestamp("completed_at"), // When call was completed or failed
+		retryCount: integer("retry_count").default(0),
+		maxRetries: integer("max_retries").default(3),
+		retryInterval: integer("retry_interval").default(60), // Minutes between retries
+		lastError: text("last_error"), // Error message if call failed
+		callResult: jsonb("call_result")
+			.$type<{
+				callId?: string
+				sessionId?: string
+				duration?: number
+				outcome?: string // answered, voicemail, busy, no_answer, failed
+				notes?: string
+				followUpRequired?: boolean
+				nextContactDate?: string
+			}>()
+			.default({}),
+		metadata: jsonb("metadata")
+			.$type<{
+				callConfiguration?: Record<string, unknown>
+				context?: Record<string, unknown>
+				userNotes?: string
+			}>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("call_queue_lead_id_idx").on(table.leadId),
+		index("call_queue_voice_agent_id_idx").on(table.voiceAgentId),
+		index("call_queue_status_idx").on(table.status),
+		index("call_queue_priority_idx").on(table.priority),
+		index("call_queue_scheduled_time_idx").on(table.scheduledTime),
+		index("call_queue_user_id_idx").on(table.userId)
+	]
+)
+
+// Email Templates table - stores reusable email templates
+export const emailTemplates = pgTable(
+	"email_templates",
+	{
+		id: serial("id").primaryKey(),
+		name: varchar("name", { length: 255 }).notNull(),
+		subject: varchar("subject", { length: 500 }).notNull(),
+		content: text("content").notNull(),
+		description: text("description"), // Description of when to use this template
+		category: varchar("category", { length: 100 }), // e.g., "follow_up", "introduction", "proposal"
+		isDefault: boolean("is_default").default(false), // System default templates
+		variables: jsonb("variables")
+			.$type<{
+				// Dynamic variables that can be replaced in subject/content
+				leadName?: boolean
+				companyName?: boolean
+				userSignature?: boolean
+				customFields?: Record<string, string>
+			}>()
+			.default({}),
+		tags: varchar("tags", { length: 500 }), // Comma-separated tags for organization
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("email_templates_name_idx").on(table.name),
+		index("email_templates_category_idx").on(table.category),
+		index("email_templates_user_id_idx").on(table.userId)
+	]
+)
+
+// Communication Logs table - tracks all communication attempts and their outcomes
+export const communicationLogs = pgTable(
+	"communication_logs",
+	{
+		id: serial("id").primaryKey(),
+		leadId: integer("lead_id")
+			.notNull()
+			.references(() => leads.id, { onDelete: "cascade" }),
+		type: communicationTypeEnum("type").notNull(), // incoming, outgoing
+		method: varchar("method", { length: 50 }).notNull(), // call, email, text, appointment
+		status: varchar("status", { length: 50 }).notNull(), // pending, sent, delivered, failed, opened, clicked
+		details: jsonb("details")
+			.$type<{
+				subject?: string
+				content?: string
+				duration?: number
+				outcome?: string
+				templateId?: number
+				voiceAgentId?: number
+				phoneNumber?: string
+				errorMessage?: string
+				deliveryTime?: string
+				openTime?: string
+				clickTime?: string
+			}>()
+			.default({}),
+		relatedRecordId: integer("related_record_id"), // ID in calls, emails, textMessages, appointments table
+		relatedRecordType: varchar("related_record_type", { length: 50 }), // "call", "email", "text_message", "appointment"
+		notes: text("notes"), // User-added notes about this communication
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+	},
+	(table) => [
+		index("communication_logs_lead_id_idx").on(table.leadId),
+		index("communication_logs_type_idx").on(table.type),
+		index("communication_logs_method_idx").on(table.method),
+		index("communication_logs_status_idx").on(table.status),
+		index("communication_logs_related_record_idx").on(
+			table.relatedRecordId,
+			table.relatedRecordType
+		),
+		index("communication_logs_user_id_idx").on(table.userId)
+	]
+)
+
 // Campaign Queue table - manages call scheduling and execution queue
 export const campaignQueue = pgTable(
 	"campaign_queue",
@@ -1542,3 +1839,34 @@ export const campaignQueueRelations = relations(campaignQueue, ({ one }) => ({
 		references: [campaignLeads.id]
 	})
 }))
+
+// Call Queue relations
+export const callQueueRelations = relations(callQueue, ({ one }) => ({
+	lead: one(leads, {
+		fields: [callQueue.leadId],
+		references: [leads.id]
+	}),
+	voiceAgent: one(voiceAgents, {
+		fields: [callQueue.voiceAgentId],
+		references: [voiceAgents.id]
+	})
+}))
+
+// Email Templates relations
+export const emailTemplatesRelations = relations(
+	emailTemplates,
+	({ many }) => ({
+		// Could add relation to sent emails if we track template usage
+	})
+)
+
+// Communication Logs relations
+export const communicationLogsRelations = relations(
+	communicationLogs,
+	({ one }) => ({
+		lead: one(leads, {
+			fields: [communicationLogs.leadId],
+			references: [leads.id]
+		})
+	})
+)
