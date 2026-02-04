@@ -162,16 +162,17 @@ Examples:
 - [x] Commit: `phase-22: command center templates`
 
 ### Phase 23 — CRM Integrations Research + Design
-- [ ] Pick 4 high-priority CRMs and document API/auth/data-mapping strategy
-- [ ] Define lead import, campaign switcher sync, and call outcome/notes sync contracts
-- [ ] Document rollout plan and risk constraints
-- [ ] Update `PROGRESS.md`
+- [x] Pick 4 high-priority CRMs (`HubSpot`, `Salesforce`, `GoHighLevel`, `Pipedrive`) and document API/auth/data-mapping strategy
+- [x] Define lead import, campaign switcher sync, and call outcome/disposition/notes sync contracts
+- [x] Document rollout plan and risk constraints
+- [x] Update `PROGRESS.md`
 - [ ] Commit: `phase-23: crm research`
 
 ### Phase 24 — CRM Integrations Implementation
 - [ ] Implement integrations for selected CRMs (team-scoped credentials + sync jobs/actions)
 - [ ] Implement lead import into campaign switcher
 - [ ] Implement call data + notes + disposition sync back to CRM records
+- [ ] Validate support/outbound/loan-collections command-center workflows with CRM sync paths
 - [ ] Update `PROGRESS.md`
 - [ ] Commit: `phase-24: crm integrations`
 
@@ -182,3 +183,16 @@ Examples:
 - [ ] Add recommended backend architecture path for rollout
 - [ ] Update `PROGRESS.md`
 - [ ] Commit: `phase-25: telephony research`
+
+### Phase 26 — Sidebar Feature Gap Pass (CRM Product Completeness)
+- [ ] Review Leads, Pipelines, Campaigns, Calls, Appointments, Knowledge Base, Analytics for product gaps
+- [ ] Add/close high-impact gaps for support, outbound sales, and loan repayment collections
+- [ ] Document new follow-up phases as needed
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-26: sidebar product gaps`
+
+### Phase 27 — Backend Optimization Pass II
+- [ ] Profile and optimize campaign queue + CRM sync throughput
+- [ ] Optimize analytics aggregation bottlenecks identified during CRM rollout
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-27: backend optimization`

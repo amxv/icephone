@@ -284,13 +284,14 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 23 — CRM Integrations Research + Design
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Completed CRM integration research/design for four priority platforms (HubSpot, Salesforce, GoHighLevel, Pipedrive). Documented provider auth/token flows, high-level rate-limit considerations, object/field mappings, lead-import contract for campaign workflows, call outcome/disposition/auto-note writeback contract, team-scoped credential model, rollout sequencing, and risk mitigations.
 - Files changed:
-- Tests/commands run:
+  - Added: `gg/voice-command-center-rebuild/crm-integration-research.md`
+- Tests/commands run: Web research via `webctx` (`search`, `read-link`) and document authoring.
 - Commit:
 - Notes/blockers:
-  - Pick 4 popular CRMs and document auth + sync + data mapping strategy.
+  - Research completed; Phase 24 implementation will follow this design artifact.
 
 ---
 
@@ -301,7 +302,9 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
-  - Include lead import into campaign switcher and call outcome/notes sync back to CRM.
+  - Implement team-scoped integration credentials + connector clients for HubSpot, Salesforce, GoHighLevel, Pipedrive.
+  - Include lead import into campaign switcher and call outcome/notes/disposition sync back to CRM records.
+  - Preserve command-center modes/templates and ensure CRM sync supports support/cold-calling/loan-collections workflows.
 
 ---
 
@@ -313,3 +316,28 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit:
 - Notes/blockers:
   - Write findings to `gg/voice-command-center-rebuild/telephony-recording-research.md`.
+  - Include OpenAI Realtime recording/voice artifact limits and recommended storage architecture for future telephony providers.
+
+---
+
+## Phase 26 — Sidebar Feature Gap Pass (CRM Product Completeness)
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Review sidebar feature set (Leads, Pipelines, Campaigns, Calls, Appointments, Knowledge Base, Analytics).
+  - Identify missing command-center capabilities for support, outbound sales, and loan repayment collections.
+  - Add/close high-impact gaps and document remaining follow-up phases.
+
+---
+
+## Phase 27 — Backend Optimization Pass II
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Re-profile campaign queue, CRM sync throughput, analytics aggregation queries, and add targeted optimizations.
