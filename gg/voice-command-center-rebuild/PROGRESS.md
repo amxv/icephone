@@ -150,12 +150,14 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 12 — Codebase Optimization
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Optimized campaign queue batch processing to reduce per-entry queries and make queue promotion updates transactional with batched inserts/updates. Updated planning docs with explicit optimization/gap-analysis subitems.
 - Files changed:
+  - Updated: `src/actions/campaigns/execution.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
+  - Include backend optimizations for campaigns/queue/analytics.
 
 ---
 
@@ -166,6 +168,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
+  - Document gaps: business hours, retries, throttling/concurrency, scheduling triggers.
 
 ---
 
@@ -176,6 +179,8 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
+  - Enforce model `gpt-realtime-mini-2025-12-15`.
+  - Add voice selection + custom instruction text.
 
 ---
 
@@ -186,6 +191,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
+  - Add KPI metrics (pickup rate, outcomes, etc) and analytics dashboard UI.
 
 ---
 
@@ -196,6 +202,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
+  - Remove @ts-nocheck/@ts-ignore/eslint-disable and resolve TODOs/incomplete logic.
 
 ---
 
@@ -206,6 +213,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
+  - Review leads/pipeline/appointments for gaps; add phases for any missing features.
 
 ---
 
@@ -216,3 +224,4 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Tests/commands run: `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
 - Commit:
 - Notes/blockers:
+  - Open PR after completion; push after each commit.

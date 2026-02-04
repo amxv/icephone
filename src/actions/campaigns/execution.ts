@@ -2,7 +2,7 @@
 
 import { requireTeam } from "@/lib/auth/session"
 import { teamScope } from "@/lib/team-scope"
-import { and, eq, lte, sql } from "drizzle-orm"
+import { and, eq, inArray, lte, sql } from "drizzle-orm"
 
 import { db_ws } from "@/db"
 import {
@@ -579,22 +579,24 @@ export async function processNextQueueBatchDirect(
 		}
 
 		const now = new Date()
+		const queueIds = queueEntries.map((entry) => entry.queueId)
+		const campaignLeadIds = queueEntries.map((entry) => entry.campaignLeadId)
 		const results: Array<{ queueId: number; callQueueId?: number }> = []
 
 		await db_ws.transaction(async (tx) => {
-			for (const entry of queueEntries) {
-				await tx
-					.update(campaignQueue)
-					.set({
-						status: "processing",
-						startedAt: now,
-						updatedAt: now
-					})
-					.where(eq(campaignQueue.id, entry.queueId))
+			await tx
+				.update(campaignQueue)
+				.set({
+					status: "processing",
+					startedAt: now,
+					updatedAt: now
+				})
+				.where(inArray(campaignQueue.id, queueIds))
 
-				const [queuedCall] = await tx
-					.insert(callQueue)
-					.values({
+			const queuedCalls = await tx
+				.insert(callQueue)
+				.values(
+					queueEntries.map((entry) => ({
 						leadId: entry.leadId,
 						teamId,
 						campaignId,
@@ -603,38 +605,53 @@ export async function processNextQueueBatchDirect(
 						scheduledTime: entry.scheduledTime,
 						status: "pending",
 						userId
-					})
-					.returning({ id: callQueue.id })
+					}))
+				)
+				.returning({ id: callQueue.id })
 
-				await tx
-					.update(campaignQueue)
-					.set({
-						status: "completed",
-						completedAt: now,
-						updatedAt: now,
-						callResult: {
-							callId: queuedCall?.id
-								? String(queuedCall.id)
-								: undefined
-						}
-					})
-					.where(eq(campaignQueue.id, entry.queueId))
+			const callIdMap = queueEntries.map((entry, index) => ({
+				queueId: entry.queueId,
+				callQueueId: queuedCalls[index]?.id
+			}))
 
-				await tx
-					.update(campaignLeads)
-					.set({
-						status: "attempted",
-						lastAttemptAt: now,
-						attemptCount: sql`${campaignLeads.attemptCount} + 1`,
-						updatedAt: now
-					})
-					.where(eq(campaignLeads.id, entry.campaignLeadId))
+			const callResultCase = sql`case ${campaignQueue.id} ${sql.join(
+				callIdMap.map((row) => {
+					if (!row.callQueueId) {
+						return sql`when ${row.queueId} then ${campaignQueue.callResult}`
+					}
+					return sql`when ${row.queueId} then ${sql`jsonb_build_object('callId', ${String(
+						row.callQueueId
+					)})`}`
+				}),
+				sql` `
+			)} else ${campaignQueue.callResult} end`
 
-				results.push({
-					queueId: entry.queueId,
-					callQueueId: queuedCall?.id
+			await tx
+				.update(campaignQueue)
+				.set({
+					status: "completed",
+					completedAt: now,
+					updatedAt: now,
+					callResult: callResultCase
 				})
-			}
+				.where(inArray(campaignQueue.id, queueIds))
+
+			await tx
+				.update(campaignLeads)
+				.set({
+					status: "attempted",
+					lastAttemptAt: now,
+					attemptCount: sql`${campaignLeads.attemptCount} + 1`,
+					updatedAt: now
+				})
+				.where(inArray(campaignLeads.id, campaignLeadIds))
+
+			results.push(
+				...callIdMap.map((row) => ({
+					queueId: row.queueId,
+					callQueueId: row.callQueueId
+				}))
+			)
 		})
 
 		return {
