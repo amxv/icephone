@@ -16,7 +16,7 @@ import type {
 type VonageConfig = {
 	applicationId: string
 	privateKey: string
-	fromNumber: string
+	fromNumber: string | null
 	answerUrl: string
 	eventUrl: string
 }
@@ -64,20 +64,14 @@ function getVonageConfig(): VonageConfig | null {
 		process.env.VONAGE_EVENT_URL?.trim() ||
 		resolveTelephonyWebhookUrl("vonage")
 
-	if (
-		!applicationId ||
-		!privateKey ||
-		!fromNumber ||
-		!answerUrl ||
-		!eventUrl
-	) {
+	if (!applicationId || !privateKey || !answerUrl || !eventUrl) {
 		return null
 	}
 
 	return {
 		applicationId,
 		privateKey,
-		fromNumber,
+		fromNumber: fromNumber || null,
 		answerUrl,
 		eventUrl
 	}
@@ -87,7 +81,7 @@ function createMissingConfigurationResult(): TelephonyExecutionResult {
 	return {
 		status: "retryable_failure",
 		provider: "vonage",
-		error: "Vonage execution provider is not configured (VONAGE_APPLICATION_ID, VONAGE_PRIVATE_KEY, VONAGE_FROM_NUMBER, VONAGE_ANSWER_URL)."
+		error: "Vonage execution provider is not configured (VONAGE_APPLICATION_ID, VONAGE_PRIVATE_KEY, VONAGE_ANSWER_URL)."
 	}
 }
 
@@ -107,11 +101,19 @@ export const vonageTelephonyExecutionProvider: TelephonyExecutionProvider = {
 		if (!config) {
 			return createMissingConfigurationResult()
 		}
+		const fromNumber = input.fromPhoneNumber || config.fromNumber
+		if (!fromNumber) {
+			return {
+				status: "retryable_failure",
+				provider: "vonage",
+				error: "No outbound caller ID is configured for Vonage. Add a team phone number or set VONAGE_FROM_NUMBER."
+			}
+		}
 
 		const jwt = createVonageJwt(config)
 		const body = {
 			to: [{ type: "phone", number: toNumber }],
-			from: { type: "phone", number: config.fromNumber },
+			from: { type: "phone", number: fromNumber },
 			answer_url: [config.answerUrl],
 			event_url: [config.eventUrl]
 		}
@@ -152,6 +154,7 @@ export const vonageTelephonyExecutionProvider: TelephonyExecutionProvider = {
 				providerCallId: uuid,
 				metadata: {
 					toNumber,
+					fromNumber,
 					status
 				}
 			}

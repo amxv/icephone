@@ -16,7 +16,7 @@ import type {
 type TwilioConfig = {
 	accountSid: string
 	authToken: string
-	fromNumber: string
+	fromNumber: string | null
 	outboundTwimlUrl: string | null
 	statusCallbackUrl: string | null
 	recordCalls: boolean
@@ -27,7 +27,7 @@ function getTwilioConfig(): TwilioConfig | null {
 	const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
 	const fromNumber = process.env.TWILIO_FROM_NUMBER?.trim()
 
-	if (!accountSid || !authToken || !fromNumber) {
+	if (!accountSid || !authToken) {
 		return null
 	}
 
@@ -38,7 +38,7 @@ function getTwilioConfig(): TwilioConfig | null {
 	return {
 		accountSid,
 		authToken,
-		fromNumber,
+		fromNumber: fromNumber || null,
 		outboundTwimlUrl: process.env.TWILIO_OUTBOUND_TWIML_URL?.trim() || null,
 		statusCallbackUrl,
 		recordCalls: process.env.TWILIO_RECORD_CALLS !== "false"
@@ -49,7 +49,7 @@ function createMissingConfigurationResult(): TelephonyExecutionResult {
 	return {
 		status: "retryable_failure",
 		provider: "twilio",
-		error: "Twilio execution provider is not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER)."
+		error: "Twilio execution provider is not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)."
 	}
 }
 
@@ -69,11 +69,19 @@ export const twilioTelephonyExecutionProvider: TelephonyExecutionProvider = {
 		if (!config) {
 			return createMissingConfigurationResult()
 		}
+		const fromNumber = input.fromPhoneNumber || config.fromNumber
+		if (!fromNumber) {
+			return {
+				status: "retryable_failure",
+				provider: "twilio",
+				error: "No outbound caller ID is configured for Twilio. Add a team phone number or set TWILIO_FROM_NUMBER."
+			}
+		}
 
 		const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Calls.json`
 		const form = new URLSearchParams()
 		form.set("To", toNumber)
-		form.set("From", config.fromNumber)
+		form.set("From", fromNumber)
 
 		// Default to inline TwiML if no external instructions URL is configured.
 		if (config.outboundTwimlUrl) {
@@ -133,6 +141,7 @@ export const twilioTelephonyExecutionProvider: TelephonyExecutionProvider = {
 				providerCallId: sid,
 				metadata: {
 					toNumber,
+					fromNumber,
 					twilioStatus: status
 				}
 			}

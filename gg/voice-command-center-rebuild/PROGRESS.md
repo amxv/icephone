@@ -470,3 +470,16 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-37: phone numbers ui integration`
 - Notes/blockers:
   - Provider procurement/search APIs are not wired yet; this phase manages imported/provisioned numbers and routing metadata so telephony runtime can consume them in follow-up phases.
+
+---
+
+## Phase 38 — Outbound Caller ID Routing Integration
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Wired call queue execution to use team-managed phone numbers for outbound caller ID selection. Added outbound phone number resolution utility (provider + agent-aware fallback), passed resolved `fromPhoneNumber` into telephony execution contracts, and updated Twilio/Telnyx/Vonage adapters to prioritize team-assigned numbers over env defaults. Persisted selected outbound number in call + telephony metadata for auditability.
+- Files changed:
+  - Added: `src/lib/telephony/outbound-number.ts`
+  - Updated: `src/lib/telephony/types.ts`, `src/lib/telephony/providers/mock.ts`, `src/lib/telephony/providers/twilio.ts`, `src/lib/telephony/providers/telnyx.ts`, `src/lib/telephony/providers/vonage.ts`, `src/app/api/call-queue/process/route.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-38: outbound caller id routing`
+- Notes/blockers:
+  - Telephony provider runtime now supports DB-driven outbound caller IDs; next stage can add provider-side number provisioning/search sync.

@@ -262,3 +262,10 @@ Examples:
 - [x] Add sidebar navigation entry for phone numbers management
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-37: phone numbers ui integration`
+
+### Phase 38 — Outbound Caller ID Routing Integration
+- [x] Resolve outbound caller ID from team phone numbers by provider + optional assigned agent
+- [x] Pass resolved caller ID through telephony execution contracts and provider adapters
+- [x] Persist selected outbound number into call/telephony metadata for audit and debugging
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-38: outbound caller id routing`

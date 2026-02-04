@@ -28,7 +28,8 @@ export const mockTelephonyExecutionProvider: TelephonyExecutionProvider = {
 			notes: "Processed by mock call executor",
 			metadata: {
 				simulated: true,
-				queueId: input.queueEntry.id
+				queueId: input.queueEntry.id,
+				fromNumber: input.fromPhoneNumber || null
 			}
 		}
 	}

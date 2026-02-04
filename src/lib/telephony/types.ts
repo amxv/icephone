@@ -42,6 +42,7 @@ export type TelephonyExecutionInput = {
 	teamId: string
 	queueEntry: QueueEntryForExecution
 	startedAt: Date
+	fromPhoneNumber?: string | null
 }
 
 export type TelephonyExecutionResult =

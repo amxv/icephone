@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db_ws } from "@/db"
 import { callQueue, calls, leads, telephonyCalls } from "@/db/schema"
+import { resolveTeamOutboundPhoneNumber } from "@/lib/telephony/outbound-number"
 import { getTelephonyExecutionProvider } from "@/lib/telephony/providers"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
@@ -354,13 +355,29 @@ async function processTeamCallQueueDirect(
 	let successful = 0
 	let failed = 0
 	let retries = 0
+	const outboundNumberCache = new Map<string, string | null>()
 
 	for (const entry of queueEntries) {
 		try {
+			const assignedAgentId = entry.agentId || entry.voiceAgentId || null
+			const outboundNumberCacheKey = `${executionProvider.name}:${assignedAgentId || "default"}`
+			let fromPhoneNumber = outboundNumberCache.get(
+				outboundNumberCacheKey
+			)
+			if (fromPhoneNumber === undefined) {
+				fromPhoneNumber = await resolveTeamOutboundPhoneNumber({
+					teamId,
+					provider: executionProvider.name,
+					agentId: assignedAgentId
+				})
+				outboundNumberCache.set(outboundNumberCacheKey, fromPhoneNumber)
+			}
+
 			const execution = await executionProvider.execute({
 				teamId,
 				queueEntry: entry,
-				startedAt: now
+				startedAt: now,
+				fromPhoneNumber
 			})
 
 			if (execution.status !== "completed") {
@@ -426,6 +443,11 @@ async function processTeamCallQueueDirect(
 				execution.callStatus && execution.callStatus !== "unknown"
 					? execution.callStatus
 					: "queued"
+			const providerFromNumber =
+				(typeof execution.metadata?.fromNumber === "string" &&
+				execution.metadata.fromNumber.trim().length > 0
+					? execution.metadata.fromNumber.trim()
+					: fromPhoneNumber) || null
 
 			const [createdCall] = await db_ws
 				.insert(calls)
@@ -447,6 +469,7 @@ async function processTeamCallQueueDirect(
 						executionProvider: execution.provider,
 						providerCallId: execution.providerCallId || null,
 						providerSessionId: execution.providerSessionId || null,
+						fromPhoneNumber: providerFromNumber,
 						callStatus,
 						...execution.metadata
 					},
@@ -474,6 +497,7 @@ async function processTeamCallQueueDirect(
 						direction: "outgoing",
 						status: callStatus,
 						toNumber: entry.phoneNumber || null,
+						fromNumber: providerFromNumber,
 						startedAt: callStartTime,
 						endedAt: callEndTime,
 						duration: callDuration,

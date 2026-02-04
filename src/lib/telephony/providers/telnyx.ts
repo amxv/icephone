@@ -15,7 +15,7 @@ import type {
 type TelnyxConfig = {
 	apiKey: string
 	connectionId: string
-	fromNumber: string
+	fromNumber: string | null
 	webhookUrl: string | null
 }
 
@@ -24,14 +24,14 @@ function getTelnyxConfig(): TelnyxConfig | null {
 	const connectionId = process.env.TELNYX_CONNECTION_ID?.trim()
 	const fromNumber = process.env.TELNYX_FROM_NUMBER?.trim()
 
-	if (!apiKey || !connectionId || !fromNumber) {
+	if (!apiKey || !connectionId) {
 		return null
 	}
 
 	return {
 		apiKey,
 		connectionId,
-		fromNumber,
+		fromNumber: fromNumber || null,
 		webhookUrl:
 			process.env.TELNYX_WEBHOOK_URL?.trim() ||
 			resolveTelephonyWebhookUrl("telnyx")
@@ -42,7 +42,7 @@ function createMissingConfigurationResult(): TelephonyExecutionResult {
 	return {
 		status: "retryable_failure",
 		provider: "telnyx",
-		error: "Telnyx execution provider is not configured (TELNYX_API_KEY, TELNYX_CONNECTION_ID, TELNYX_FROM_NUMBER)."
+		error: "Telnyx execution provider is not configured (TELNYX_API_KEY, TELNYX_CONNECTION_ID)."
 	}
 }
 
@@ -62,11 +62,19 @@ export const telnyxTelephonyExecutionProvider: TelephonyExecutionProvider = {
 		if (!config) {
 			return createMissingConfigurationResult()
 		}
+		const fromNumber = input.fromPhoneNumber || config.fromNumber
+		if (!fromNumber) {
+			return {
+				status: "retryable_failure",
+				provider: "telnyx",
+				error: "No outbound caller ID is configured for Telnyx. Add a team phone number or set TELNYX_FROM_NUMBER."
+			}
+		}
 
 		const body: Record<string, unknown> = {
 			connection_id: config.connectionId,
 			to: toNumber,
-			from: config.fromNumber
+			from: fromNumber
 		}
 
 		if (config.webhookUrl) {
@@ -126,6 +134,7 @@ export const telnyxTelephonyExecutionProvider: TelephonyExecutionProvider = {
 				providerSessionId,
 				metadata: {
 					toNumber,
+					fromNumber,
 					callState: callStatus
 				}
 			}
