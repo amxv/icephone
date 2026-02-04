@@ -21,6 +21,12 @@ type VonageConfig = {
 	eventUrl: string
 }
 
+function readString(value: unknown) {
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: null
+}
+
 function base64url(input: Buffer | string) {
 	const asBuffer = Buffer.isBuffer(input) ? input : Buffer.from(input)
 	return asBuffer
@@ -55,12 +61,28 @@ function createVonageJwt(config: VonageConfig) {
 	return `${toSign}.${base64url(signature)}`
 }
 
-function getVonageConfig(): VonageConfig | null {
-	const applicationId = process.env.VONAGE_APPLICATION_ID?.trim()
-	const privateKey = process.env.VONAGE_PRIVATE_KEY?.replace(/\\n/g, "\n")
-	const fromNumber = process.env.VONAGE_FROM_NUMBER?.trim()
-	const answerUrl = process.env.VONAGE_ANSWER_URL?.trim()
+function getVonageConfig(
+	override?: Record<string, unknown> | null
+): VonageConfig | null {
+	const applicationId =
+		readString(override?.applicationId) ||
+		process.env.VONAGE_APPLICATION_ID?.trim() ||
+		null
+	const privateKey =
+		readString(override?.privateKey) ||
+		readString(override?.apiKey) ||
+		process.env.VONAGE_PRIVATE_KEY?.replace(/\\n/g, "\n") ||
+		null
+	const fromNumber =
+		readString(override?.fromNumber) ||
+		process.env.VONAGE_FROM_NUMBER?.trim() ||
+		null
+	const answerUrl =
+		readString(override?.answerUrl) ||
+		process.env.VONAGE_ANSWER_URL?.trim() ||
+		null
 	const eventUrl =
+		readString(override?.eventUrl) ||
 		process.env.VONAGE_EVENT_URL?.trim() ||
 		resolveTelephonyWebhookUrl("vonage")
 
@@ -71,7 +93,7 @@ function getVonageConfig(): VonageConfig | null {
 	return {
 		applicationId,
 		privateKey,
-		fromNumber: fromNumber || null,
+		fromNumber,
 		answerUrl,
 		eventUrl
 	}
@@ -97,7 +119,7 @@ export const vonageTelephonyExecutionProvider: TelephonyExecutionProvider = {
 			}
 		}
 
-		const config = getVonageConfig()
+		const config = getVonageConfig(input.providerConfig)
 		if (!config) {
 			return createMissingConfigurationResult()
 		}

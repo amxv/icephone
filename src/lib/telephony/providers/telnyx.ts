@@ -19,10 +19,25 @@ type TelnyxConfig = {
 	webhookUrl: string | null
 }
 
-function getTelnyxConfig(): TelnyxConfig | null {
-	const apiKey = process.env.TELNYX_API_KEY?.trim()
-	const connectionId = process.env.TELNYX_CONNECTION_ID?.trim()
-	const fromNumber = process.env.TELNYX_FROM_NUMBER?.trim()
+function readString(value: unknown) {
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: null
+}
+
+function getTelnyxConfig(
+	override?: Record<string, unknown> | null
+): TelnyxConfig | null {
+	const apiKey =
+		readString(override?.apiKey) || process.env.TELNYX_API_KEY?.trim() || null
+	const connectionId =
+		readString(override?.connectionId) ||
+		process.env.TELNYX_CONNECTION_ID?.trim() ||
+		null
+	const fromNumber =
+		readString(override?.fromNumber) ||
+		process.env.TELNYX_FROM_NUMBER?.trim() ||
+		null
 
 	if (!apiKey || !connectionId) {
 		return null
@@ -31,8 +46,9 @@ function getTelnyxConfig(): TelnyxConfig | null {
 	return {
 		apiKey,
 		connectionId,
-		fromNumber: fromNumber || null,
+		fromNumber,
 		webhookUrl:
+			readString(override?.webhookUrl) ||
 			process.env.TELNYX_WEBHOOK_URL?.trim() ||
 			resolveTelephonyWebhookUrl("telnyx")
 	}
@@ -58,7 +74,7 @@ export const telnyxTelephonyExecutionProvider: TelephonyExecutionProvider = {
 			}
 		}
 
-		const config = getTelnyxConfig()
+		const config = getTelnyxConfig(input.providerConfig)
 		if (!config) {
 			return createMissingConfigurationResult()
 		}

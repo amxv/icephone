@@ -85,11 +85,15 @@ export async function saveCRMIntegration(rawInput: unknown) {
 	try {
 		const input = saveIntegrationSchema.parse(rawInput)
 		const { teamId, user } = await requireTeam()
+		const trimmedApiKey =
+			typeof input.apiKey === "string" && input.apiKey.trim().length > 0
+				? input.apiKey.trim()
+				: undefined
 
 		const result = await upsertTeamCRMIntegration({
 			teamId,
 			provider: input.provider,
-			apiKey: input.apiKey ?? null,
+			apiKey: trimmedApiKey,
 			settings: input.settings as CRMProviderSettings
 		})
 

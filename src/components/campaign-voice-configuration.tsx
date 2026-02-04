@@ -68,6 +68,9 @@ export function CampaignVoiceConfigurationComponent({
 	voiceAgentId,
 	onConfigurationSaved
 }: CampaignVoiceConfigurationComponentProps) {
+	const [resolvedVoiceAgentId, setResolvedVoiceAgentId] = useState<
+		number | null
+	>(voiceAgentId ?? null)
 	const [configuration, setConfiguration] =
 		useState<CampaignVoiceConfiguration>({
 			campaignSpecificPrompt: "",
@@ -123,6 +126,7 @@ export function CampaignVoiceConfigurationComponent({
 						...configResult.data.voiceConfiguration
 					}))
 				}
+				setResolvedVoiceAgentId(configResult.data?.voiceAgentId ?? null)
 				if (phoneNumbersResult.success && phoneNumbersResult.data) {
 					setTeamPhoneNumbers(
 						phoneNumbersResult.data.filter(
@@ -142,7 +146,7 @@ export function CampaignVoiceConfigurationComponent({
 	}, [campaignId])
 
 	const handleSaveConfiguration = async () => {
-		if (!voiceAgentId) {
+		if (!resolvedVoiceAgentId) {
 			toast.error("Please assign a voice agent to this campaign first")
 			return
 		}
@@ -236,7 +240,7 @@ export function CampaignVoiceConfigurationComponent({
 				</div>
 				<Button
 					onClick={handleSaveConfiguration}
-					disabled={isSaving || !voiceAgentId}
+					disabled={isSaving || !resolvedVoiceAgentId}
 					className="gap-2 rounded-2xl"
 				>
 					<Save className="h-4 w-4" />
@@ -244,7 +248,7 @@ export function CampaignVoiceConfigurationComponent({
 				</Button>
 			</div>
 
-			{!voiceAgentId && (
+			{!resolvedVoiceAgentId && (
 				<Card className="rounded-2xl border-amber-200 bg-amber-50/40 backdrop-blur-sm">
 					<CardContent className="p-4">
 						<div className="flex items-center gap-2">

@@ -22,26 +22,54 @@ type TwilioConfig = {
 	recordCalls: boolean
 }
 
-function getTwilioConfig(): TwilioConfig | null {
-	const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim()
-	const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
-	const fromNumber = process.env.TWILIO_FROM_NUMBER?.trim()
+function readString(value: unknown) {
+	return typeof value === "string" && value.trim().length > 0
+		? value.trim()
+		: null
+}
+
+function readBoolean(value: unknown) {
+	return typeof value === "boolean" ? value : null
+}
+
+function getTwilioConfig(
+	override?: Record<string, unknown> | null
+): TwilioConfig | null {
+	const accountSid =
+		readString(override?.accountSid) ||
+		process.env.TWILIO_ACCOUNT_SID?.trim() ||
+		null
+	const authToken =
+		readString(override?.authToken) ||
+		readString(override?.apiKey) ||
+		process.env.TWILIO_AUTH_TOKEN?.trim() ||
+		null
+	const fromNumber =
+		readString(override?.fromNumber) ||
+		process.env.TWILIO_FROM_NUMBER?.trim() ||
+		null
 
 	if (!accountSid || !authToken) {
 		return null
 	}
 
 	const statusCallbackUrl =
+		readString(override?.statusCallbackUrl) ||
 		process.env.TWILIO_STATUS_CALLBACK_URL?.trim() ||
 		resolveTelephonyWebhookUrl("twilio")
 
 	return {
 		accountSid,
 		authToken,
-		fromNumber: fromNumber || null,
-		outboundTwimlUrl: process.env.TWILIO_OUTBOUND_TWIML_URL?.trim() || null,
+		fromNumber,
+		outboundTwimlUrl:
+			readString(override?.outboundTwimlUrl) ||
+			process.env.TWILIO_OUTBOUND_TWIML_URL?.trim() ||
+			null,
 		statusCallbackUrl,
-		recordCalls: process.env.TWILIO_RECORD_CALLS !== "false"
+		recordCalls:
+			readBoolean(override?.recordCalls) ??
+			process.env.TWILIO_RECORD_CALLS !== "false"
 	}
 }
 
@@ -65,7 +93,7 @@ export const twilioTelephonyExecutionProvider: TelephonyExecutionProvider = {
 			}
 		}
 
-		const config = getTwilioConfig()
+		const config = getTwilioConfig(input.providerConfig)
 		if (!config) {
 			return createMissingConfigurationResult()
 		}

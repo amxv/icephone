@@ -5,6 +5,7 @@ import {
 	calls,
 	communicationLogs,
 	leads,
+	teamIntegrations,
 	teamPhoneNumbers,
 	telephonyCalls
 } from "@/db/schema"
@@ -375,6 +376,10 @@ async function processTeamCallQueueDirect(
 			phoneNumber: string
 		} | null
 	>()
+	const providerIntegrationCache = new Map<
+		string,
+		Record<string, unknown> | null
+	>()
 
 	for (const entry of queueEntries) {
 		try {
@@ -457,6 +462,51 @@ async function processTeamCallQueueDirect(
 				getTelephonyExecutionProvider(resolvedProvider)
 			providersUsed.add(executionProvider.name)
 
+			const providerIntegrationCacheKey = `${teamId}:${executionProvider.name}`
+			let providerConfig = providerIntegrationCache.get(
+				providerIntegrationCacheKey
+			)
+			if (providerConfig === undefined) {
+				if (executionProvider.name === "mock") {
+					providerConfig = null
+				} else {
+					const [integration] = await db_ws
+						.select({
+							apiKey: teamIntegrations.apiKey,
+							settings: teamIntegrations.settings
+						})
+						.from(teamIntegrations)
+						.where(
+							and(
+								eq(teamIntegrations.teamId, teamId),
+								eq(
+									teamIntegrations.provider,
+									executionProvider.name
+								)
+							)
+						)
+						.limit(1)
+
+					if (!integration) {
+						providerConfig = null
+					} else {
+						providerConfig = {
+							...((integration.settings || {}) as Record<
+								string,
+								unknown
+							>),
+							...(integration.apiKey
+								? { apiKey: integration.apiKey }
+								: {})
+						}
+					}
+				}
+				providerIntegrationCache.set(
+					providerIntegrationCacheKey,
+					providerConfig
+				)
+			}
+
 			const outboundNumberCacheKey = `${executionProvider.name}:${assignedAgentId || "default"}`
 			let fromPhoneNumber = outboundNumberCache.get(
 				outboundNumberCacheKey
@@ -480,7 +530,8 @@ async function processTeamCallQueueDirect(
 				teamId,
 				queueEntry: entry,
 				startedAt: now,
-				fromPhoneNumber
+				fromPhoneNumber,
+				providerConfig
 			})
 
 			if (execution.status !== "completed") {

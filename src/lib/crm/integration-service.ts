@@ -74,7 +74,10 @@ export async function upsertTeamCRMIntegration(params: {
 		const [updated] = await db_ws
 			.update(teamIntegrations)
 			.set({
-				apiKey: params.apiKey ?? null,
+				apiKey:
+					params.apiKey === undefined
+						? existing.apiKey
+						: params.apiKey,
 				settings: params.settings || {},
 				updatedAt: new Date()
 			})

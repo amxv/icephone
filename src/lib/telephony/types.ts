@@ -43,6 +43,7 @@ export type TelephonyExecutionInput = {
 	queueEntry: QueueEntryForExecution
 	startedAt: Date
 	fromPhoneNumber?: string | null
+	providerConfig?: Record<string, unknown> | null
 }
 
 export type TelephonyExecutionResult =

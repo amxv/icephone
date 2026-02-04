@@ -773,7 +773,8 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 				name: campaigns.name,
 				status: campaigns.status,
 				startDate: campaigns.startDate,
-				endDate: campaigns.endDate
+				endDate: campaigns.endDate,
+				campaignSettings: campaigns.campaignSettings
 			})
 			.from(campaigns)
 			.where(
