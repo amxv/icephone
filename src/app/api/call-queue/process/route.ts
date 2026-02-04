@@ -37,11 +37,13 @@ export async function POST(request: NextRequest) {
 		const body = await request.json()
 		const {
 			userId,
+			teamId,
 			maxUsers = 10,
 			batchSize = 5,
 			forceProcessing = false
 		} = body as {
 			userId?: string
+			teamId?: string
 			maxUsers?: number
 			batchSize?: number
 			forceProcessing?: boolean
@@ -49,21 +51,42 @@ export async function POST(request: NextRequest) {
 
 		console.log("🚀 Starting call queue processing", {
 			userId,
+			teamId,
 			maxUsers,
 			batchSize,
 			forceProcessing
 		})
 
-		// Get users with pending calls to process
-		let usersToProcess: { userId: string }[] = []
+		// Get teams with pending calls to process
+		let teamsToProcess: { teamId: string; userId?: string }[] = []
 
-		if (userId) {
-			// Process specific user
-			usersToProcess = [{ userId }]
+		if (teamId) {
+			// Process specific team (optionally scoped to a user)
+			teamsToProcess = [{ teamId, userId }]
+		} else if (userId) {
+			// Find teams with calls ready to process for a specific user
+			const teamsWithCalls = await db_ws
+				.selectDistinct({ teamId: callQueue.teamId })
+				.from(callQueue)
+				.where(
+					and(
+						eq(callQueue.userId, userId),
+						eq(callQueue.status, "pending"),
+						forceProcessing
+							? sql`true`
+							: sql`(${callQueue.scheduledTime} IS NULL OR ${callQueue.scheduledTime} <= NOW())`
+					)
+				)
+				.limit(maxUsers)
+
+			teamsToProcess = teamsWithCalls.map((team) => ({
+				teamId: team.teamId,
+				userId
+			}))
 		} else {
-			// Find users with calls ready to process
-			const usersWithCalls = await db_ws
-				.selectDistinct({ userId: callQueue.userId })
+			// Find teams with calls ready to process
+			const teamsWithCalls = await db_ws
+				.selectDistinct({ teamId: callQueue.teamId })
 				.from(callQueue)
 				.where(
 					and(
@@ -75,35 +98,40 @@ export async function POST(request: NextRequest) {
 				)
 				.limit(maxUsers)
 
-			usersToProcess = usersWithCalls
+			teamsToProcess = teamsWithCalls.map((team) => ({
+				teamId: team.teamId
+			}))
 		}
 
-		if (usersToProcess.length === 0) {
+		if (teamsToProcess.length === 0) {
 			return NextResponse.json({
 				success: true,
-				message: "No users with calls ready to process",
+				message: "No teams with calls ready to process",
 				processed: 0,
 				results: []
 			})
 		}
 
-		console.log(`📞 Processing calls for ${usersToProcess.length} users`)
+		console.log(`📞 Processing calls for ${teamsToProcess.length} teams`)
 
 		const results = []
 		let totalProcessed = 0
 		let totalSuccessful = 0
 		let totalFailed = 0
 
-		// Process each user's call queue
-		for (const user of usersToProcess) {
+		// Process each team's call queue
+		for (const team of teamsToProcess) {
 			try {
-				// Check if user has calls ready to process
+				// Check if team has calls ready to process
 				const readyCalls = await db_ws
 					.select({ count: sql<number>`COUNT(*)` })
 					.from(callQueue)
 					.where(
 						and(
-							eq(callQueue.userId, user.userId),
+							eq(callQueue.teamId, team.teamId),
+							team.userId
+								? eq(callQueue.userId, team.userId)
+								: sql`true`,
 							eq(callQueue.status, "pending"),
 							forceProcessing
 								? sql`true`
@@ -113,7 +141,8 @@ export async function POST(request: NextRequest) {
 
 				if (readyCalls[0].count === 0 && !forceProcessing) {
 					results.push({
-						userId: user.userId,
+						teamId: team.teamId,
+						userId: team.userId,
 						status: "skipped",
 						reason: "No calls ready for processing",
 						processed: 0
@@ -121,9 +150,10 @@ export async function POST(request: NextRequest) {
 					continue
 				}
 
-				// Process the user's call queue batch
-				const result = await processUserCallQueueDirect(
-					user.userId,
+				// Process the team's call queue batch
+				const result = await processTeamCallQueueDirect(
+					team.teamId,
+					team.userId,
 					batchSize
 				)
 
@@ -133,22 +163,25 @@ export async function POST(request: NextRequest) {
 					totalFailed += result.data.failed || 0
 
 					results.push({
-						userId: user.userId,
+						teamId: team.teamId,
+						userId: team.userId,
 						status: "processed",
 						...result.data
 					})
 				} else {
 					results.push({
-						userId: user.userId,
+						teamId: team.teamId,
+						userId: team.userId,
 						status: "error",
 						error: result.error,
 						processed: 0
 					})
 				}
 			} catch (error) {
-				console.error(`Error processing user ${user.userId}:`, error)
+				console.error(`Error processing team ${team.teamId}:`, error)
 				results.push({
-					userId: user.userId,
+					teamId: team.teamId,
+					userId: team.userId,
 					status: "error",
 					error:
 						error instanceof Error
@@ -227,8 +260,9 @@ export async function GET(request: NextRequest) {
 }
 
 // Direct queue processing function that doesn't require auth context
-async function processUserCallQueueDirect(
-	_userId: string,
+async function processTeamCallQueueDirect(
+	_teamId: string,
+	_userId?: string,
 	_batchSize: number = 5
 ) {
 	const callExecutionEnabled = process.env.CALL_EXECUTION_ENABLED === "true"

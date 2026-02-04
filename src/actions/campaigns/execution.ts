@@ -2,7 +2,8 @@
 
 import { requireTeam } from "@/lib/auth/session"
 import { teamScope } from "@/lib/team-scope"
-import { and, eq, inArray, lte, sql } from "drizzle-orm"
+import { addMinutes, endOfDay, startOfDay } from "date-fns"
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm"
 
 import { db_ws } from "@/db"
 import {
@@ -14,6 +15,131 @@ import {
 	leads,
 	voiceAgents
 } from "@/db/schema"
+
+function isWithinBusinessHours(
+	campaignSettings: Record<string, unknown> | null | undefined,
+	now: Date = new Date()
+) {
+	const callTiming = (campaignSettings as { callTiming?: unknown } | null)
+		?.callTiming as
+		| {
+				businessHours?: {
+					enabled?: boolean
+					timezone?: string
+					schedule?: Record<
+						string,
+						| {
+								start?: string
+								end?: string
+						  }
+						| null
+					>
+				}
+		  }
+		| undefined
+
+	const businessHours = callTiming?.businessHours
+	if (!businessHours?.enabled) return true
+
+	try {
+		const schedule = businessHours.schedule || {}
+		const timezone = businessHours.timezone || "UTC"
+
+		const formatter = new Intl.DateTimeFormat("en-US", {
+			timeZone: timezone,
+			weekday: "long",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false
+		})
+
+		const parts = formatter.formatToParts(now)
+		const weekday = parts
+			.find((part) => part.type === "weekday")
+			?.value.toLowerCase()
+		const hour = Number(
+			parts.find((part) => part.type === "hour")?.value ?? "0"
+		)
+		const minute = Number(
+			parts.find((part) => part.type === "minute")?.value ?? "0"
+		)
+
+		if (!weekday || Number.isNaN(hour) || Number.isNaN(minute)) {
+			return true
+		}
+
+		const daySchedule = schedule[weekday]
+		if (!daySchedule?.start || !daySchedule?.end) {
+			return false
+		}
+
+		const [startHour, startMinute] = daySchedule.start
+			.split(":")
+			.map((value) => Number(value))
+		const [endHour, endMinute] = daySchedule.end
+			.split(":")
+			.map((value) => Number(value))
+
+		if (
+			Number.isNaN(startHour) ||
+			Number.isNaN(startMinute) ||
+			Number.isNaN(endHour) ||
+			Number.isNaN(endMinute)
+		) {
+			return false
+		}
+
+		const nowMinutes = hour * 60 + minute
+		const startMinutes = startHour * 60 + startMinute
+		const endMinutes = endHour * 60 + endMinute
+
+		return nowMinutes >= startMinutes && nowMinutes <= endMinutes
+	} catch (error) {
+		console.warn("Failed to evaluate business hours:", error)
+		return true
+	}
+}
+
+async function requeueFailedCampaignEntries(
+	campaignId: number,
+	teamId: string,
+	now: Date
+) {
+	const retryableEntries = await db_ws
+		.select({
+			id: campaignQueue.id,
+			retryCount: campaignQueue.retryCount,
+			retryInterval: campaignQueue.retryInterval,
+			maxRetries: campaignQueue.maxRetries
+		})
+		.from(campaignQueue)
+		.innerJoin(
+			campaignLeads,
+			eq(campaignQueue.campaignLeadId, campaignLeads.id)
+		)
+		.where(
+			and(
+				eq(campaignQueue.campaignId, campaignId),
+				eq(campaignQueue.status, "failed"),
+				eq(campaignLeads.teamId, teamId),
+				sql`${campaignQueue.retryCount} < ${campaignQueue.maxRetries}`
+			)
+		)
+
+	for (const entry of retryableEntries) {
+		const nextTime = addMinutes(now, entry.retryInterval ?? 60)
+		await db_ws
+			.update(campaignQueue)
+			.set({
+				status: "queued",
+				retryCount: (entry.retryCount ?? 0) + 1,
+				scheduledTime: nextTime,
+				lastError: null,
+				updatedAt: now
+			})
+			.where(eq(campaignQueue.id, entry.id))
+	}
+}
 
 async function getExecutionContext() {
 	const { teamId, user } = await requireTeam()
@@ -498,6 +624,75 @@ export async function processNextQueueBatchDirect(
 			}
 		}
 
+		const now = new Date()
+
+		await requeueFailedCampaignEntries(campaignId, teamId, now)
+
+		if (
+			!isWithinBusinessHours(
+				campaignData.campaignSettings as Record<string, unknown>,
+				now
+			)
+		) {
+			return {
+				success: true,
+				data: {
+					processed: 0,
+					results: [],
+					successful: 0,
+					failed: 0,
+					retries: 0,
+					message: "Outside configured business hours"
+				},
+				error: null
+			}
+		}
+
+		let effectiveBatchSize = batchSize
+		const callTiming =
+			(campaignData.campaignSettings as { callTiming?: unknown } | null)
+				?.callTiming as
+				| {
+						maxCallsPerDay?: number
+				  }
+				| undefined
+
+		if (callTiming?.maxCallsPerDay) {
+			const [dailyCalls] = await db_ws
+				.select({ count: sql<number>`COUNT(*)` })
+				.from(callQueue)
+				.where(
+					and(
+						eq(callQueue.campaignId, campaignId),
+						eq(callQueue.teamId, teamId),
+						gte(callQueue.createdAt, startOfDay(now)),
+						lte(callQueue.createdAt, endOfDay(now))
+					)
+				)
+
+			const remaining = Math.max(
+				0,
+				callTiming.maxCallsPerDay - (dailyCalls?.count ?? 0)
+			)
+
+			if (remaining === 0) {
+				return {
+					success: true,
+					data: {
+						processed: 0,
+						results: [],
+						successful: 0,
+						failed: 0,
+						retries: 0,
+						message: "Daily call limit reached"
+					},
+					error: null
+				}
+			}
+
+			effectiveBatchSize = Math.min(batchSize, remaining)
+		}
+
 		if (!campaignData.voiceAgentId) {
 			return {
 				success: false,
@@ -561,7 +756,7 @@ export async function processNextQueueBatchDirect(
 				sql`${campaignQueue.priority} DESC`,
 				campaignQueue.scheduledTime
 			)
-			.limit(batchSize)
+			.limit(effectiveBatchSize)
 
 		if (!queueEntries.length) {
 			return {
@@ -578,7 +773,6 @@ export async function processNextQueueBatchDirect(
 			}
 		}
 
-		const now = new Date()
 		const queueIds = queueEntries.map((entry) => entry.queueId)
 		const campaignLeadIds = queueEntries.map((entry) => entry.campaignLeadId)
 		const results: Array<{ queueId: number; callQueueId?: number }> = []

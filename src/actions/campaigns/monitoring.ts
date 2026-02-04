@@ -1,6 +1,7 @@
 "use server"
 
-import { auth } from "@/lib/auth/session"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm"
 
 import { db_ws } from "@/db"
@@ -80,10 +81,7 @@ export async function getCampaignHealth(campaignId: number): Promise<{
 	error: string | null
 }> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await requireTeam()
 
 		// Get campaign basic info
 		const campaign = await db_ws
@@ -93,9 +91,7 @@ export async function getCampaignHealth(campaignId: number): Promise<{
 				status: campaigns.status
 			})
 			.from(campaigns)
-			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
-			)
+			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
 			.limit(1)
 
 		if (!campaign || campaign.length === 0) {
@@ -117,10 +113,14 @@ export async function getCampaignHealth(campaignId: number): Promise<{
 					)
 			})
 			.from(campaignQueue)
+			.innerJoin(
+				campaignLeads,
+				eq(campaignQueue.campaignLeadId, campaignLeads.id)
+			)
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId)
+					eq(campaignLeads.teamId, teamId)
 				)
 			)
 			.groupBy(campaignQueue.status)
@@ -139,7 +139,7 @@ export async function getCampaignHealth(campaignId: number): Promise<{
 			.where(
 				and(
 					eq(calls.campaignId, campaignId),
-					eq(calls.userId, userId),
+					teamScope(calls, teamId),
 					gte(calls.createdAt, oneDayAgo)
 				)
 			)
@@ -152,10 +152,14 @@ export async function getCampaignHealth(campaignId: number): Promise<{
 		const stuckCalls = await db_ws
 			.select({ count: sql<number>`COUNT(*)` })
 			.from(campaignQueue)
+			.innerJoin(
+				campaignLeads,
+				eq(campaignQueue.campaignLeadId, campaignLeads.id)
+			)
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
+					eq(campaignLeads.teamId, teamId),
 					eq(campaignQueue.status, "processing"),
 					lte(campaignQueue.startedAt, thirtyMinutesAgo)
 				)
@@ -322,10 +326,7 @@ export async function checkPerformanceAlerts(campaignId: number): Promise<{
 	error: string | null
 }> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await requireTeam()
 
 		const alerts: PerformanceAlert[] = []
 		const timestamp = new Date()
@@ -428,10 +429,14 @@ export async function checkPerformanceAlerts(campaignId: number): Promise<{
 		const recentActivity = await db_ws
 			.select({ count: sql<number>`COUNT(*)` })
 			.from(campaignQueue)
+			.innerJoin(
+				campaignLeads,
+				eq(campaignQueue.campaignLeadId, campaignLeads.id)
+			)
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
+					eq(campaignLeads.teamId, teamId),
 					gte(campaignQueue.updatedAt, oneHourAgo)
 				)
 			)
@@ -453,9 +458,7 @@ export async function checkPerformanceAlerts(campaignId: number): Promise<{
 		const campaign = await db_ws
 			.select({ status: campaigns.status })
 			.from(campaigns)
-			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
-			)
+			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
 			.limit(1)
 
 		if (
@@ -469,7 +472,7 @@ export async function checkPerformanceAlerts(campaignId: number): Promise<{
 				.where(
 					and(
 						eq(campaignLeads.campaignId, campaignId),
-						eq(campaignLeads.userId, userId)
+						eq(campaignLeads.teamId, teamId)
 					)
 				)
 
@@ -479,7 +482,7 @@ export async function checkPerformanceAlerts(campaignId: number): Promise<{
 				.where(
 					and(
 						eq(campaignLeads.campaignId, campaignId),
-						eq(campaignLeads.userId, userId),
+						eq(campaignLeads.teamId, teamId),
 						sql`${campaignLeads.status} IN ('attempted', 'contacted', 'qualified', 'converted', 'failed')`
 					)
 				)
@@ -520,10 +523,7 @@ export async function getAllCampaignsHealth(): Promise<{
 	error: string | null
 }> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await requireTeam()
 
 		// Get all campaigns for the user
 		const userCampaigns = await db_ws
@@ -533,7 +533,7 @@ export async function getAllCampaignsHealth(): Promise<{
 				status: campaigns.status
 			})
 			.from(campaigns)
-			.where(eq(campaigns.userId, userId))
+			.where(teamScope(campaigns, teamId))
 			.orderBy(desc(campaigns.updatedAt))
 
 		if (userCampaigns.length === 0) {
@@ -583,10 +583,7 @@ export async function generateCampaignReport(
 	error: string | null
 }> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await requireTeam()
 
 		// Default to last 30 days if no dates provided
 		const reportEndDate = endDate || new Date()
@@ -607,9 +604,7 @@ export async function generateCampaignReport(
 				createdAt: campaigns.createdAt
 			})
 			.from(campaigns)
-			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
-			)
+			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
 			.limit(1)
 
 		if (!campaign || campaign.length === 0) {
@@ -645,7 +640,7 @@ export async function generateCampaignReport(
 			.where(
 				and(
 					eq(campaignLeads.campaignId, campaignId),
-					eq(campaignLeads.userId, userId)
+					eq(campaignLeads.teamId, teamId)
 				)
 			)
 
@@ -667,7 +662,7 @@ export async function generateCampaignReport(
 			.where(
 				and(
 					eq(calls.campaignId, campaignId),
-					eq(calls.userId, userId),
+					teamScope(calls, teamId),
 					gte(calls.createdAt, reportStartDate),
 					lte(calls.createdAt, reportEndDate)
 				)
@@ -691,7 +686,7 @@ export async function generateCampaignReport(
 			.where(
 				and(
 					eq(calls.campaignId, campaignId),
-					eq(calls.userId, userId),
+					teamScope(calls, teamId),
 					gte(calls.createdAt, reportStartDate),
 					lte(calls.createdAt, reportEndDate)
 				)

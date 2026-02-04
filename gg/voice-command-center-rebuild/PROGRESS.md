@@ -162,13 +162,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 13 — Campaigns & Call Queue Gap Analysis
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Closed major campaign/call-queue gaps by enforcing team scope across campaign monitoring/validation/voice integration and queue operations, updating campaign/call-queue processors to be team-aware, adding business-hours gating, daily call limits, retry requeue scaffolding in queue processing, and scheduling queued calls with campaign call intervals.
 - Files changed:
+  - Updated: `src/actions/campaigns/execution.ts`, `src/actions/campaigns/queue.ts`, `src/actions/campaigns/monitoring.ts`, `src/actions/campaigns/validation.ts`, `src/actions/campaigns/voice-integration.ts`, `src/app/api/campaigns/process/route.ts`, `src/app/api/call-queue/process/route.ts`
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
-  - Document gaps: business hours, retries, throttling/concurrency, scheduling triggers.
+  - Daily call limits are enforced in server time (timezone-aware day boundaries still needed).
+  - Telephony execution remains deferred; call-queue processor is still stubbed behind `CALL_EXECUTION_ENABLED`.
 
 ---
 
