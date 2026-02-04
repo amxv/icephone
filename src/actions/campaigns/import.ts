@@ -1,11 +1,12 @@
 "use server"
 
-import { auth } from "@/lib/auth/session"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope, withTeamId } from "@/lib/team-scope"
 import { and, eq } from "drizzle-orm"
 
 import { db_ws } from "@/db"
 import { leads } from "@/db/schema"
-import { assignLeadsToCampaign } from "./leads"
+import { assignLeadsToCampaign } from "./core"
 
 export interface CSVLeadData {
 	name: string
@@ -174,7 +175,7 @@ function validateCSVLeadData(
 // Detect and handle duplicate leads
 async function findDuplicateLeads(
 	leadData: CSVLeadData[],
-	userId: string
+	teamId: string
 ): Promise<{
 	duplicates: Array<{
 		csvIndex: number
@@ -200,7 +201,7 @@ async function findDuplicateLeads(
 				.select({ id: leads.id })
 				.from(leads)
 				.where(
-					and(eq(leads.email, lead.email), eq(leads.userId, userId))
+					and(eq(leads.email, lead.email), teamScope(leads, teamId))
 				)
 				.limit(1)
 
@@ -220,7 +221,7 @@ async function findDuplicateLeads(
 				.select({ id: leads.id })
 				.from(leads)
 				.where(
-					and(eq(leads.phone, lead.phone), eq(leads.userId, userId))
+					and(eq(leads.phone, lead.phone), teamScope(leads, teamId))
 				)
 				.limit(1)
 
@@ -252,8 +253,8 @@ export async function processCSVImport(
 	}
 ): Promise<CSVImportResult> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
+		const { teamId, user } = await requireTeam()
+		if (!teamId || !user) {
 			throw new Error("Unauthorized")
 		}
 
@@ -344,7 +345,7 @@ export async function processCSVImport(
 		// Check for duplicates
 		const { duplicates, uniqueLeads } = await findDuplicateLeads(
 			validLeads,
-			userId
+			teamId
 		)
 
 		// Filter out duplicates if skipDuplicates is true
@@ -378,7 +379,9 @@ export async function processCSVImport(
 					? new Date(lead.expectedCloseDate)
 					: null,
 				status: "new" as const,
-				userId
+				createdByUserId: user.id,
+				userId: user.id,
+				teamId
 			}))
 
 			const insertedLeads = await db_ws

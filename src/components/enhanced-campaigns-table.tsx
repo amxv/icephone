@@ -79,7 +79,7 @@ import {
 	pauseCampaign,
 	resumeCampaign,
 	stopCampaign
-} from "@/actions/campaigns/execution"
+} from "@/actions/campaigns"
 import { toast } from "sonner"
 
 // Enhanced campaign schema with additional metrics

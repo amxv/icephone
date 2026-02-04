@@ -67,11 +67,13 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 5 — Campaigns + Call Queue
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Implemented team-scoped campaign core actions (CRUD, status changes, lead assignment, execution status) and updated campaign UI imports to use them. Added team-scoped CSV import pipeline adjustments and aligned call queue listing/cancellation to team scope. Campaign execution is stubbed to status updates only.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Added: `src/actions/campaigns/core.ts`.
+  - Updated: `src/actions/campaigns/index.ts`, `src/actions/campaigns/import.ts`, `src/components/enhanced-campaigns-table.tsx`, `src/actions/lead-communication.ts`.
+- Tests/commands run: None.
+- Commit: `phase-5: campaigns + call queue`
 - Notes/blockers:
 
 ---

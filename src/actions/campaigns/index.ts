@@ -1,6 +1,6 @@
 // Re-export all campaign functions for backward compatibility
 
-// Basic campaign operations
+// Core campaign operations (team-scoped)
 export {
 	getCampaigns,
 	getCampaignById,
@@ -8,6 +8,28 @@ export {
 	updateCampaign,
 	deleteCampaign,
 	createEnhancedCampaign,
+	getCampaignTemplates,
+	createCampaignFromTemplate,
+	assignLeadsToCampaign,
+	removeLeadFromCampaign,
+	getCampaignLeads,
+	createLeadAndAssignToCampaign,
+	startCampaign,
+	pauseCampaign,
+	resumeCampaign,
+	stopCampaign,
+	getCampaignExecutionStatus
+} from "./core"
+
+// Types and interfaces
+export type {
+	CampaignFilter,
+	CampaignStatus,
+	EnhancedCampaignData
+} from "./core"
+
+// Advanced/basic campaign operations (legacy)
+export {
 	assignVoiceAgentToCampaign,
 	configureCampaignSettings,
 	archiveCampaign,
@@ -16,26 +38,11 @@ export {
 	getArchivedCampaigns,
 	permanentlyDeleteCampaign,
 	duplicateCampaign,
-	createCampaignTemplate,
-	getCampaignTemplates,
-	createCampaignFromTemplate
+	createCampaignTemplate
 } from "./basic"
 
-// Types and interfaces
-export type {
-	CampaignFilter,
-	CampaignStatus,
-	EnhancedCampaignData
-} from "./basic"
-
-// Lead management
-export {
-	assignLeadsToCampaign,
-	removeLeadFromCampaign,
-	bulkAssignLeads,
-	getCampaignLeads,
-	createLeadAndAssignToCampaign
-} from "./leads"
+// Lead management (legacy helpers)
+export { bulkAssignLeads } from "./leads"
 
 // Queue management
 export {
@@ -57,16 +64,11 @@ export type {
 	CSVImportResult
 } from "./import"
 
-// Campaign execution engine
+// Campaign execution engine (legacy / background)
 export {
-	startCampaign,
-	pauseCampaign,
-	resumeCampaign,
-	stopCampaign,
 	scheduleCampaign,
 	processScheduledCampaigns,
 	processNextQueueBatch,
-	getCampaignExecutionStatus,
 	triggerCampaignProcessing
 } from "./execution"
 

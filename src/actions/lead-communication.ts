@@ -1,6 +1,6 @@
 "use server"
 
-import { currentUser } from "@/lib/auth/session"
+import { currentUser, requireTeam } from "@/lib/auth/session"
 import { db_ws } from "@/db"
 import {
 	callQueue,
@@ -12,6 +12,7 @@ import {
 	calls
 } from "@/db/schema"
 import { eq, and, desc, sql } from "drizzle-orm"
+import { teamScope } from "@/lib/team-scope"
 import { revalidatePath } from "next/cache"
 
 // Types
@@ -317,8 +318,8 @@ export async function getAvailableVoiceAgents() {
 // Get call queue status for a lead
 export async function getCallQueueStatus(leadId: number) {
 	try {
-		const user = await currentUser()
-		if (!user) {
+		const { teamId } = await requireTeam()
+		if (!teamId) {
 			return { success: false, error: "Unauthorized", data: null }
 		}
 
@@ -326,7 +327,7 @@ export async function getCallQueueStatus(leadId: number) {
 			.select()
 			.from(callQueue)
 			.where(
-				and(eq(callQueue.leadId, leadId), eq(callQueue.userId, user.id))
+				and(eq(callQueue.leadId, leadId), teamScope(callQueue, teamId))
 			)
 			.orderBy(desc(callQueue.createdAt))
 			.limit(1)
@@ -345,8 +346,8 @@ export async function getCallQueueStatus(leadId: number) {
 // Cancel a queued call
 export async function cancelQueuedCall(queueId: number) {
 	try {
-		const user = await currentUser()
-		if (!user) {
+		const { teamId, user } = await requireTeam()
+		if (!teamId || !user) {
 			return { success: false, error: "Unauthorized" }
 		}
 
@@ -358,7 +359,7 @@ export async function cancelQueuedCall(queueId: number) {
 				updatedAt: new Date()
 			})
 			.where(
-				and(eq(callQueue.id, queueId), eq(callQueue.userId, user.id))
+				and(eq(callQueue.id, queueId), teamScope(callQueue, teamId))
 			)
 			.returning()
 
@@ -398,8 +399,8 @@ export async function cancelQueuedCall(queueId: number) {
 // Get all call queue entries for the current user
 export async function getCallQueue() {
 	try {
-		const user = await currentUser()
-		if (!user) {
+		const { teamId } = await requireTeam()
+		if (!teamId) {
 			return { success: false, error: "Unauthorized", data: null }
 		}
 
@@ -433,7 +434,7 @@ export async function getCallQueue() {
 			.from(callQueue)
 			.leftJoin(leads, eq(callQueue.leadId, leads.id))
 			.leftJoin(voiceAgents, eq(callQueue.voiceAgentId, voiceAgents.id))
-			.where(eq(callQueue.userId, user.id))
+			.where(teamScope(callQueue, teamId))
 			.orderBy(desc(callQueue.createdAt))
 
 		return { success: true, data: queueEntries }
