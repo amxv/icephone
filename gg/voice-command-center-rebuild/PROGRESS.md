@@ -567,3 +567,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-45: analytics collection rates`
 - Notes/blockers:
   - Rates are period-scoped and depend on normalized disposition/status ingestion; telephony webhook freshness directly affects near-real-time accuracy.
+
+---
+
+## Phase 46 — Analytics Cost/Duration Accuracy Fix
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Fixed a blended analytics math issue so average duration now uses weighted totals across voice sessions + legacy calls (instead of averaging two averages). Also extended legacy call aggregation to include cost, and updated combined cost metrics to include both voice-session and legacy call spend for more accurate team-level reporting.
+- Files changed:
+  - Updated: `src/actions/call-analytics.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-46: analytics accuracy`
+- Notes/blockers:
+  - None.

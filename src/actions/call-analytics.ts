@@ -218,6 +218,8 @@ export async function getCallAnalytics(
 				totalCalls: count(calls.id),
 				totalDuration: sum(calls.duration),
 				averageDuration: avg(calls.duration),
+				totalCost: sum(calls.cost),
+				averageCost: avg(calls.cost),
 				successfulCalls: count(
 					sql`CASE WHEN ${calls.status} = 'completed' THEN 1 END`
 				),
@@ -448,16 +450,21 @@ export async function getCallAnalytics(
 		totalDuration:
 			(Number(voiceStats.totalDuration) || 0) +
 			(Number(legacyStats.totalDuration) || 0),
-		averageDuration:
-			((Number(voiceStats.averageDuration) || 0) +
-				(Number(legacyStats.averageDuration) || 0)) /
-			2,
-		totalCost: Number(voiceStats.totalCost) || 0,
-		averageCost: Number(voiceStats.averageCost) || 0,
+		totalCost:
+			(Number(voiceStats.totalCost) || 0) +
+			(Number(legacyStats.totalCost) || 0),
 		successfulCalls:
 			voiceStats.successfulCalls + legacyStats.successfulCalls,
 		failedCalls: voiceStats.failedCalls + legacyStats.failedCalls
 	}
+	const averageDuration =
+		combinedStats.totalCalls > 0
+			? combinedStats.totalDuration / combinedStats.totalCalls
+			: 0
+	const averageCost =
+		combinedStats.totalCalls > 0
+			? combinedStats.totalCost / combinedStats.totalCalls
+			: 0
 
 	const outcomeBreakdown: Record<string, number> = {}
 	const accumulateOutcome = (
@@ -653,9 +660,9 @@ export async function getCallAnalytics(
 	return {
 		totalCalls: combinedStats.totalCalls,
 		totalDuration: combinedStats.totalDuration,
-		averageDuration: Math.round(combinedStats.averageDuration),
+		averageDuration: Math.round(averageDuration),
 		totalCost: combinedStats.totalCost,
-		averageCost: combinedStats.averageCost,
+		averageCost,
 		successfulCalls: combinedStats.successfulCalls,
 		failedCalls: combinedStats.failedCalls,
 		successRate:

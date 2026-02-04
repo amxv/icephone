@@ -317,3 +317,10 @@ Examples:
 - [x] Preserve existing pickup/outcome/disposition analytics without regressions
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-45: analytics collection rates`
+
+### Phase 46 — Analytics Cost/Duration Accuracy Fix
+- [x] Eliminate blended-metric math error for average call duration (use weighted totals, not average-of-averages)
+- [x] Include legacy call costs in total/average cost analytics calculations
+- [x] Keep analytics payload compatibility for existing dashboard components
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-46: analytics accuracy`
