@@ -50,7 +50,10 @@ function hasValidTwilioJsonBodyHash(requestUrl: string, rawBody: string) {
 		}
 
 		const computedHash = createHash("sha256").update(rawBody).digest("hex")
-		return constantTimeEqual(computedHash.toLowerCase(), bodyHash.toLowerCase())
+		return constantTimeEqual(
+			computedHash.toLowerCase(),
+			bodyHash.toLowerCase()
+		)
 	} catch {
 		return false
 	}

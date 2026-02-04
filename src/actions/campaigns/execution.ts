@@ -105,13 +105,11 @@ function getCampaignOutboundPhoneNumberId(
 	campaignSettings: Record<string, unknown> | null | undefined
 ) {
 	const voiceConfiguration = (
-		campaignSettings as
-			| {
-					voiceConfiguration?: {
-						outboundPhoneNumberId?: unknown
-					}
-			  }
-			| null
+		campaignSettings as {
+			voiceConfiguration?: {
+				outboundPhoneNumberId?: unknown
+			}
+		} | null
 	)?.voiceConfiguration
 	const outboundPhoneNumberId = voiceConfiguration?.outboundPhoneNumberId
 	return typeof outboundPhoneNumberId === "number" &&
@@ -754,9 +752,10 @@ export async function processNextQueueBatchDirect(
 			}
 		}
 
-		const configuredOutboundPhoneNumberId = getCampaignOutboundPhoneNumberId(
-			campaignData.campaignSettings as Record<string, unknown> | null
-		)
+		const configuredOutboundPhoneNumberId =
+			getCampaignOutboundPhoneNumberId(
+				campaignData.campaignSettings as Record<string, unknown> | null
+			)
 		let configuredOutboundPhoneNumber: {
 			id: number
 			phoneNumber: string
@@ -773,7 +772,10 @@ export async function processNextQueueBatchDirect(
 				.from(teamPhoneNumbers)
 				.where(
 					and(
-						eq(teamPhoneNumbers.id, configuredOutboundPhoneNumberId),
+						eq(
+							teamPhoneNumbers.id,
+							configuredOutboundPhoneNumberId
+						),
 						eq(teamPhoneNumbers.teamId, teamId),
 						eq(teamPhoneNumbers.status, "active")
 					)
@@ -869,7 +871,7 @@ export async function processNextQueueBatchDirect(
 				)
 				.returning({ id: callQueue.id })
 
-			const communicationLogPayload: typeof communicationLogs.$inferInsert[] =
+			const communicationLogPayload: (typeof communicationLogs.$inferInsert)[] =
 				[]
 			for (const [index, entry] of queueEntries.entries()) {
 				const queuedCallId = queuedCalls[index]?.id
@@ -897,7 +899,9 @@ export async function processNextQueueBatchDirect(
 			}
 
 			if (communicationLogPayload.length > 0) {
-				await tx.insert(communicationLogs).values(communicationLogPayload)
+				await tx
+					.insert(communicationLogs)
+					.values(communicationLogPayload)
 			}
 
 			const callIdMap = queueEntries.map((entry, index) => ({

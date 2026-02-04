@@ -11,15 +11,12 @@ const saveCalcomIntegrationSchema = z.object({
 	apiKey: z.string().trim().optional().nullable(),
 	settings: z
 		.object({
-			eventTypeId: z.preprocess(
-				(value) => {
-					if (value === "" || value === null || value === undefined) {
-						return undefined
-					}
-					return Number(value)
-				},
-				z.number().int().positive().optional()
-			),
+			eventTypeId: z.preprocess((value) => {
+				if (value === "" || value === null || value === undefined) {
+					return undefined
+				}
+				return Number(value)
+			}, z.number().int().positive().optional()),
 			eventTypeSlug: z.string().trim().optional().nullable(),
 			teamSlug: z.string().trim().optional().nullable(),
 			username: z.string().trim().optional().nullable(),

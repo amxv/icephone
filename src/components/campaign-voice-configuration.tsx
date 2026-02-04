@@ -120,7 +120,10 @@ export function CampaignVoiceConfigurationComponent({
 					getCampaignVoiceConfiguration(campaignId),
 					getPhoneNumbers()
 				])
-				if (configResult.success && configResult.data?.voiceConfiguration) {
+				if (
+					configResult.success &&
+					configResult.data?.voiceConfiguration
+				) {
 					setConfiguration((prevConfig) => ({
 						...prevConfig,
 						...configResult.data.voiceConfiguration

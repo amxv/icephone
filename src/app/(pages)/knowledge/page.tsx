@@ -6,7 +6,6 @@ import {
 	getKnowledgeBaseStats
 } from "@/actions/knowledge-base"
 import KnowledgeBaseSearch from "@/components/knowledge-base/KnowledgeBaseSearch"
-// import AddKnowledgeBaseSourceForm from "@/components/admin/knowledge-base/AddKnowledgeBaseSourceForm"
 import KnowledgeBaseSourcesList from "@/components/knowledge-base/KnowledgeBaseSourcesList"
 import KnowledgeBaseStats from "@/components/knowledge-base/KnowledgeBaseStats"
 import type { KnowledgeBaseStatsProps } from "@/components/knowledge-base/KnowledgeBaseStats"

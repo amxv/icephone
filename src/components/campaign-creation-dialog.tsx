@@ -1342,15 +1342,20 @@ export function CampaignCreationDialog({
 				{/* Step indicator */}
 				<div className="overflow-x-auto py-4">
 					<div className="mx-auto flex min-w-max items-center justify-center space-x-2 px-1">
-						{Object.entries(STEP_LABELS).map(([key, label], index) => {
-							const isActive = key === currentStep
-							const steps = Object.keys(STEP_LABELS)
-							const isCompleted = steps.indexOf(currentStep) > index
+						{Object.entries(STEP_LABELS).map(
+							([key, label], index) => {
+								const isActive = key === currentStep
+								const steps = Object.keys(STEP_LABELS)
+								const isCompleted =
+									steps.indexOf(currentStep) > index
 
-							return (
-								<div key={key} className="flex items-center">
+								return (
 									<div
-										className={`
+										key={key}
+										className="flex items-center"
+									>
+										<div
+											className={`
 										w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-medium
 										${
 											isActive
@@ -1360,23 +1365,25 @@ export function CampaignCreationDialog({
 													: "bg-muted text-muted-foreground"
 										}
 									`}
-										aria-label={`Step ${index + 1}: ${label}`}
-									>
-										{isCompleted ? (
-											<CheckIcon className="h-4 w-4" />
-										) : (
-											index + 1
+											aria-label={`Step ${index + 1}: ${label}`}
+										>
+											{isCompleted ? (
+												<CheckIcon className="h-4 w-4" />
+											) : (
+												index + 1
+											)}
+										</div>
+										{index <
+											Object.keys(STEP_LABELS).length -
+												1 && (
+											<div
+												className={`w-5 sm:w-8 h-0.5 mx-1 sm:mx-2 ${isCompleted ? "bg-green-500" : "bg-muted"}`}
+											/>
 										)}
 									</div>
-									{index <
-										Object.keys(STEP_LABELS).length - 1 && (
-										<div
-											className={`w-5 sm:w-8 h-0.5 mx-1 sm:mx-2 ${isCompleted ? "bg-green-500" : "bg-muted"}`}
-										/>
-									)}
-								</div>
-							)
-						})}
+								)
+							}
+						)}
 					</div>
 				</div>
 

@@ -504,7 +504,8 @@ export function CallQueuePageClient() {
 			console.error("Error processing call queue:", error)
 			toast({
 				title: "Processing Failed",
-				description: "An unexpected error occurred while processing queue.",
+				description:
+					"An unexpected error occurred while processing queue.",
 				variant: "destructive"
 			})
 		} finally {
@@ -521,7 +522,8 @@ export function CallQueuePageClient() {
 				toast({
 					title: "Retry Failed",
 					description:
-						result.error || "Unable to retry selected queue entries.",
+						result.error ||
+						"Unable to retry selected queue entries.",
 					variant: "destructive"
 				})
 				return
@@ -536,7 +538,8 @@ export function CallQueuePageClient() {
 			console.error("Error retrying selected queue entries:", error)
 			toast({
 				title: "Retry Failed",
-				description: "An unexpected error occurred while retrying entries.",
+				description:
+					"An unexpected error occurred while retrying entries.",
 				variant: "destructive"
 			})
 		} finally {
@@ -557,7 +560,8 @@ export function CallQueuePageClient() {
 				toast({
 					title: "Cancel Failed",
 					description:
-						result.error || "Unable to cancel selected queue entries.",
+						result.error ||
+						"Unable to cancel selected queue entries.",
 					variant: "destructive"
 				})
 				return
@@ -572,7 +576,8 @@ export function CallQueuePageClient() {
 			console.error("Error cancelling selected queue entries:", error)
 			toast({
 				title: "Cancel Failed",
-				description: "An unexpected error occurred while cancelling entries.",
+				description:
+					"An unexpected error occurred while cancelling entries.",
 				variant: "destructive"
 			})
 		} finally {
@@ -672,10 +677,14 @@ export function CallQueuePageClient() {
 												</h2>
 												<div className="flex gap-2 flex-wrap justify-end">
 													<Button
-														onClick={handleProcessNow}
+														onClick={
+															handleProcessNow
+														}
 														variant="outline"
 														size="sm"
-														disabled={isProcessingNow}
+														disabled={
+															isProcessingNow
+														}
 													>
 														{isProcessingNow
 															? "Processing..."
@@ -771,13 +780,13 @@ export function CallQueuePageClient() {
 																	key={
 																		entry.id
 																	}
-																className={`hover:bg-accent/20 transition-colors cursor-pointer ${selectedEntry?.id === entry.id ? "bg-accent/40" : ""}`}
-																onClick={() =>
-																	handleRowClick(
-																		entry
-																	)
-																}
-															>
+																	className={`hover:bg-accent/20 transition-colors cursor-pointer ${selectedEntry?.id === entry.id ? "bg-accent/40" : ""}`}
+																	onClick={() =>
+																		handleRowClick(
+																			entry
+																		)
+																	}
+																>
 																	<TableCell className="pl-4">
 																		<Checkbox
 																			checked={selectedIds.includes(

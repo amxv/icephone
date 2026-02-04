@@ -60,6 +60,10 @@ interface CampaignInfo {
 	campaignSettings?: Record<string, unknown> | null
 }
 
+type CampaignSettings = NonNullable<
+	Parameters<typeof updateCampaign>[1]["campaignSettings"]
+>
+
 export function CampaignControls({
 	campaignId,
 	onStatusChange
@@ -262,18 +266,43 @@ export function CampaignControls({
 		if (!campaign) return
 		setSettingsLoading(true)
 		try {
-			const currentSettings = (campaign.campaignSettings || {}) as Record<
-				string,
-				unknown
-			>
-			const callTiming = (currentSettings.callTiming ||
-				{}) as Record<string, unknown>
-			const retryLogic = (currentSettings.retryLogic ||
-				{}) as Record<string, unknown>
-			const goals = (currentSettings.goals ||
-				{}) as Record<string, unknown>
+			const currentSettings = (campaign.campaignSettings ||
+				{}) as Partial<CampaignSettings>
+			const callTiming = currentSettings.callTiming || {}
+			const retryLogic = currentSettings.retryLogic
+			const goals = currentSettings.goals || {}
 
-			const nextSettings = {
+			const parsedMaxAttempts =
+				maxAttempts.trim().length > 0 ? Number(maxAttempts) : undefined
+			const nextRetryLogic: CampaignSettings["retryLogic"] =
+				parsedMaxAttempts !== undefined || retryLogic
+					? {
+							maxAttempts:
+								parsedMaxAttempts ??
+								(typeof retryLogic?.maxAttempts === "number"
+									? retryLogic.maxAttempts
+									: 1),
+							retryIntervals: Array.isArray(
+								retryLogic?.retryIntervals
+							)
+								? retryLogic.retryIntervals.filter(
+										(value): value is number =>
+											typeof value === "number" &&
+											Number.isFinite(value)
+									)
+								: [],
+							retryConditions: Array.isArray(
+								retryLogic?.retryConditions
+							)
+								? retryLogic.retryConditions.filter(
+										(value): value is string =>
+											typeof value === "string"
+									)
+								: []
+						}
+					: undefined
+
+			const nextSettings: CampaignSettings = {
 				...currentSettings,
 				callTiming: {
 					...callTiming,
@@ -286,13 +315,7 @@ export function CampaignControls({
 							? Number(callInterval)
 							: undefined
 				},
-				retryLogic: {
-					...retryLogic,
-					maxAttempts:
-						maxAttempts.trim().length > 0
-							? Number(maxAttempts)
-							: undefined
-				},
+				retryLogic: nextRetryLogic,
 				goals: {
 					...goals,
 					targetLeads:
@@ -617,10 +640,14 @@ export function CampaignControls({
 					</p>
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
 						<div className="space-y-1">
-							<label className="text-xs text-muted-foreground">
+							<label
+								htmlFor="campaign-max-calls-per-day"
+								className="text-xs text-muted-foreground"
+							>
 								Max Calls / Day
 							</label>
 							<Input
+								id="campaign-max-calls-per-day"
 								type="number"
 								min={1}
 								value={maxCallsPerDay}
@@ -630,10 +657,14 @@ export function CampaignControls({
 							/>
 						</div>
 						<div className="space-y-1">
-							<label className="text-xs text-muted-foreground">
+							<label
+								htmlFor="campaign-call-interval"
+								className="text-xs text-muted-foreground"
+							>
 								Call Interval (min)
 							</label>
 							<Input
+								id="campaign-call-interval"
 								type="number"
 								min={1}
 								value={callInterval}
@@ -643,10 +674,14 @@ export function CampaignControls({
 							/>
 						</div>
 						<div className="space-y-1">
-							<label className="text-xs text-muted-foreground">
+							<label
+								htmlFor="campaign-max-retry-attempts"
+								className="text-xs text-muted-foreground"
+							>
 								Max Retry Attempts
 							</label>
 							<Input
+								id="campaign-max-retry-attempts"
 								type="number"
 								min={1}
 								value={maxAttempts}
@@ -656,10 +691,14 @@ export function CampaignControls({
 							/>
 						</div>
 						<div className="space-y-1">
-							<label className="text-xs text-muted-foreground">
+							<label
+								htmlFor="campaign-target-leads"
+								className="text-xs text-muted-foreground"
+							>
 								Target Leads
 							</label>
 							<Input
+								id="campaign-target-leads"
 								type="number"
 								min={1}
 								value={targetLeads}

@@ -827,7 +827,10 @@ export async function getRecentCalls(rawLimit = 20) {
 			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 			.leftJoin(
 				leads,
-				and(eq(voiceSessions.leadId, leads.id), teamScope(leads, teamId))
+				and(
+					eq(voiceSessions.leadId, leads.id),
+					teamScope(leads, teamId)
+				)
 			)
 			.where(teamScope(voiceAgents, teamId))
 			.orderBy(desc(voiceSessions.startTime))
@@ -853,9 +856,15 @@ export async function getRecentCalls(rawLimit = 20) {
 			.from(calls)
 			.leftJoin(
 				voiceAgents,
-				and(eq(calls.agentId, voiceAgents.id), teamScope(voiceAgents, teamId))
+				and(
+					eq(calls.agentId, voiceAgents.id),
+					teamScope(voiceAgents, teamId)
+				)
 			)
-			.leftJoin(leads, and(eq(calls.leadId, leads.id), teamScope(leads, teamId)))
+			.leftJoin(
+				leads,
+				and(eq(calls.leadId, leads.id), teamScope(leads, teamId))
+			)
 			.where(teamScope(calls, teamId))
 			.orderBy(desc(calls.startTime))
 			.limit(limit * 3)

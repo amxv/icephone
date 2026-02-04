@@ -290,7 +290,8 @@ function emptyTelephonyIntegrationState(): Record<
 
 function valueAsString(value: unknown) {
 	if (typeof value === "string") return value
-	if (typeof value === "number" && Number.isFinite(value)) return String(value)
+	if (typeof value === "number" && Number.isFinite(value))
+		return String(value)
 	return ""
 }
 
@@ -347,10 +348,10 @@ export default function SettingsPage() {
 		try {
 			const [crmResult, calcomResult, telephonyResult] =
 				await Promise.all([
-				getCRMIntegrations(),
-				getCalcomIntegration(),
-				getTelephonyIntegrations()
-			])
+					getCRMIntegrations(),
+					getCalcomIntegration(),
+					getTelephonyIntegrations()
+				])
 
 			if (crmResult.success && crmResult.data) {
 				const nextState = emptyCRMIntegrationState()
@@ -381,9 +382,11 @@ export default function SettingsPage() {
 								valueAsString(settings.apiVersion) || "v60.0",
 							salesforceLeadObject:
 								valueAsString(
-									(settings.objectMapping as
-										| Record<string, unknown>
-										| undefined)?.salesforceLeadObject
+									(
+										settings.objectMapping as
+											| Record<string, unknown>
+											| undefined
+									)?.salesforceLeadObject
 								) === "Contact"
 									? "Contact"
 									: "Lead"
@@ -409,9 +412,7 @@ export default function SettingsPage() {
 						organizationSlug: valueAsString(
 							settings.organizationSlug
 						),
-						defaultTimeZone: valueAsString(
-							settings.defaultTimeZone
-						)
+						defaultTimeZone: valueAsString(settings.defaultTimeZone)
 					}
 				})
 			}
@@ -501,8 +502,7 @@ export default function SettingsPage() {
 				settings: {
 					...prev[provider].settings,
 					[key]:
-						key === "salesforceLeadObject" &&
-						value !== "Contact"
+						key === "salesforceLeadObject" && value !== "Contact"
 							? "Lead"
 							: value
 				}
@@ -574,7 +574,9 @@ export default function SettingsPage() {
 				return
 			}
 
-			toast.success(`${crmProviders.find((p) => p.id === provider)?.label || provider} integration saved`)
+			toast.success(
+				`${crmProviders.find((p) => p.id === provider)?.label || provider} integration saved`
+			)
 			setCrmIntegrations((prev) => ({
 				...prev,
 				[provider]: {
@@ -599,7 +601,9 @@ export default function SettingsPage() {
 				toast.error(result.error || "Failed to disconnect CRM")
 				return
 			}
-			toast.success(`${crmProviders.find((p) => p.id === provider)?.label || provider} disconnected`)
+			toast.success(
+				`${crmProviders.find((p) => p.id === provider)?.label || provider} disconnected`
+			)
 			await loadIntegrations()
 		} catch (error) {
 			console.error("Failed to disconnect CRM integration", error)
@@ -857,7 +861,10 @@ export default function SettingsPage() {
 								</TabsList>
 							</div>
 
-							<TabsContent value="display" className="space-y-4 pt-4">
+							<TabsContent
+								value="display"
+								className="space-y-4 pt-4"
+							>
 								<div className="space-y-6">
 									<div className="flex items-center gap-2">
 										<div className="h-10 w-1 bg-gradient-to-b from-primary to-primary/60 rounded-full" />
@@ -866,8 +873,9 @@ export default function SettingsPage() {
 												Table Settings
 											</CardTitle>
 											<CardDescription className="text-sm text-muted-foreground mt-1">
-												Configure how tables are displayed
-												throughout the application.
+												Configure how tables are
+												displayed throughout the
+												application.
 											</CardDescription>
 										</div>
 									</div>
@@ -882,13 +890,15 @@ export default function SettingsPage() {
 														</h3>
 														<p className="text-xs text-muted-foreground">
 															Number of rows to
-															display in each table
-															page
+															display in each
+															table page
 														</p>
 													</div>
 													<Select
 														value={tableRowsPerPage.toString()}
-														onValueChange={(value) =>
+														onValueChange={(
+															value
+														) =>
 															setTableRowsPerPage(
 																Number(value)
 															)
@@ -955,7 +965,10 @@ export default function SettingsPage() {
 								</div>
 							</TabsContent>
 
-							<TabsContent value="account" className="space-y-4 pt-4">
+							<TabsContent
+								value="account"
+								className="space-y-4 pt-4"
+							>
 								<div className="space-y-6">
 									<div className="flex items-center gap-2">
 										<div className="h-10 w-1 bg-gradient-to-b from-primary to-primary/60 rounded-full" />
@@ -984,7 +997,8 @@ export default function SettingsPage() {
 															Name
 														</div>
 														<p className="text-sm text-muted-foreground">
-															{user.name || "Not set"}
+															{user.name ||
+																"Not set"}
 														</p>
 													</div>
 												</div>
@@ -1027,7 +1041,8 @@ export default function SettingsPage() {
 											</div>
 										) : (
 											<p className="text-sm text-muted-foreground">
-												No authenticated session was found.
+												No authenticated session was
+												found.
 											</p>
 										)}
 									</div>
@@ -1046,8 +1061,8 @@ export default function SettingsPage() {
 												Notification Settings
 											</CardTitle>
 											<CardDescription className="text-sm text-muted-foreground mt-1">
-												Choose how updates are surfaced in
-												your workspace.
+												Choose how updates are surfaced
+												in your workspace.
 											</CardDescription>
 										</div>
 									</div>
@@ -1120,7 +1135,10 @@ export default function SettingsPage() {
 								</div>
 							</TabsContent>
 
-							<TabsContent value="integrations" className="space-y-4 pt-4">
+							<TabsContent
+								value="integrations"
+								className="space-y-4 pt-4"
+							>
 								<div className="space-y-6">
 									<div className="flex items-center gap-2">
 										<div className="h-10 w-1 bg-gradient-to-b from-primary to-primary/60 rounded-full" />
@@ -1129,8 +1147,9 @@ export default function SettingsPage() {
 												Integrations
 											</CardTitle>
 											<CardDescription className="text-sm text-muted-foreground mt-1">
-												Connect Cal.com and CRM providers
-												for booking and lead-sync flows.
+												Connect Cal.com and CRM
+												providers for booking and
+												lead-sync flows.
 											</CardDescription>
 										</div>
 									</div>
@@ -1152,8 +1171,10 @@ export default function SettingsPage() {
 																Cal.com
 															</CardTitle>
 															<CardDescription className="mt-1">
-																Configure team-level
-																booking credentials.
+																Configure
+																team-level
+																booking
+																credentials.
 															</CardDescription>
 														</div>
 														<Badge
@@ -1180,10 +1201,16 @@ export default function SettingsPage() {
 																id="calcom-api-key"
 																type="password"
 																placeholder="cal_live_..."
-																value={calcomIntegration.apiKey}
-																onChange={(event) =>
+																value={
+																	calcomIntegration.apiKey
+																}
+																onChange={(
+																	event
+																) =>
 																	setCalcomIntegration(
-																		(prev) => ({
+																		(
+																			prev
+																		) => ({
 																			...prev,
 																			apiKey: event
 																				.target
@@ -1205,10 +1232,13 @@ export default function SettingsPage() {
 																		.settings
 																		.eventTypeId
 																}
-																onChange={(event) =>
+																onChange={(
+																	event
+																) =>
 																	updateCalcomSetting(
 																		"eventTypeId",
-																		event.target
+																		event
+																			.target
 																			.value
 																	)
 																}
@@ -1226,10 +1256,13 @@ export default function SettingsPage() {
 																		.settings
 																		.eventTypeSlug
 																}
-																onChange={(event) =>
+																onChange={(
+																	event
+																) =>
 																	updateCalcomSetting(
 																		"eventTypeSlug",
-																		event.target
+																		event
+																			.target
 																			.value
 																	)
 																}
@@ -1247,10 +1280,13 @@ export default function SettingsPage() {
 																		.settings
 																		.teamSlug
 																}
-																onChange={(event) =>
+																onChange={(
+																	event
+																) =>
 																	updateCalcomSetting(
 																		"teamSlug",
-																		event.target
+																		event
+																			.target
 																			.value
 																	)
 																}
@@ -1268,10 +1304,13 @@ export default function SettingsPage() {
 																		.settings
 																		.username
 																}
-																onChange={(event) =>
+																onChange={(
+																	event
+																) =>
 																	updateCalcomSetting(
 																		"username",
-																		event.target
+																		event
+																			.target
 																			.value
 																	)
 																}
@@ -1279,7 +1318,8 @@ export default function SettingsPage() {
 														</div>
 														<div className="space-y-1.5">
 															<Label htmlFor="calcom-org-slug">
-																Organization Slug
+																Organization
+																Slug
 															</Label>
 															<Input
 																id="calcom-org-slug"
@@ -1289,10 +1329,13 @@ export default function SettingsPage() {
 																		.settings
 																		.organizationSlug
 																}
-																onChange={(event) =>
+																onChange={(
+																	event
+																) =>
 																	updateCalcomSetting(
 																		"organizationSlug",
-																		event.target
+																		event
+																			.target
 																			.value
 																	)
 																}
@@ -1310,10 +1353,13 @@ export default function SettingsPage() {
 																		.settings
 																		.defaultTimeZone
 																}
-																onChange={(event) =>
+																onChange={(
+																	event
+																) =>
 																	updateCalcomSetting(
 																		"defaultTimeZone",
-																		event.target
+																		event
+																			.target
 																			.value
 																	)
 																}
@@ -1363,9 +1409,7 @@ export default function SettingsPage() {
 
 											{crmProviders.map((provider) => {
 												const value =
-													crmIntegrations[
-														provider.id
-													]
+													crmIntegrations[provider.id]
 												return (
 													<Card
 														key={provider.id}
@@ -1405,7 +1449,9 @@ export default function SettingsPage() {
 																	<Label
 																		htmlFor={`${provider.id}-api-key`}
 																	>
-																		API Key / Access Token
+																		API Key
+																		/ Access
+																		Token
 																	</Label>
 																	<Input
 																		id={`${provider.id}-api-key`}
@@ -1434,7 +1480,8 @@ export default function SettingsPage() {
 																			<Label
 																				htmlFor={`${provider.id}-instance-url`}
 																			>
-																				Instance URL
+																				Instance
+																				URL
 																			</Label>
 																			<Input
 																				id={`${provider.id}-instance-url`}
@@ -1461,7 +1508,8 @@ export default function SettingsPage() {
 																			<Label
 																				htmlFor={`${provider.id}-api-version`}
 																			>
-																				API Version
+																				API
+																				Version
 																			</Label>
 																			<Input
 																				id={`${provider.id}-api-version`}
@@ -1486,7 +1534,8 @@ export default function SettingsPage() {
 																		</div>
 																		<div className="space-y-1.5 md:col-span-2">
 																			<Label>
-																				Import Object
+																				Import
+																				Object
 																			</Label>
 																			<Select
 																				value={
@@ -1526,7 +1575,8 @@ export default function SettingsPage() {
 																		<Label
 																			htmlFor={`${provider.id}-location-id`}
 																		>
-																			Location ID
+																			Location
+																			ID
 																		</Label>
 																		<Input
 																			id={`${provider.id}-location-id`}
@@ -1558,7 +1608,8 @@ export default function SettingsPage() {
 																			<Label
 																				htmlFor={`${provider.id}-api-domain`}
 																			>
-																				API Domain
+																				API
+																				Domain
 																			</Label>
 																			<Input
 																				id={`${provider.id}-api-domain`}
@@ -1585,7 +1636,8 @@ export default function SettingsPage() {
 																			<Label
 																				htmlFor={`${provider.id}-company-domain`}
 																			>
-																				Company Domain
+																				Company
+																				Domain
 																			</Label>
 																			<Input
 																				id={`${provider.id}-company-domain`}
@@ -1614,8 +1666,12 @@ export default function SettingsPage() {
 
 															<div className="flex flex-wrap items-center justify-between gap-2">
 																<p className="text-xs text-muted-foreground">
-																	Linked leads:{" "}
-																	{value.leadLinks} · Last
+																	Linked
+																	leads:{" "}
+																	{
+																		value.leadLinks
+																	}{" "}
+																	· Last
 																	updated:{" "}
 																	{value.updatedAt
 																		? new Date(
@@ -1662,8 +1718,8 @@ export default function SettingsPage() {
 															</div>
 														</CardContent>
 													</Card>
-													)
-												})}
+												)
+											})}
 
 											{telephonyProviders.map(
 												(provider) => {
@@ -1732,7 +1788,9 @@ export default function SettingsPage() {
 																						.value
 																				)
 																			}
-																			rows={4}
+																			rows={
+																				4
+																			}
 																		/>
 																	) : (
 																		<Input
@@ -1761,10 +1819,9 @@ export default function SettingsPage() {
 																		"twilio" && (
 																		<>
 																			<div className="space-y-1.5">
-																				<Label
-																					htmlFor="twilio-account-sid"
-																				>
-																					Account SID
+																				<Label htmlFor="twilio-account-sid">
+																					Account
+																					SID
 																				</Label>
 																				<Input
 																					id="twilio-account-sid"
@@ -1788,10 +1845,10 @@ export default function SettingsPage() {
 																				/>
 																			</div>
 																			<div className="space-y-1.5">
-																				<Label
-																					htmlFor="twilio-from-number"
-																				>
-																					Default From Number
+																				<Label htmlFor="twilio-from-number">
+																					Default
+																					From
+																					Number
 																				</Label>
 																				<Input
 																					id="twilio-from-number"
@@ -1815,10 +1872,10 @@ export default function SettingsPage() {
 																				/>
 																			</div>
 																			<div className="space-y-1.5">
-																				<Label
-																					htmlFor="twilio-twiml-url"
-																				>
-																					Outbound TwiML URL
+																				<Label htmlFor="twilio-twiml-url">
+																					Outbound
+																					TwiML
+																					URL
 																				</Label>
 																				<Input
 																					id="twilio-twiml-url"
@@ -1842,10 +1899,10 @@ export default function SettingsPage() {
 																				/>
 																			</div>
 																			<div className="space-y-1.5">
-																				<Label
-																					htmlFor="twilio-callback-url"
-																				>
-																					Status Callback URL
+																				<Label htmlFor="twilio-callback-url">
+																					Status
+																					Callback
+																					URL
 																				</Label>
 																				<Input
 																					id="twilio-callback-url"
@@ -1871,10 +1928,15 @@ export default function SettingsPage() {
 																			<div className="md:col-span-2 flex items-center justify-between rounded-xl border border-border/50 px-3 py-2">
 																				<div>
 																					<p className="text-sm font-medium">
-																						Record Calls
+																						Record
+																						Calls
 																					</p>
 																					<p className="text-xs text-muted-foreground">
-																						Enable provider-side recording by default.
+																						Enable
+																						provider-side
+																						recording
+																						by
+																						default.
 																					</p>
 																				</div>
 																				<Switch
@@ -1902,7 +1964,8 @@ export default function SettingsPage() {
 																		<>
 																			<div className="space-y-1.5">
 																				<Label htmlFor="telnyx-connection-id">
-																					Connection ID
+																					Connection
+																					ID
 																				</Label>
 																				<Input
 																					id="telnyx-connection-id"
@@ -1927,7 +1990,9 @@ export default function SettingsPage() {
 																			</div>
 																			<div className="space-y-1.5">
 																				<Label htmlFor="telnyx-from-number">
-																					Default From Number
+																					Default
+																					From
+																					Number
 																				</Label>
 																				<Input
 																					id="telnyx-from-number"
@@ -1952,7 +2017,8 @@ export default function SettingsPage() {
 																			</div>
 																			<div className="space-y-1.5 md:col-span-2">
 																				<Label htmlFor="telnyx-webhook-url">
-																					Webhook URL
+																					Webhook
+																					URL
 																				</Label>
 																				<Input
 																					id="telnyx-webhook-url"
@@ -1983,7 +2049,8 @@ export default function SettingsPage() {
 																		<>
 																			<div className="space-y-1.5">
 																				<Label htmlFor="vonage-application-id">
-																					Application ID
+																					Application
+																					ID
 																				</Label>
 																				<Input
 																					id="vonage-application-id"
@@ -2008,7 +2075,9 @@ export default function SettingsPage() {
 																			</div>
 																			<div className="space-y-1.5">
 																				<Label htmlFor="vonage-from-number">
-																					Default From Number
+																					Default
+																					From
+																					Number
 																				</Label>
 																				<Input
 																					id="vonage-from-number"
@@ -2033,7 +2102,8 @@ export default function SettingsPage() {
 																			</div>
 																			<div className="space-y-1.5">
 																				<Label htmlFor="vonage-answer-url">
-																					Answer URL
+																					Answer
+																					URL
 																				</Label>
 																				<Input
 																					id="vonage-answer-url"
@@ -2058,7 +2128,8 @@ export default function SettingsPage() {
 																			</div>
 																			<div className="space-y-1.5">
 																				<Label htmlFor="vonage-event-url">
-																					Event URL
+																					Event
+																					URL
 																				</Label>
 																				<Input
 																					id="vonage-event-url"
@@ -2087,7 +2158,8 @@ export default function SettingsPage() {
 
 																<div className="flex flex-wrap items-center justify-between gap-2">
 																	<p className="text-xs text-muted-foreground">
-																		Last updated:{" "}
+																		Last
+																		updated:{" "}
 																		{value.updatedAt
 																			? new Date(
 																					value.updatedAt

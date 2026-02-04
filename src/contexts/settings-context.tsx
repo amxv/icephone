@@ -43,9 +43,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 	const [tableRowsPerPage, setTableRowsPerPageState] = useState(
 		DEFAULT_ROWS_PER_PAGE
 	)
-	const [tableDenseMode, setTableDenseModeState] = useState(
-		DEFAULT_DENSE_MODE
-	)
+	const [tableDenseMode, setTableDenseModeState] =
+		useState(DEFAULT_DENSE_MODE)
 	const [emailNotificationsEnabled, setEmailNotificationsEnabledState] =
 		useState(DEFAULT_EMAIL_NOTIFICATIONS)
 	const [inAppNotificationsEnabled, setInAppNotificationsEnabledState] =
@@ -59,9 +58,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 		try {
 			const savedRowsPerPage = localStorage.getItem("tableRowsPerPage")
 			if (savedRowsPerPage) {
-				setTableRowsPerPageState(
-					normalizeRowsPerPage(savedRowsPerPage)
-				)
+				setTableRowsPerPageState(normalizeRowsPerPage(savedRowsPerPage))
 			}
 			const savedDenseMode = localStorage.getItem("tableDenseMode")
 			if (savedDenseMode !== null) {
@@ -83,7 +80,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 					savedInAppNotifications === "true"
 				)
 			}
-			const savedWeeklyDigest = localStorage.getItem("weeklyDigestEnabled")
+			const savedWeeklyDigest = localStorage.getItem(
+				"weeklyDigestEnabled"
+			)
 			if (savedWeeklyDigest !== null) {
 				setWeeklyDigestEnabledState(savedWeeklyDigest === "true")
 			}
@@ -124,7 +123,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 	const setEmailNotificationsEnabled = (enabled: boolean) => {
 		setEmailNotificationsEnabledState(enabled)
 		try {
-			localStorage.setItem("emailNotificationsEnabled", enabled.toString())
+			localStorage.setItem(
+				"emailNotificationsEnabled",
+				enabled.toString()
+			)
 		} catch (error) {
 			console.error("Failed to save email notification setting:", error)
 		}

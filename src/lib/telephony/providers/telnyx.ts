@@ -29,7 +29,9 @@ function getTelnyxConfig(
 	override?: Record<string, unknown> | null
 ): TelnyxConfig | null {
 	const apiKey =
-		readString(override?.apiKey) || process.env.TELNYX_API_KEY?.trim() || null
+		readString(override?.apiKey) ||
+		process.env.TELNYX_API_KEY?.trim() ||
+		null
 	const connectionId =
 		readString(override?.connectionId) ||
 		process.env.TELNYX_CONNECTION_ID?.trim() ||

@@ -356,7 +356,7 @@ export function useRealtimeVoiceSession(
 		callIdRef.current = null
 		knowledgeSourceScopeRef.current = []
 
-			resetState()
+		resetState()
 	}, [resetState])
 
 	const mute = useCallback(() => {

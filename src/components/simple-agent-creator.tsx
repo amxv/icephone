@@ -372,8 +372,8 @@ export function SimpleAgentCreator({
 								</div>
 							) : agentRoles.length === 0 ? (
 								<div className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">
-									No agent roles are available yet. Please
-									try again in a moment.
+									No agent roles are available yet. Please try
+									again in a moment.
 								</div>
 							) : (
 								<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -384,7 +384,7 @@ export function SimpleAgentCreator({
 												: role.icon === "PhoneIcon"
 													? PhoneIcon
 													: role.icon ===
-															  "SettingsIcon"
+															"SettingsIcon"
 														? SettingsIcon
 														: UserIcon
 

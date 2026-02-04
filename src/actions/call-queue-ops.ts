@@ -7,10 +7,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
 
-const queueIdsSchema = z
-	.array(z.number().int().positive())
-	.min(1)
-	.max(200)
+const queueIdsSchema = z.array(z.number().int().positive()).min(1).max(200)
 
 const processSchema = z.object({
 	batchSize: z.number().int().min(1).max(50).optional().default(10),
@@ -168,7 +165,10 @@ export async function retryCallQueueEntries(rawQueueIds: unknown) {
 
 		return {
 			success: true,
-			data: { retriedCount: rows.length, queueIds: rows.map((r) => r.id) },
+			data: {
+				retriedCount: rows.length,
+				queueIds: rows.map((r) => r.id)
+			},
 			error: null
 		}
 	} catch (error) {

@@ -181,7 +181,10 @@ export async function getCampaigns(rawFilter: unknown = {}) {
 			})
 			.from(calls)
 			.where(
-				and(teamScope(calls, teamId), sql`${calls.campaignId} IS NOT NULL`)
+				and(
+					teamScope(calls, teamId),
+					sql`${calls.campaignId} IS NOT NULL`
+				)
 			)
 			.groupBy(calls.campaignId)
 			.as("call_metrics")
@@ -197,14 +200,10 @@ export async function getCampaigns(rawFilter: unknown = {}) {
 				createdAt: campaigns.createdAt,
 				updatedAt: campaigns.updatedAt,
 				leadsCount: sql<number>`COALESCE(${leadMetrics.leadsCount}, 0)`,
-				leadsConverted:
-					sql<number>`COALESCE(${leadMetrics.leadsConverted}, 0)`,
-				leadsContacted:
-					sql<number>`COALESCE(${leadMetrics.leadsContacted}, 0)`,
-				callsCompleted:
-					sql<number>`COALESCE(${callMetrics.callsCompleted}, 0)`,
-				avgCallDuration:
-					sql<number>`COALESCE(${callMetrics.avgCallDuration}, 0)`,
+				leadsConverted: sql<number>`COALESCE(${leadMetrics.leadsConverted}, 0)`,
+				leadsContacted: sql<number>`COALESCE(${leadMetrics.leadsContacted}, 0)`,
+				callsCompleted: sql<number>`COALESCE(${callMetrics.callsCompleted}, 0)`,
+				avgCallDuration: sql<number>`COALESCE(${callMetrics.avgCallDuration}, 0)`,
 				voiceAgentName: voiceAgents.name
 			})
 			.from(campaigns)
