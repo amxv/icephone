@@ -345,9 +345,7 @@ export default function AnalyticsDashboard({
 	].filter((item) => item.value > 0)
 
 	const formatOutcomeLabel = (value: string) =>
-		value
-			.replace(/_/g, " ")
-			.replace(/\b\w/g, (char) => char.toUpperCase())
+		value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
 
 	const outcomeData = Object.entries(initialAnalytics.outcomeBreakdown)
 		.map(([key, value]) => ({
@@ -499,7 +497,8 @@ export default function AnalyticsDashboard({
 							{Math.round(initialAnalytics.pickupRate)}%
 						</div>
 						<p className="text-xs text-muted-foreground">
-							{answeredCalls} answered of {initialAnalytics.totalCalls}
+							{answeredCalls} answered of{" "}
+							{initialAnalytics.totalCalls}
 						</p>
 					</CardContent>
 				</Card>
@@ -863,7 +862,10 @@ export default function AnalyticsDashboard({
 						) : (
 							<>
 								<div className="h-[260px] w-full">
-									<ResponsiveContainer width="100%" height="100%">
+									<ResponsiveContainer
+										width="100%"
+										height="100%"
+									>
 										<PieChart>
 											<Pie
 												data={outcomeData}
@@ -882,7 +884,10 @@ export default function AnalyticsDashboard({
 												))}
 											</Pie>
 											<Tooltip
-												content={({ active, payload }) => {
+												content={({
+													active,
+													payload
+												}) => {
 													if (
 														active &&
 														payload &&
@@ -900,7 +905,8 @@ export default function AnalyticsDashboard({
 																		color: data.color
 																	}}
 																>
-																	Count: {data.value}
+																	Count:{" "}
+																	{data.value}
 																</p>
 															</div>
 														)
@@ -961,21 +967,32 @@ export default function AnalyticsDashboard({
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<ChartContainer className="h-[300px] w-full" config={{}}>
+						<ChartContainer
+							className="h-[300px] w-full"
+							config={{}}
+						>
 							<BarChart data={initialAnalytics.hourlyCallVolume}>
 								<CartesianGrid strokeDasharray="3 3" />
 								<XAxis dataKey="hour" interval={3} />
 								<YAxis />
 								<ChartTooltip
 									content={({ active, payload }) => {
-										if (active && payload && payload.length) {
+										if (
+											active &&
+											payload &&
+											payload.length
+										) {
 											return (
 												<div className="rounded-lg border bg-background px-3 py-2 shadow-md">
 													<p className="font-medium">
-														{payload[0].payload.hour}
+														{
+															payload[0].payload
+																.hour
+														}
 													</p>
 													<p className="text-primary">
-														Calls: {payload[0].value}
+														Calls:{" "}
+														{payload[0].value}
 													</p>
 												</div>
 											)

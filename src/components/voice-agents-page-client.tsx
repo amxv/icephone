@@ -32,6 +32,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger
 } from "@/components/ui/tooltip"
+import { getOpenAIVoiceLabel } from "@/lib/openai/realtime-voice"
 import type { VoiceAgent, VoiceAgentStatus } from "@/types"
 import {
 	BotIcon,
@@ -98,27 +99,7 @@ function getRoleInfo(prompt: string) {
 function getVoiceDisplayName(
 	voice: { provider?: string; voice_id?: string } | null | undefined
 ) {
-	if (!voice || !voice.voice_id) return "Standard Voice"
-
-	if (voice.provider === "openai") {
-		const label =
-			voice.voice_id.charAt(0).toUpperCase() + voice.voice_id.slice(1)
-		return `${label} (OpenAI)`
-	}
-
-	// Map common ElevenLabs voice IDs to business-friendly names
-	const voiceMap: Record<string, string> = {
-		"21m00Tcm4TlvDq8ikWAM": "Professional",
-		AZnzlk1XvdvUeBnXmlld: "Warm",
-		EXAVITQu4vr4xnSDxMaL: "Friendly",
-		ErXwobaYiN019PkySvjV: "Confident",
-		MF3mGyEYCl7XYWbV9V6O: "Energetic",
-		TxGEqnHWrfWFTfGW9XjX: "Professional",
-		VR6AewLTigWG4xSOukaG: "Authoritative",
-		pNInz6obpgDQGcFmaJgB: "Clear"
-	}
-
-	return voiceMap[voice.voice_id] || "Professional"
+	return `${getOpenAIVoiceLabel(voice?.voice_id)} (OpenAI)`
 }
 
 // Page header component with gradient title

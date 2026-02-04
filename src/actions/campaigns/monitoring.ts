@@ -58,6 +58,11 @@ export interface CampaignReport {
 		successRate: number
 		avgCallDuration: number
 		conversionRate: number
+		totalCallCost: number
+		convertedRevenue: number
+		costPerLead: number
+		costPerConversion: number
+		roi: number
 	}
 	dailyBreakdown: Array<{
 		date: string
@@ -91,7 +96,9 @@ export async function getCampaignHealth(campaignId: number): Promise<{
 				status: campaigns.status
 			})
 			.from(campaigns)
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.limit(1)
 
 		if (!campaign || campaign.length === 0) {
@@ -458,7 +465,9 @@ export async function checkPerformanceAlerts(campaignId: number): Promise<{
 		const campaign = await db_ws
 			.select({ status: campaigns.status })
 			.from(campaigns)
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.limit(1)
 
 		if (
@@ -604,7 +613,9 @@ export async function generateCampaignReport(
 				createdAt: campaigns.createdAt
 			})
 			.from(campaigns)
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.limit(1)
 
 		if (!campaign || campaign.length === 0) {
@@ -631,6 +642,10 @@ export async function generateCampaignReport(
 					sql<number>`COUNT(CASE WHEN ${leads.status} = 'converted' THEN 1 END)`.as(
 						"converted"
 					),
+				convertedRevenue:
+					sql<number>`COALESCE(SUM(CASE WHEN ${leads.status} = 'converted' THEN ${leads.dealValue}::numeric ELSE 0 END), 0)`.as(
+						"convertedRevenue"
+					),
 				failed: sql<number>`COUNT(CASE WHEN ${campaignLeads.status} = 'failed' THEN 1 END)`.as(
 					"failed"
 				)
@@ -656,7 +671,11 @@ export async function generateCampaignReport(
 					sql<number>`COUNT(CASE WHEN status = 'answered' THEN 1 END)`.as(
 						"successful"
 					),
-				avgDuration: sql<number>`AVG(duration)`.as("avgDuration")
+				avgDuration: sql<number>`AVG(duration)`.as("avgDuration"),
+				totalCost:
+					sql<number>`COALESCE(SUM(${calls.cost}::numeric), 0)`.as(
+						"totalCost"
+					)
 			})
 			.from(calls)
 			.where(
@@ -718,10 +737,18 @@ export async function generateCampaignReport(
 			callData.total > 0
 				? (callData.successful / callData.total) * 100
 				: 0
-		const completionRate =
-			callData.total > 0 ? (callData.completed / callData.total) * 100 : 0
 		const conversionRate =
 			leadData.total > 0 ? (leadData.converted / leadData.total) * 100 : 0
+		const totalCallCost = Number(callData.totalCost || 0)
+		const convertedRevenue = Number(leadData.convertedRevenue || 0)
+		const costPerLead =
+			callData.total > 0 ? totalCallCost / callData.total : 0
+		const costPerConversion =
+			leadData.converted > 0 ? totalCallCost / leadData.converted : 0
+		const roi =
+			totalCallCost > 0
+				? ((convertedRevenue - totalCallCost) / totalCallCost) * 100
+				: 0
 
 		const report: CampaignReport = {
 			campaignId,
@@ -737,7 +764,12 @@ export async function generateCampaignReport(
 				callsSuccessful: callData.successful,
 				successRate,
 				avgCallDuration: callData.avgDuration || 0,
-				conversionRate
+				conversionRate,
+				totalCallCost,
+				convertedRevenue,
+				costPerLead,
+				costPerConversion,
+				roi
 			},
 			dailyBreakdown: dailyStats.map((day) => ({
 				date: day.date,

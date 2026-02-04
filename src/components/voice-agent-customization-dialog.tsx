@@ -18,24 +18,20 @@ import {
 	SelectValue
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import {
+	OPENAI_REALTIME_MODEL,
+	OPENAI_REALTIME_VOICES,
+	normalizeOpenAIVoiceId
+} from "@/lib/openai/realtime-voice"
 import type { VoiceAgent } from "@/types"
 import { SparklesIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
-const OPENAI_VOICES = [
-	{ value: "alloy", label: "Alloy" },
-	{ value: "ash", label: "Ash" },
-	{ value: "ballad", label: "Ballad" },
-	{ value: "coral", label: "Coral" },
-	{ value: "echo", label: "Echo" },
-	{ value: "marin", label: "Marin" },
-	{ value: "sage", label: "Sage" },
-	{ value: "shimmer", label: "Shimmer" },
-	{ value: "verse", label: "Verse" }
-]
-
-const DEFAULT_OPENAI_VOICE = "alloy"
+const OPENAI_VOICES = OPENAI_REALTIME_VOICES.map((voice) => ({
+	value: voice,
+	label: `${voice.charAt(0).toUpperCase()}${voice.slice(1)}`
+}))
 
 interface VoiceAgentCustomizationDialogProps {
 	agent: VoiceAgent
@@ -49,15 +45,19 @@ export function VoiceAgentCustomizationDialog({
 	trigger
 }: VoiceAgentCustomizationDialogProps) {
 	const [open, setOpen] = useState(false)
-	const [selectedVoice, setSelectedVoice] = useState(DEFAULT_OPENAI_VOICE)
+	const [selectedVoice, setSelectedVoice] = useState(
+		normalizeOpenAIVoiceId(undefined)
+	)
 	const [instructions, setInstructions] = useState("")
 	const [isSaving, setIsSaving] = useState(false)
 
 	useEffect(() => {
 		if (!open) return
 		const agentVoice =
-			agent.voice?.provider === "openai" ? agent.voice.voice_id : undefined
-		setSelectedVoice(agentVoice || DEFAULT_OPENAI_VOICE)
+			agent.voice?.provider === "openai"
+				? agent.voice.voice_id
+				: undefined
+		setSelectedVoice(normalizeOpenAIVoiceId(agentVoice))
 		setInstructions(agent.prompt || "")
 	}, [open, agent.prompt, agent.voice])
 
@@ -68,7 +68,8 @@ export function VoiceAgentCustomizationDialog({
 				prompt: instructions.trim(),
 				voice: {
 					provider: "openai",
-					voice_id: selectedVoice
+					voice_id: selectedVoice,
+					model: OPENAI_REALTIME_MODEL
 				}
 			})
 
@@ -107,14 +108,19 @@ export function VoiceAgentCustomizationDialog({
 						<Label htmlFor="voice-select">Voice</Label>
 						<Select
 							value={selectedVoice}
-							onValueChange={setSelectedVoice}
+							onValueChange={(value) =>
+								setSelectedVoice(normalizeOpenAIVoiceId(value))
+							}
 						>
 							<SelectTrigger id="voice-select">
 								<SelectValue placeholder="Select a voice" />
 							</SelectTrigger>
 							<SelectContent>
 								{OPENAI_VOICES.map((voice) => (
-									<SelectItem key={voice.value} value={voice.value}>
+									<SelectItem
+										key={voice.value}
+										value={voice.value}
+									>
 										{voice.label}
 									</SelectItem>
 								))}
@@ -126,11 +132,15 @@ export function VoiceAgentCustomizationDialog({
 					</div>
 
 					<div className="space-y-2">
-						<Label htmlFor="agent-instructions">Custom Instructions</Label>
+						<Label htmlFor="agent-instructions">
+							Custom Instructions
+						</Label>
 						<Textarea
 							id="agent-instructions"
 							value={instructions}
-							onChange={(event) => setInstructions(event.target.value)}
+							onChange={(event) =>
+								setInstructions(event.target.value)
+							}
 							placeholder="Add personality, script guidance, and behavioral instructions for this agent..."
 							className="min-h-[160px]"
 						/>

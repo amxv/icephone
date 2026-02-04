@@ -28,11 +28,10 @@ function isWithinBusinessHours(
 					timezone?: string
 					schedule?: Record<
 						string,
-						| {
-								start?: string
-								end?: string
-						  }
-						| null
+						{
+							start?: string
+							end?: string
+						} | null
 					>
 				}
 		  }
@@ -603,7 +602,8 @@ export async function processNextQueueBatchDirect(
 			.select({
 				id: campaigns.id,
 				status: campaigns.status,
-				voiceAgentId: campaigns.voiceAgentId
+				voiceAgentId: campaigns.voiceAgentId,
+				campaignSettings: campaigns.campaignSettings
 			})
 			.from(campaigns)
 			.where(
@@ -649,13 +649,13 @@ export async function processNextQueueBatchDirect(
 		}
 
 		let effectiveBatchSize = batchSize
-		const callTiming =
-			(campaignData.campaignSettings as { callTiming?: unknown } | null)
-				?.callTiming as
-				| {
-						maxCallsPerDay?: number
-				  }
-				| undefined
+		const callTiming = (
+			campaignData.campaignSettings as { callTiming?: unknown } | null
+		)?.callTiming as
+			| {
+					maxCallsPerDay?: number
+			  }
+			| undefined
 
 		if (callTiming?.maxCallsPerDay) {
 			const [dailyCalls] = await db_ws
@@ -774,7 +774,9 @@ export async function processNextQueueBatchDirect(
 		}
 
 		const queueIds = queueEntries.map((entry) => entry.queueId)
-		const campaignLeadIds = queueEntries.map((entry) => entry.campaignLeadId)
+		const campaignLeadIds = queueEntries.map(
+			(entry) => entry.campaignLeadId
+		)
 		const results: Array<{ queueId: number; callQueueId?: number }> = []
 
 		await db_ws.transaction(async (tx) => {
@@ -797,7 +799,7 @@ export async function processNextQueueBatchDirect(
 						voiceAgentId: campaignData.voiceAgentId,
 						priority: entry.priority ?? 0,
 						scheduledTime: entry.scheduledTime,
-						status: "pending",
+						status: "pending" as const,
 						userId
 					}))
 				)

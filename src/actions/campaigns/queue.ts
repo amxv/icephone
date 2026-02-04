@@ -58,7 +58,8 @@ export async function addLeadsToQueue(
 
 		// Create queue entries
 		const baseScheduledTime = scheduledTime || new Date()
-		const intervalMinutes = Number(callInterval) > 0 ? Number(callInterval) : 0
+		const intervalMinutes =
+			Number(callInterval) > 0 ? Number(callInterval) : 0
 
 		const queueData = campaignLeadIds.map((campaignLead, index) => ({
 			campaignId,

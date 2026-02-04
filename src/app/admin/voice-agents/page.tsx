@@ -1,7 +1,8 @@
 import { Suspense } from "react"
 import {
 	getAllVoiceAgents,
-	getVoiceAgentStats
+	getVoiceAgentStats,
+	getVoiceAgentCreationOptions
 } from "@/actions/admin-voice-agents"
 import { AdminVoiceAgentsClient } from "./AdminVoiceAgentsClient"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -95,15 +96,17 @@ export default async function AdminVoiceAgentsPage() {
 async function AdminVoiceAgentsData() {
 	try {
 		// Fetch initial data
-		const [voiceAgents, stats] = await Promise.all([
+		const [voiceAgents, stats, creationOptions] = await Promise.all([
 			getAllVoiceAgents(),
-			getVoiceAgentStats()
+			getVoiceAgentStats(),
+			getVoiceAgentCreationOptions()
 		])
 
 		return (
 			<AdminVoiceAgentsClient
 				initialVoiceAgents={voiceAgents}
 				initialStats={stats}
+				creationOptions={creationOptions}
 			/>
 		)
 	} catch (error) {

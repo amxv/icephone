@@ -2,6 +2,10 @@ import { db_ws } from "@/db"
 import { calls, leads, voiceAgents } from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
+import {
+	OPENAI_REALTIME_MODEL,
+	normalizeOpenAIVoiceId
+} from "@/lib/openai/realtime-voice"
 import { openAIRealtimeTools } from "@/lib/openai/realtime-tools"
 import { teamScope } from "@/lib/team-scope"
 import { and, eq } from "drizzle-orm"
@@ -14,9 +18,6 @@ const sessionRequestSchema = z.object({
 })
 
 const OPENAI_REALTIME_URL = "https://api.openai.com/v1/realtime/client_secrets"
-
-const DEFAULT_REALTIME_MODEL = "gpt-realtime-mini-2025-12-15"
-const DEFAULT_REALTIME_VOICE = "alloy"
 
 export async function POST(request: Request) {
 	try {
@@ -67,12 +68,11 @@ export async function POST(request: Request) {
 		}
 
 		const agentRecord = agent[0]
-		const voiceSelection =
-			agentRecord.voice?.provider === "openai" &&
-			agentRecord.voice.voice_id
+		const voiceSelection = normalizeOpenAIVoiceId(
+			agentRecord.voice?.provider === "openai"
 				? agentRecord.voice.voice_id
-				: process.env.OPENAI_REALTIME_VOICE ||
-					DEFAULT_REALTIME_VOICE
+				: process.env.OPENAI_REALTIME_VOICE
+		)
 		const instructionsParts = [
 			`You are ${agentRecord.name}, a helpful AI voice agent.`,
 			agentRecord.prompt || "",
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
 				},
 				session: {
 					type: "realtime",
-					model: DEFAULT_REALTIME_MODEL,
+					model: OPENAI_REALTIME_MODEL,
 					instructions,
 					output_modalities: ["audio", "text"],
 					tools: openAIRealtimeTools,

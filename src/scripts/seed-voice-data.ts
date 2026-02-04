@@ -11,9 +11,9 @@ const voicePresetsData = [
 		gender: "male" as const,
 		description:
 			"Authoritative and business-like tone, perfect for formal communications",
-		vapiVoiceId: "TJlOyqPXKPRqpfpIrQZD", // ElevenLabs Josh
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "alloy",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: true,
 		sortOrder: 1
@@ -24,9 +24,9 @@ const voicePresetsData = [
 		language: "en" as const,
 		gender: "female" as const,
 		description: "Warm and approachable tone, great for customer service",
-		vapiVoiceId: "21m00Tcm4TlvDq8ikWAM", // ElevenLabs Rachel
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "marin",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: false,
 		sortOrder: 2
@@ -38,9 +38,9 @@ const voicePresetsData = [
 		gender: "female" as const,
 		description:
 			"Caring and empathetic tone, ideal for support conversations",
-		vapiVoiceId: "EXAVITQu4vr4xnSDxMaL", // ElevenLabs Bella
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "shimmer",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: false,
 		sortOrder: 3
@@ -51,9 +51,9 @@ const voicePresetsData = [
 		language: "en" as const,
 		gender: "male" as const,
 		description: "Assertive and persuasive tone, perfect for sales",
-		vapiVoiceId: "ErXwobaYiN019PkySvjV", // ElevenLabs Antoni
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "ash",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: false,
 		sortOrder: 4
@@ -64,9 +64,9 @@ const voicePresetsData = [
 		language: "en" as const,
 		gender: "female" as const,
 		description: "Enthusiastic and upbeat tone, great for engagement",
-		vapiVoiceId: "MF3mGyEYCl7XYWbV9V6O", // ElevenLabs Elli
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "coral",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: false,
 		sortOrder: 5
@@ -80,9 +80,9 @@ const voicePresetsData = [
 		gender: "male" as const,
 		description:
 			"Voz profesional y autoritaria, perfecta para comunicaciones formales",
-		vapiVoiceId: "pMsXgVXv3BLzUgSXRplE", // ElevenLabs Spanish Male
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "echo",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: true,
 		sortOrder: 1
@@ -93,9 +93,9 @@ const voicePresetsData = [
 		language: "es" as const,
 		gender: "female" as const,
 		description: "Voz cálida y cercana, ideal para atención al cliente",
-		vapiVoiceId: "IKne3meq5aSn9XLyUdCD", // ElevenLabs Spanish Female
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "verse",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: false,
 		sortOrder: 2
@@ -109,9 +109,9 @@ const voicePresetsData = [
 		gender: "male" as const,
 		description:
 			"Voix professionnelle et autoritaire, parfaite pour les communications formelles",
-		vapiVoiceId: "pFZP5JQG7iQjIQuC4Bku", // ElevenLabs French Male
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "sage",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: true,
 		sortOrder: 1
@@ -123,9 +123,9 @@ const voicePresetsData = [
 		gender: "female" as const,
 		description:
 			"Voix chaleureuse et accueillante, idéale pour le service client",
-		vapiVoiceId: "ThT5KcBeYPX3keUQqHPh", // ElevenLabs French Female
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "ballad",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: false,
 		sortOrder: 2
@@ -139,9 +139,9 @@ const voicePresetsData = [
 		gender: "male" as const,
 		description:
 			"Professionelle und autoritäre Stimme, perfekt für formelle Kommunikation",
-		vapiVoiceId: "nPczCjzI2devNBz1zQrb", // ElevenLabs German Male
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "echo",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: true,
 		sortOrder: 1
@@ -152,9 +152,9 @@ const voicePresetsData = [
 		language: "de" as const,
 		gender: "female" as const,
 		description: "Warme und einladende Stimme, ideal für Kundenservice",
-		vapiVoiceId: "yoZ06aMxZJJ28mfd3POQ", // ElevenLabs German Female
-		vapiProvider: "elevenlabs",
-		vapiModel: "eleven_multilingual_v2",
+		vapiVoiceId: "shimmer",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
 		sampleAudioUrl: null,
 		isDefault: false,
 		sortOrder: 2

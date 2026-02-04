@@ -1,22 +1,52 @@
-import { CampaignDetailsPageClient } from "@/components/campaign-details-page-client" // We will create this component next
+import { CampaignDetailsPageClient } from "@/components/campaign-details-page-client"
+import { db_ws } from "@/db"
+import { campaigns } from "@/db/schema"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
+import { and, eq } from "drizzle-orm"
 import type { Metadata } from "next"
 
 export async function generateMetadata({
 	params: paramsPromise
 }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-	const params = await paramsPromise // Await the promise
+	const params = await paramsPromise
 	const campaignId = params.id
-	// TODO: Fetch campaign name and use it in the title
+
+	let campaignName = `Campaign ${campaignId}`
+	const numericCampaignId = Number.parseInt(campaignId, 10)
+
+	if (Number.isFinite(numericCampaignId)) {
+		try {
+			const { teamId } = await requireTeam()
+			const [campaign] = await db_ws
+				.select({ name: campaigns.name })
+				.from(campaigns)
+				.where(
+					and(
+						eq(campaigns.id, numericCampaignId),
+						teamScope(campaigns, teamId)
+					)
+				)
+				.limit(1)
+
+			if (campaign?.name) {
+				campaignName = campaign.name
+			}
+		} catch (error) {
+			console.error("Failed to resolve campaign metadata title:", error)
+		}
+	}
+
 	return {
-		title: `Campaign ${campaignId} | IcePhone`,
-		description: `Details for campaign ${campaignId}`
+		title: `${campaignName} | IcePhone`,
+		description: `Details for ${campaignName}`
 	}
 }
 
 export default async function CampaignDetailsPage({
 	params: paramsPromise
 }: { params: Promise<{ id: string }> }) {
-	const params = await paramsPromise // Await the promise
+	const params = await paramsPromise
 	const campaignId = params.id
 	return (
 		<div className="container">

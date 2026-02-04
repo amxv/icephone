@@ -48,7 +48,7 @@ export function CampaignStatsDashboard({
 						convertedLeads: data.leads.converted,
 						callsCompleted: data.queue.completed,
 						queuedCalls: data.queue.queued,
-						meetingsBooked: 0 // TODO: Implement meetings tracking
+						meetingsBooked: data.appointments?.booked || 0
 					})
 				}
 			} catch (error) {

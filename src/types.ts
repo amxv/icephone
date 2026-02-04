@@ -334,7 +334,7 @@ export interface RAGResponse {
 }
 
 // Voice Agent types
-export type VoiceProvider = "elevenlabs" | "playht" | "cartesia" | "openai"
+export type VoiceProvider = "openai"
 export type VoiceAgentStatus = "active" | "inactive" | "training" | "error"
 export type VoiceSessionStatus = "active" | "completed" | "failed" | "timeout"
 

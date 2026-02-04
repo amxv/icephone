@@ -146,6 +146,17 @@ export function CampaignAnalyticsDashboard({
 				"Average Call Duration",
 				`${Math.round(report.summary.avgCallDuration)} seconds`
 			],
+			["Total Call Cost", `$${report.summary.totalCallCost.toFixed(2)}`],
+			[
+				"Converted Revenue",
+				`$${report.summary.convertedRevenue.toFixed(2)}`
+			],
+			["Cost per Lead", `$${report.summary.costPerLead.toFixed(2)}`],
+			[
+				"Cost per Conversion",
+				`$${report.summary.costPerConversion.toFixed(2)}`
+			],
+			["ROI", `${report.summary.roi.toFixed(1)}%`],
 			[""],
 			["Daily Breakdown"],
 			["Date", "Calls Attempted", "Calls Completed", "Success Rate"],
@@ -211,11 +222,6 @@ export function CampaignAnalyticsDashboard({
 			</Card>
 		)
 	}
-
-	// Calculate additional metrics (placeholder values - cost tracking would need to be implemented)
-	const costPerLead = 0 // TODO: Implement cost tracking
-	const costPerConversion = 0 // TODO: Implement cost tracking
-	const roi = 0 // TODO: Implement ROI calculation based on actual cost data
 
 	// Prepare chart data
 	const dailyChartData = report.dailyBreakdown.map((day) => ({
@@ -392,7 +398,7 @@ export function CampaignAnalyticsDashboard({
 									Cost per Lead
 								</p>
 								<p className="text-2xl font-bold">
-									${costPerLead.toFixed(2)}
+									${report.summary.costPerLead.toFixed(2)}
 								</p>
 							</div>
 							<div className="h-12 w-12 rounded-full bg-warning/10 flex items-center justify-center">
@@ -604,7 +610,10 @@ export function CampaignAnalyticsDashboard({
 											Cost per Lead
 										</span>
 										<span className="font-medium">
-											${costPerLead.toFixed(2)}
+											$
+											{report.summary.costPerLead.toFixed(
+												2
+											)}
 										</span>
 									</div>
 									<div className="flex justify-between items-center">
@@ -612,7 +621,21 @@ export function CampaignAnalyticsDashboard({
 											Cost per Conversion
 										</span>
 										<span className="font-medium">
-											${costPerConversion.toFixed(2)}
+											$
+											{report.summary.costPerConversion.toFixed(
+												2
+											)}
+										</span>
+									</div>
+									<div className="flex justify-between items-center">
+										<span className="text-sm text-muted-foreground">
+											Converted Revenue
+										</span>
+										<span className="font-medium">
+											$
+											{report.summary.convertedRevenue.toFixed(
+												2
+											)}
 										</span>
 									</div>
 									<div className="flex justify-between items-center">
@@ -620,10 +643,10 @@ export function CampaignAnalyticsDashboard({
 											ROI
 										</span>
 										<span
-											className={`font-medium ${roi >= 0 ? "text-green-600" : "text-red-600"}`}
+											className={`font-medium ${report.summary.roi >= 0 ? "text-green-600" : "text-red-600"}`}
 										>
-											{roi >= 0 ? "+" : ""}
-											{roi.toFixed(1)}%
+											{report.summary.roi >= 0 ? "+" : ""}
+											{report.summary.roi.toFixed(1)}%
 										</span>
 									</div>
 								</div>

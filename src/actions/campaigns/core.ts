@@ -2,6 +2,7 @@
 
 import { db_ws } from "@/db"
 import {
+	appointments,
 	callQueue,
 	campaignLeads,
 	campaigns,
@@ -746,7 +747,7 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 			return { success: false, error: "Campaign not found", data: null }
 		}
 
-		const [leadStats, queueStats] = await Promise.all([
+		const [leadStats, queueStats, appointmentStats] = await Promise.all([
 			db_ws
 				.select({
 					total: sql<number>`COUNT(*)`.as("total"),
@@ -780,6 +781,30 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 						eq(callQueue.campaignId, campaignId),
 						teamScope(callQueue, teamId)
 					)
+				),
+			db_ws
+				.select({
+					booked: sql<number>`COUNT(CASE WHEN ${appointments.status} IN ('scheduled', 'completed') THEN 1 END)`.as(
+						"booked"
+					),
+					completed:
+						sql<number>`COUNT(CASE WHEN ${appointments.status} = 'completed' THEN 1 END)`.as(
+							"completed"
+						)
+				})
+				.from(campaignLeads)
+				.innerJoin(
+					appointments,
+					and(
+						eq(appointments.leadId, campaignLeads.leadId),
+						eq(appointments.teamId, campaignLeads.teamId)
+					)
+				)
+				.where(
+					and(
+						eq(campaignLeads.campaignId, campaignId),
+						teamScope(campaignLeads, teamId)
+					)
 				)
 		])
 
@@ -795,6 +820,10 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 					total: queueStats?.[0]?.total || 0,
 					queued: queueStats?.[0]?.queued || 0,
 					completed: queueStats?.[0]?.completed || 0
+				},
+				appointments: {
+					booked: appointmentStats?.[0]?.booked || 0,
+					completed: appointmentStats?.[0]?.completed || 0
 				}
 			},
 			error: null

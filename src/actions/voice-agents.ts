@@ -6,6 +6,10 @@ import { db_ws } from "@/db"
 import { voiceAgents } from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
+import {
+	OPENAI_REALTIME_MODEL,
+	normalizeOpenAIVoiceId
+} from "@/lib/openai/realtime-voice"
 import { teamScope, withTeamId } from "@/lib/team-scope"
 import type {
 	VoiceAgent,
@@ -39,7 +43,8 @@ const voiceAgentFilterSchema = z
 
 const DEFAULT_VOICE: VoiceSettings = {
 	provider: "openai",
-	voice_id: "alloy"
+	voice_id: "alloy",
+	model: OPENAI_REALTIME_MODEL
 }
 
 type VoiceAgentRow = {
@@ -184,9 +189,12 @@ export async function createVoiceAgentWithRole(data: {
 		}
 
 		const voiceConfig: VoiceSettings = {
-			provider: voicePreset.vapiProvider as VoiceSettings["provider"],
-			voice_id: voicePreset.vapiVoiceId,
-			...(voicePreset.vapiModel ? { model: voicePreset.vapiModel } : {})
+			provider: "openai",
+			voice_id: normalizeOpenAIVoiceId(
+				voicePreset.vapiVoiceId,
+				Math.max((voicePreset.sortOrder || 1) - 1, 0)
+			),
+			model: OPENAI_REALTIME_MODEL
 		}
 
 		const basePrompt = agentRole.systemPrompt

@@ -106,7 +106,10 @@ export async function POST(request: NextRequest) {
 				})
 				.from(campaigns)
 				.where(
-					and(eq(campaigns.teamId, teamId), eq(campaigns.status, "running"))
+					and(
+						eq(campaigns.teamId, teamId),
+						eq(campaigns.status, "running")
+					)
 				)
 				.limit(maxCampaigns)
 

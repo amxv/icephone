@@ -117,11 +117,13 @@ Examples:
 - [ ] Remove @ts-nocheck/@ts-ignore/eslint-disable
 - [ ] Replace with proper types/logic
 - [ ] Resolve TODOs and incomplete logic surfaced during cleanup
+- [ ] Enforce OpenAI-only voice providers and remove non-OpenAI voice usage
 - [ ] Update `PROGRESS.md`
 - [ ] Commit: `phase-16: codebase cleanup`
 
 ### Phase 17 — CRM Product Gap Analysis (Leads/Pipeline/Appointments)
 - [ ] Identify CRM gaps and add missing logic
+- [ ] Strengthen campaign/call-queue async processing infrastructure
 - [ ] Update `PROGRESS.md`
 - [ ] Commit: `phase-17: crm gaps`
 

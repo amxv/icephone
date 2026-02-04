@@ -198,13 +198,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 16 — Codebase Cleanup (No Lint/TS Bypass)
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Removed all in-code TODO markers and completed previously deferred logic in campaigns/admin flows. Added meeting-booked tracking to campaign execution status, replaced placeholder campaign financial metrics with real cost/revenue/ROI calculations, and implemented campaign metadata title resolution. Enforced OpenAI-only voice usage across agent typing/runtime/session setup, normalized voice preset handling, and replaced admin “coming soon” create-agent placeholder with a working form + server-side creation options.
 - Files changed:
-- Tests/commands run:
-- Commit:
+- Added: `src/lib/openai/realtime-voice.ts`
+- Updated: `src/actions/admin-voice-agents.ts`, `src/actions/campaigns/core.ts`, `src/actions/campaigns/monitoring.ts`, `src/actions/voice-agents.ts`, `src/actions/voice-presets.ts`, `src/app/(pages)/campaigns/[id]/page.tsx`, `src/app/admin/voice-agents/AdminVoiceAgentsClient.tsx`, `src/app/admin/voice-agents/page.tsx`, `src/app/api/voice/session/route.ts`, `src/components/campaign-analytics-dashboard.tsx`, `src/components/campaign-stats-dashboard.tsx`, `src/components/voice-agent-customization-dialog.tsx`, `src/components/voice-agents-page-client.tsx`, `src/components/voice-preview.tsx`, `src/db/schema.ts`, `src/scripts/seed-voice-data.ts`, `src/types.ts`
+- Tests/commands run: `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
+- Commit: `phase-16: codebase cleanup`
 - Notes/blockers:
-  - Remove @ts-nocheck/@ts-ignore/eslint-disable and resolve TODOs/incomplete logic.
+  - OpenAI-only runtime is enforced at app level; legacy DB preset rows are normalized at read-time to valid OpenAI Realtime voices.
 
 ---
 

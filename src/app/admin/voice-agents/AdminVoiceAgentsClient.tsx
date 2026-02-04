@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue
+} from "@/components/ui/select"
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -54,7 +61,8 @@ import {
 	searchVoiceAgents,
 	updateVoiceAgentStatus,
 	deleteVoiceAgent,
-	updateVoiceAgentPrompt
+	updateVoiceAgentPrompt,
+	createVoiceAgentForUser
 } from "@/actions/admin-voice-agents"
 import { AgentCustomizationDialog } from "@/components/admin/AgentCustomizationDialog"
 import type { VoiceAgentStatus } from "@/types"
@@ -103,9 +111,26 @@ interface VoiceAgentStats {
 	languageDistribution: Record<string, number>
 }
 
+interface VoiceAgentCreationOptions {
+	users: Array<{
+		id: string
+		email: string | null
+		name: string | null
+	}>
+	roles: Array<{
+		id: number
+		displayName: string
+	}>
+	voicePresets: Array<{
+		id: number
+		displayName: string
+	}>
+}
+
 interface AdminVoiceAgentsClientProps {
 	initialVoiceAgents: AdminVoiceAgentWithDetails[]
 	initialStats: VoiceAgentStats
+	creationOptions: VoiceAgentCreationOptions
 }
 
 // Status color mappings
@@ -224,7 +249,8 @@ function StatusBadge({ status }: { status: VoiceAgentStatus | null }) {
 // Main client component
 export function AdminVoiceAgentsClient({
 	initialVoiceAgents,
-	initialStats
+	initialStats,
+	creationOptions
 }: AdminVoiceAgentsClientProps) {
 	const [voiceAgents, setVoiceAgents] = useState(initialVoiceAgents)
 	const [searchQuery, setSearchQuery] = useState("")
@@ -233,6 +259,17 @@ export function AdminVoiceAgentsClient({
 	const [editDialogOpen, setEditDialogOpen] = useState(false)
 	const [editedAgentId, setEditedAgentId] = useState<number | null>(null)
 	const [editedPrompt, setEditedPrompt] = useState("")
+	const [createDialogOpen, setCreateDialogOpen] = useState(false)
+	const [isCreating, setIsCreating] = useState(false)
+	const [createForm, setCreateForm] = useState({
+		name: "",
+		description: "",
+		userId: "",
+		agentRoleId: "",
+		voicePresetId: "",
+		language: "en",
+		status: "inactive" as VoiceAgentStatus
+	})
 
 	// Search function
 	const handleSearch = async (query: string) => {
@@ -362,6 +399,61 @@ export function AdminVoiceAgentsClient({
 		setEditDialogOpen(false)
 	}
 
+	const resetCreateForm = () => {
+		setCreateForm({
+			name: "",
+			description: "",
+			userId: "",
+			agentRoleId: "",
+			voicePresetId: "",
+			language: "en",
+			status: "inactive"
+		})
+	}
+
+	const handleCreateAgent = async () => {
+		if (
+			!createForm.name.trim() ||
+			!createForm.userId ||
+			!createForm.agentRoleId ||
+			!createForm.voicePresetId
+		) {
+			toast.error("Please complete all required fields")
+			return
+		}
+
+		setIsCreating(true)
+		try {
+			await createVoiceAgentForUser({
+				name: createForm.name.trim(),
+				description: createForm.description.trim() || undefined,
+				userId: createForm.userId,
+				agentRoleId: Number.parseInt(createForm.agentRoleId, 10),
+				voicePresetId: Number.parseInt(createForm.voicePresetId, 10),
+				language: createForm.language,
+				status: createForm.status
+			})
+
+			const refreshedAgents = await searchVoiceAgents(searchQuery)
+			setVoiceAgents(refreshedAgents)
+			toast.success("Voice agent created successfully")
+			resetCreateForm()
+			setCreateDialogOpen(false)
+		} catch (error) {
+			console.error("Create agent error:", error)
+			toast.error("Failed to create voice agent")
+		} finally {
+			setIsCreating(false)
+		}
+	}
+
+	const handleCreateDialogChange = (open: boolean) => {
+		setCreateDialogOpen(open)
+		if (!open) {
+			resetCreateForm()
+		}
+	}
+
 	return (
 		<>
 			{/* Header */}
@@ -383,7 +475,10 @@ export function AdminVoiceAgentsClient({
 							</Button>
 						}
 					/>
-					<Dialog>
+					<Dialog
+						open={createDialogOpen}
+						onOpenChange={handleCreateDialogChange}
+					>
 						<DialogTrigger asChild>
 							<Button
 								variant="outline"
@@ -400,9 +495,187 @@ export function AdminVoiceAgentsClient({
 									Create a new voice agent for any user
 								</DialogDescription>
 							</DialogHeader>
-							{/* TODO: Add create form */}
-							<div className="text-center text-muted-foreground py-8">
-								Agent creation form coming soon...
+							<div className="grid gap-4 py-2">
+								<div className="grid gap-2">
+									<Label htmlFor="agent-name">Name</Label>
+									<Input
+										id="agent-name"
+										value={createForm.name}
+										onChange={(event) =>
+											setCreateForm((prev) => ({
+												...prev,
+												name: event.target.value
+											}))
+										}
+										placeholder="Inbound Support Agent"
+									/>
+								</div>
+								<div className="grid gap-2">
+									<Label htmlFor="agent-description">
+										Description
+									</Label>
+									<Textarea
+										id="agent-description"
+										value={createForm.description}
+										onChange={(event) =>
+											setCreateForm((prev) => ({
+												...prev,
+												description: event.target.value
+											}))
+										}
+										placeholder="Optional short description"
+									/>
+								</div>
+								<div className="grid gap-2">
+									<Label>User</Label>
+									<Select
+										value={createForm.userId}
+										onValueChange={(value) =>
+											setCreateForm((prev) => ({
+												...prev,
+												userId: value
+											}))
+										}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select a user" />
+										</SelectTrigger>
+										<SelectContent>
+											{creationOptions.users.map(
+												(userOption) => (
+													<SelectItem
+														key={userOption.id}
+														value={userOption.id}
+													>
+														{userOption.email ||
+															userOption.name ||
+															userOption.id}
+													</SelectItem>
+												)
+											)}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="grid gap-2">
+									<Label>Role</Label>
+									<Select
+										value={createForm.agentRoleId}
+										onValueChange={(value) =>
+											setCreateForm((prev) => ({
+												...prev,
+												agentRoleId: value
+											}))
+										}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select role" />
+										</SelectTrigger>
+										<SelectContent>
+											{creationOptions.roles.map(
+												(role) => (
+													<SelectItem
+														key={role.id}
+														value={String(role.id)}
+													>
+														{role.displayName}
+													</SelectItem>
+												)
+											)}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="grid gap-2">
+									<Label>Voice</Label>
+									<Select
+										value={createForm.voicePresetId}
+										onValueChange={(value) =>
+											setCreateForm((prev) => ({
+												...prev,
+												voicePresetId: value
+											}))
+										}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select OpenAI voice preset" />
+										</SelectTrigger>
+										<SelectContent>
+											{creationOptions.voicePresets.map(
+												(preset) => (
+													<SelectItem
+														key={preset.id}
+														value={String(
+															preset.id
+														)}
+													>
+														{preset.displayName}
+													</SelectItem>
+												)
+											)}
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="grid gap-2">
+									<Label>Status</Label>
+									<Select
+										value={createForm.status}
+										onValueChange={(value) =>
+											setCreateForm((prev) => ({
+												...prev,
+												status: value as VoiceAgentStatus
+											}))
+										}
+									>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="inactive">
+												Inactive
+											</SelectItem>
+											<SelectItem value="active">
+												Active
+											</SelectItem>
+											<SelectItem value="training">
+												Training
+											</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="grid gap-2">
+									<Label htmlFor="agent-language">
+										Language
+									</Label>
+									<Input
+										id="agent-language"
+										value={createForm.language}
+										onChange={(event) =>
+											setCreateForm((prev) => ({
+												...prev,
+												language: event.target.value
+											}))
+										}
+										placeholder="en"
+									/>
+								</div>
+								<div className="flex justify-end gap-2">
+									<Button
+										variant="outline"
+										onClick={() =>
+											setCreateDialogOpen(false)
+										}
+										disabled={isCreating}
+									>
+										Cancel
+									</Button>
+									<Button
+										onClick={handleCreateAgent}
+										disabled={isCreating}
+									>
+										{isCreating
+											? "Creating..."
+											: "Create Agent"}
+									</Button>
+								</div>
 							</div>
 						</DialogContent>
 					</Dialog>

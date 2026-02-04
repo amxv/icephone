@@ -622,9 +622,9 @@ export const voicePresets = pgTable(
 		gender: voicePresetGenderEnum("gender").notNull(),
 		description: text("description").notNull(), // Description for business users
 		// Provider configuration (hidden from users)
-		vapiVoiceId: varchar("vapi_voice_id", { length: 255 }).notNull(), // ElevenLabs voice ID, etc.
-		vapiProvider: varchar("vapi_provider", { length: 50 }).notNull(), // "elevenlabs", "playht", "cartesia"
-		vapiModel: varchar("vapi_model", { length: 100 }), // Provider-specific model
+		vapiVoiceId: varchar("vapi_voice_id", { length: 255 }).notNull(), // OpenAI Realtime voice id (alloy, ash, etc.)
+		vapiProvider: varchar("vapi_provider", { length: 50 }).notNull(), // "openai"
+		vapiModel: varchar("vapi_model", { length: 100 }), // Realtime model id
 		sampleAudioUrl: varchar("sample_audio_url", { length: 1024 }), // URL for voice preview
 		isDefault: boolean("is_default").default(false), // Default voice for language
 		sortOrder: integer("sort_order").default(0), // Display ordering
@@ -747,7 +747,7 @@ export const voiceAgents = pgTable(
 		// Legacy technical fields (deprecated in favor of presets)
 		prompt: text("prompt"), // System prompt for the agent (now auto-generated from role)
 		voice: jsonb("voice").$type<{
-			provider: "elevenlabs" | "playht" | "cartesia" | "openai"
+			provider: "openai"
 			voice_id: string
 			model?: string
 			settings?: Record<string, unknown>

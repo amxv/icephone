@@ -12,7 +12,11 @@ import {
 } from "@/db/schema"
 import type { VoiceAgent, VoiceAgentStatus } from "@/types"
 import { currentUser } from "@/lib/auth/session"
-import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
+import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
+import {
+	OPENAI_REALTIME_MODEL,
+	normalizeOpenAIVoiceId
+} from "@/lib/openai/realtime-voice"
 
 // Admin authentication helper
 async function requireAdmin() {
@@ -97,6 +101,22 @@ interface AdminVoiceAgentWithDetails extends DatabaseVoiceAgent {
 	} | null
 	sessionsCount: number
 	lastSessionDate: Date | null
+}
+
+export interface VoiceAgentCreationOptions {
+	users: Array<{
+		id: string
+		email: string | null
+		name: string | null
+	}>
+	roles: Array<{
+		id: number
+		displayName: string
+	}>
+	voicePresets: Array<{
+		id: number
+		displayName: string
+	}>
 }
 
 type UserSummary = {
@@ -234,6 +254,55 @@ export interface AdminSetting {
 	createdAt: Date
 	updatedAt: Date
 	createdBy: string
+}
+
+export async function getVoiceAgentCreationOptions(): Promise<VoiceAgentCreationOptions> {
+	await requireAdmin()
+
+	const [availableUsers, availableRoles, openAIVoicePresets] =
+		await Promise.all([
+			db
+				.select({
+					id: users.id,
+					email: users.email,
+					name: users.name
+				})
+				.from(users)
+				.where(eq(users.isActive, true))
+				.orderBy(asc(users.email)),
+			db
+				.select({
+					id: agentRoles.id,
+					displayName: agentRoles.displayName
+				})
+				.from(agentRoles)
+				.orderBy(asc(agentRoles.displayName)),
+			db
+				.select({
+					id: voicePresets.id,
+					displayName: voicePresets.displayName
+				})
+				.from(voicePresets)
+				.where(eq(voicePresets.vapiProvider, "openai"))
+				.orderBy(asc(voicePresets.displayName))
+		])
+
+	const availableVoicePresets =
+		openAIVoicePresets.length > 0
+			? openAIVoicePresets
+			: await db
+					.select({
+						id: voicePresets.id,
+						displayName: voicePresets.displayName
+					})
+					.from(voicePresets)
+					.orderBy(asc(voicePresets.displayName))
+
+	return {
+		users: availableUsers,
+		roles: availableRoles,
+		voicePresets: availableVoicePresets
+	}
 }
 
 /**
@@ -755,6 +824,59 @@ export async function createVoiceAgentForUser(data: {
 			throw new Error("User does not belong to a team")
 		}
 
+		const [selectedRole, selectedPreset] = await Promise.all([
+			data.agentRoleId
+				? db.query.agentRoles.findFirst({
+						where: eq(agentRoles.id, data.agentRoleId),
+						columns: {
+							id: true,
+							displayName: true,
+							systemPrompt: true,
+							defaultConfiguration: true,
+							firstMessageTemplate: true
+						}
+					})
+				: Promise.resolve(null),
+			data.voicePresetId
+				? db.query.voicePresets.findFirst({
+						where: eq(voicePresets.id, data.voicePresetId),
+						columns: {
+							id: true,
+							vapiVoiceId: true,
+							sortOrder: true
+						}
+					})
+				: db.query.voicePresets.findFirst({
+						where: and(
+							eq(voicePresets.vapiProvider, "openai"),
+							eq(voicePresets.isDefault, true)
+						),
+						orderBy: asc(voicePresets.sortOrder),
+						columns: {
+							id: true,
+							vapiVoiceId: true,
+							sortOrder: true
+						}
+					})
+		])
+
+		const resolvedPresetId =
+			selectedPreset?.id ?? data.voicePresetId ?? null
+		const voiceSettings = {
+			provider: "openai" as const,
+			voice_id: normalizeOpenAIVoiceId(
+				selectedPreset?.vapiVoiceId,
+				Math.max((selectedPreset?.sortOrder || 1) - 1, 0)
+			),
+			model: OPENAI_REALTIME_MODEL
+		}
+		const prompt = selectedRole?.systemPrompt ?? null
+		const firstMessage =
+			selectedRole?.firstMessageTemplate?.replace(
+				"{{agent_name}}",
+				data.name
+			) ?? null
+
 		const [newAgent] = await db
 			.insert(voiceAgents)
 			.values({
@@ -764,13 +886,13 @@ export async function createVoiceAgentForUser(data: {
 				userId: data.userId,
 				createdByUserId: admin.id,
 				agentRoleId: data.agentRoleId || null,
-				voicePresetId: data.voicePresetId || null,
+				voicePresetId: resolvedPresetId,
 				language: data.language || "en",
 				status: data.status || "inactive",
-				prompt: null, // Will be generated from role
-				voice: null, // Will be generated from preset
-				configuration: {},
-				firstMessage: null,
+				prompt,
+				voice: voiceSettings,
+				configuration: selectedRole?.defaultConfiguration || {},
+				firstMessage,
 				createdAt: new Date(),
 				updatedAt: new Date()
 			})

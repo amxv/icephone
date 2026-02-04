@@ -298,13 +298,15 @@ export async function getCallAnalytics(
 	}
 
 	for (const row of callDirectionStats) {
-		if (row.direction === "incoming") directionBreakdown.incoming += row.count
+		if (row.direction === "incoming")
+			directionBreakdown.incoming += row.count
 		else if (row.direction === "outgoing")
 			directionBreakdown.outgoing += row.count
 		else directionBreakdown.unknown += row.count
 	}
 	for (const row of sessionDirectionStats) {
-		if (row.direction === "incoming") directionBreakdown.incoming += row.count
+		if (row.direction === "incoming")
+			directionBreakdown.incoming += row.count
 		else if (row.direction === "outgoing")
 			directionBreakdown.outgoing += row.count
 		else directionBreakdown.unknown += row.count
