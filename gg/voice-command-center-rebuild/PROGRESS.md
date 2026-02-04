@@ -376,6 +376,6 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `src/components/voice-agent-settings.tsx`
 - Tests/commands run: `bun run typecheck`, `bun run lint`
-- Commit:
+- Commit: `7ecbff1` (`phase-30: advanced kb settings`)
 - Notes/blockers:
   - None.

@@ -212,4 +212,4 @@ Examples:
 - [x] Replace disabled “knowledge base coming soon” section in advanced agent settings with working source-scoping UI
 - [x] Load team KB sources and persist `knowledge_base.sourceIds` from advanced settings
 - [x] Update `PROGRESS.md`
-- [ ] Commit: `phase-30: advanced kb settings`
+- [x] Commit: `phase-30: advanced kb settings`
