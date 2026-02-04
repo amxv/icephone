@@ -352,3 +352,10 @@ Examples:
 - [x] Re-run quality gates after settings hardening
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-50: settings input hardening`
+
+### Phase 51 — Analytics Recent Calls Coverage Expansion
+- [x] Expand recent-call analytics source to include both realtime sessions and persisted call records
+- [x] Merge/sort mixed call sources by `startTime` and dedupe by shared `sessionId`
+- [x] Preserve existing analytics dashboard payload shape while increasing coverage
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-51: analytics recent-call coverage`

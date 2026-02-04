@@ -627,3 +627,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-50: settings input hardening`
 - Notes/blockers:
   - None.
+
+---
+
+## Phase 51 — Analytics Recent Calls Coverage Expansion
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Expanded recent-call analytics coverage to include both realtime voice sessions and persisted legacy `calls` records. `getRecentCalls` now queries both datasets, merges them, sorts by `startTime`, deduplicates overlaps by `sessionId`, and returns a single unified list. This improves analytics recency visibility for mixed execution paths without changing dashboard consumer contracts.
+- Files changed:
+  - Updated: `src/actions/call-analytics.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-51: analytics recent-call coverage`
+- Notes/blockers:
+  - Deduplication is session-ID based; records without `sessionId` are kept as independent events.

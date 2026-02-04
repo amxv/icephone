@@ -804,32 +804,74 @@ export async function getRecentCalls(rawLimit = 20) {
 	const { teamId, user } = await requireTeam()
 	const limit = limitSchema.parse(rawLimit)
 
-	const recentCalls = await db
-		.select({
-			id: voiceSessions.id,
-			sessionId: voiceSessions.sessionId,
-			agentId: voiceSessions.agentId,
-			agentName: voiceAgents.name,
-			leadName: leads.name,
-			phoneNumber: voiceSessions.phoneNumber,
-			direction: voiceSessions.direction,
-			status: voiceSessions.status,
-			startTime: voiceSessions.startTime,
-			endTime: voiceSessions.endTime,
-			duration: voiceSessions.duration,
-			sentiment: voiceSessions.sentiment,
-			summary: voiceSessions.summary,
-			cost: voiceSessions.cost
-		})
-		.from(voiceSessions)
-		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
-		.leftJoin(
-			leads,
-			and(eq(voiceSessions.leadId, leads.id), teamScope(leads, teamId))
-		)
-		.where(teamScope(voiceAgents, teamId))
-		.orderBy(desc(voiceSessions.startTime))
-		.limit(limit)
+	const [recentVoiceSessions, recentLegacyCalls] = await Promise.all([
+		db
+			.select({
+				recordType: sql<"voice_session">`'voice_session'`,
+				id: voiceSessions.id,
+				sessionId: voiceSessions.sessionId,
+				agentId: voiceSessions.agentId,
+				agentName: voiceAgents.name,
+				leadName: leads.name,
+				phoneNumber: voiceSessions.phoneNumber,
+				direction: voiceSessions.direction,
+				status: voiceSessions.status,
+				startTime: voiceSessions.startTime,
+				endTime: voiceSessions.endTime,
+				duration: voiceSessions.duration,
+				sentiment: voiceSessions.sentiment,
+				summary: voiceSessions.summary,
+				cost: voiceSessions.cost
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.leftJoin(
+				leads,
+				and(eq(voiceSessions.leadId, leads.id), teamScope(leads, teamId))
+			)
+			.where(teamScope(voiceAgents, teamId))
+			.orderBy(desc(voiceSessions.startTime))
+			.limit(limit * 3),
+		db
+			.select({
+				recordType: sql<"call">`'call'`,
+				id: calls.id,
+				sessionId: calls.sessionId,
+				agentId: calls.agentId,
+				agentName: voiceAgents.name,
+				leadName: leads.name,
+				phoneNumber: leads.phone,
+				direction: calls.direction,
+				status: calls.status,
+				startTime: calls.startTime,
+				endTime: calls.endTime,
+				duration: calls.duration,
+				sentiment: calls.sentiment,
+				summary: calls.summary,
+				cost: calls.cost
+			})
+			.from(calls)
+			.leftJoin(
+				voiceAgents,
+				and(eq(calls.agentId, voiceAgents.id), teamScope(voiceAgents, teamId))
+			)
+			.leftJoin(leads, and(eq(calls.leadId, leads.id), teamScope(leads, teamId)))
+			.where(teamScope(calls, teamId))
+			.orderBy(desc(calls.startTime))
+			.limit(limit * 3)
+	])
+
+	const merged = [...recentVoiceSessions, ...recentLegacyCalls].sort(
+		(a, b) => b.startTime.getTime() - a.startTime.getTime()
+	)
+	const seenSessionIds = new Set<string>()
+	const dedupedRecentCalls = merged.filter((row) => {
+		if (!row.sessionId) return true
+		if (seenSessionIds.has(row.sessionId)) return false
+		seenSessionIds.add(row.sessionId)
+		return true
+	})
+	const recentCalls = dedupedRecentCalls.slice(0, limit)
 
 	await logAnalyticsEvent(teamId, user.id, "analytics.calls.recent.read", {
 		limit
