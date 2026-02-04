@@ -259,13 +259,14 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 21 — Realtime KB Tooling
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added knowledge-base tool calling to OpenAI Realtime voice sessions so agents can retrieve grounded KB snippets/citations during live calls. Extended realtime tool definitions with `searchKnowledgeBase`, wired execution in the WebRTC hook via `performRAGQuery`, and returned structured snippets + citation metadata for grounded responses. Updated session instructions to explicitly require KB lookup before answering factual support/policy/pricing/collections questions.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Updated: `src/lib/openai/realtime-tools.ts`, `src/hooks/use-realtime-voice-session.ts`, `src/app/api/voice/session/route.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-21: realtime kb tools`
 - Notes/blockers:
-  - Add KB lookup as Realtime tool so voice agent can answer grounded questions from company knowledge.
+  - None.
 
 ---
 

@@ -47,5 +47,37 @@ export const openAIRealtimeTools: OpenAIRealtimeTool[] = [
 			},
 			required: ["leadId", "title", "startTime", "endTime"]
 		}
+	},
+	{
+		type: "function",
+		name: "searchKnowledgeBase",
+		description:
+			"Search the team's knowledge base and return grounded snippets with citations. Use this before answering factual support, policy, pricing, process, or collections questions.",
+		parameters: {
+			type: "object",
+			properties: {
+				query: {
+					type: "string",
+					description:
+						"Natural language search query for the company's knowledge base"
+				},
+				limit: {
+					type: "number",
+					description:
+						"Optional number of results to return (1-8, default 5)"
+				},
+				sourceId: {
+					type: "number",
+					description:
+						"Optional knowledge source ID to limit search scope"
+				},
+				threshold: {
+					type: "number",
+					description:
+						"Optional relevance threshold between 0 and 1 for filtering weaker matches"
+				}
+			},
+			required: ["query"]
+		}
 	}
 ]

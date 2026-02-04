@@ -148,11 +148,11 @@ Examples:
 - [x] Commit: `phase-20: analytics deep dive`
 
 ### Phase 21 — Realtime KB Tooling
-- [ ] Add knowledge-base lookup tools for OpenAI Realtime agent (parallel to scheduling tools)
-- [ ] Wire tool execution so agent can query KB and answer with grounded context/citations
-- [ ] Validate support workflows where agent answers from KB
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-21: realtime kb tools`
+- [x] Add knowledge-base lookup tools for OpenAI Realtime agent (parallel to scheduling tools)
+- [x] Wire tool execution so agent can query KB and answer with grounded context/citations
+- [x] Validate support workflows where agent answers from KB
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-21: realtime kb tools`
 
 ### Phase 22 — Voice Agent Command Center Modes + Templates
 - [ ] Add configurable operating modes for `support`, `outbound cold calling`, and `loan repayment collections`

@@ -79,7 +79,9 @@ export async function POST(request: Request) {
 			agentRecord.firstMessage
 				? `Begin the conversation with: ${agentRecord.firstMessage}`
 				: "",
-			"When scheduling appointments, call the scheduleAppointment tool with ISO-8601 start and end times."
+			"When scheduling appointments, call the scheduleAppointment tool with ISO-8601 start and end times.",
+			"For factual support, policy, pricing, product, or collections questions, call the searchKnowledgeBase tool before answering.",
+			"Ground answers in tool results and cite supporting snippets using labels like [1], [2]."
 		].filter(Boolean)
 
 		const instructions = instructionsParts.join("\n\n")

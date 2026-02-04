@@ -1,6 +1,7 @@
 "use client"
 
 import { updateCallOutcome } from "@/actions/calls"
+import { performRAGQuery } from "@/actions/knowledge-base"
 import { scheduleAppointment } from "@/actions/lead-communication"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { z } from "zod"
@@ -35,6 +36,14 @@ export interface RealtimeVoiceSessionControls {
 
 export type UseRealtimeVoiceSessionReturn = RealtimeVoiceSessionState &
 	RealtimeVoiceSessionControls
+
+function clipSnippet(text: string, maxLength = 550) {
+	const compactText = text.replace(/\s+/g, " ").trim()
+	if (compactText.length <= maxLength) {
+		return compactText
+	}
+	return `${compactText.slice(0, maxLength)}...`
+}
 
 export function useRealtimeVoiceSession(
 	agentId: number
@@ -116,6 +125,86 @@ export function useRealtimeVoiceSession(
 							error instanceof Error
 								? error.message
 								: "Invalid tool input"
+						return { success: false, error: message }
+					}
+				}
+				case "searchKnowledgeBase": {
+					const inputSchema = z.object({
+						query: z.string().trim().min(2),
+						limit: z.coerce.number().int().min(1).max(8).optional(),
+						sourceId: z.coerce.number().int().positive().optional(),
+						threshold: z.coerce.number().min(0).max(1).optional()
+					})
+
+					try {
+						const parsed = inputSchema.parse(args)
+						const result = await performRAGQuery(parsed.query, {
+							limit: parsed.limit ?? 5,
+							sourceId: parsed.sourceId,
+							threshold: parsed.threshold
+						})
+
+						if (!result.success) {
+							return {
+								success: false,
+								error:
+									result.error ||
+									"Knowledge base search failed"
+							}
+						}
+
+						const matches = result.data ?? []
+						if (matches.length === 0) {
+							return {
+								success: true,
+								query: parsed.query,
+								totalResults: 0,
+								message:
+									"No relevant knowledge-base content found for this query.",
+								citations: [],
+								snippets: []
+							}
+						}
+
+						const citations = matches.map((match, index) => {
+							const fileName = String(
+								match.metadata.fileName ||
+									match.metadata.filename ||
+									"Knowledge document"
+							)
+
+							return {
+								index: index + 1,
+								label: `[${index + 1}]`,
+								sourceId: match.source_id,
+								sourceName: match.source_name,
+								sourceType: match.source_type,
+								fileName,
+								similarity: Number(
+									(match.similarity || 0).toFixed(3)
+								)
+							}
+						})
+
+						const snippets = matches.map((match, index) => ({
+							citation: `[${index + 1}]`,
+							content: clipSnippet(match.content_chunk)
+						}))
+
+						return {
+							success: true,
+							query: parsed.query,
+							totalResults: matches.length,
+							citations,
+							snippets,
+							guidance:
+								"When answering, ground the response in snippets and cite them with [1], [2], etc."
+						}
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: "Invalid knowledge search input"
 						return { success: false, error: message }
 					}
 				}
