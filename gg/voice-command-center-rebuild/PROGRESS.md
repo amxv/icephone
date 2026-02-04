@@ -343,3 +343,27 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `3d8fb09` (`phase-27: backend optimization`)
 - Notes/blockers:
   - Re-profile campaign queue + CRM sync throughput in a dedicated pass when real telephony traffic is available.
+
+---
+
+## Phase 28 — Voice Agent Performance Data Completeness
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Removed a remaining UI placeholder in active voice-agent cards by wiring real per-agent call totals from backend data. `getVoiceAgents` now returns aggregated call counts (voice sessions + legacy calls), and the voice-agents screen renders real `calls handled` metrics instead of static placeholder text.
+- Files changed:
+  - Updated: `src/actions/voice-agents.ts`, `src/types.ts`, `src/components/voice-agents-page-client.tsx`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit:
+- Notes/blockers:
+  - None.
+
+---
+
+## Phase 29 — Final Validation + PR Sync II
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Re-ran quality gates after Phase 28 and synced branch state for PR continuity.
+- Files changed:
+  - Updated: `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit:
+- Notes/blockers:
+  - None.

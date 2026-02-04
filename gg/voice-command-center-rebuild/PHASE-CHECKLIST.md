@@ -196,3 +196,14 @@ Examples:
 - [x] Optimize analytics aggregation bottlenecks identified during CRM rollout
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-27: backend optimization`
+
+### Phase 28 — Voice Agent Performance Data Completeness
+- [x] Replace remaining voice-agent card performance placeholder with real per-agent call totals
+- [x] Add backend aggregation for per-agent call totals in `getVoiceAgents`
+- [x] Update `PROGRESS.md`
+- [ ] Commit: `phase-28: agent performance data`
+
+### Phase 29 — Final Validation + PR Sync II
+- [x] Run `bun run typecheck` and `bun run lint`
+- [x] Update planning docs after Phase 28
+- [ ] Commit: `phase-29: validation sync`

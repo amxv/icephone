@@ -453,6 +453,9 @@ export interface VoiceAgent {
 	userId: string
 	agentRoleId?: number | null
 	voicePresetId?: number | null
+	metrics?: {
+		totalCalls: number
+	}
 }
 
 export interface VoiceAgentFunction {

@@ -192,6 +192,7 @@ function VoiceAgentCard({
 
 	const roleInfo = getRoleInfo(agent)
 	const voiceDisplayName = getVoiceDisplayName(agent.voice)
+	const callsHandled = agent.metrics?.totalCalls || 0
 
 	const statusConfig = {
 		active: {
@@ -386,7 +387,7 @@ function VoiceAgentCard({
 						</div>
 					</div>
 
-					{/* Performance Metrics (placeholder for future implementation) */}
+					{/* Performance Metrics */}
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<BarChartIcon className="h-4 w-4 text-muted-foreground" />
@@ -395,7 +396,7 @@ function VoiceAgentCard({
 							</span>
 						</div>
 						<div className="text-sm text-muted-foreground">
-							0 calls handled
+							{callsHandled.toLocaleString()} calls handled
 						</div>
 					</div>
 

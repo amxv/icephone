@@ -3,7 +3,7 @@
 import { getAgentRole } from "@/actions/agent-roles"
 import { getVoicePreset } from "@/actions/voice-presets"
 import { db_ws } from "@/db"
-import { voiceAgents } from "@/db/schema"
+import { calls, voiceAgents, voiceSessions } from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
 import {
@@ -17,7 +17,7 @@ import type {
 	VoiceAgentUpdateRequest,
 	VoiceSettings
 } from "@/types"
-import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm"
+import { and, asc, count, desc, eq, ilike, inArray, or } from "drizzle-orm"
 import { z } from "zod"
 
 // Define types for filtering
@@ -141,8 +141,53 @@ export async function getVoiceAgents(
 			.where(and(...conditions))
 			.orderBy(orderDirection(orderColumn))
 
+		const agentIds = agentsData.map((agent) => agent.id)
+		const [sessionCallCounts, legacyCallCounts] = await Promise.all([
+			agentIds.length
+				? db_ws
+						.select({
+							agentId: voiceSessions.agentId,
+							totalCalls: count(voiceSessions.id)
+						})
+						.from(voiceSessions)
+						.where(inArray(voiceSessions.agentId, agentIds))
+						.groupBy(voiceSessions.agentId)
+				: Promise.resolve([]),
+			agentIds.length
+				? db_ws
+						.select({
+							agentId: calls.agentId,
+							totalCalls: count(calls.id)
+						})
+						.from(calls)
+						.where(inArray(calls.agentId, agentIds))
+						.groupBy(calls.agentId)
+				: Promise.resolve([])
+		])
+
+		const callsByAgent = new Map<number, number>()
+		for (const row of sessionCallCounts) {
+			if (row.agentId == null) continue
+			callsByAgent.set(
+				row.agentId,
+				(callsByAgent.get(row.agentId) || 0) + row.totalCalls
+			)
+		}
+		for (const row of legacyCallCounts) {
+			if (row.agentId == null) continue
+			callsByAgent.set(
+				row.agentId,
+				(callsByAgent.get(row.agentId) || 0) + row.totalCalls
+			)
+		}
+
 		return {
-			data: agentsData.map((agent) => normalizeVoiceAgent(agent)),
+			data: agentsData.map((agent) => ({
+				...normalizeVoiceAgent(agent),
+				metrics: {
+					totalCalls: callsByAgent.get(agent.id) || 0
+				}
+			})),
 			success: true,
 			error: null
 		}
