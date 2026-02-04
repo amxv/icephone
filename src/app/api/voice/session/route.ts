@@ -1,5 +1,5 @@
 import { db_ws } from "@/db"
-import { calls, leads, voiceAgents } from "@/db/schema"
+import { calls, knowledgeSources, leads, voiceAgents } from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
 import {
@@ -8,7 +8,7 @@ import {
 } from "@/lib/openai/realtime-voice"
 import { openAIRealtimeTools } from "@/lib/openai/realtime-tools"
 import { teamScope } from "@/lib/team-scope"
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
 const sessionRequestSchema = z.object({
@@ -70,6 +70,40 @@ export async function POST(request: Request) {
 
 		const agentRecord = agent[0]
 		const commandCenter = agentRecord.configuration?.command_center
+		const configuredKnowledgeSourceIds = Array.from(
+			new Set(
+				(agentRecord.configuration?.knowledge_base?.sourceIds || [])
+					.filter(
+						(value): value is number =>
+							Number.isInteger(value) && value > 0
+					)
+					.map((value) => Number(value))
+			)
+		)
+		const scopedKnowledgeSources =
+			configuredKnowledgeSourceIds.length > 0
+				? await db_ws
+						.select({
+							id: knowledgeSources.id,
+							name: knowledgeSources.name
+						})
+						.from(knowledgeSources)
+						.where(
+							and(
+								eq(knowledgeSources.teamId, teamId),
+								inArray(
+									knowledgeSources.id,
+									configuredKnowledgeSourceIds
+								)
+							)
+						)
+				: []
+		const effectiveKnowledgeSourceIds = scopedKnowledgeSources.map(
+			(source) => source.id
+		)
+		const knowledgeSourceHints = scopedKnowledgeSources.map(
+			(source) => `${source.id}: ${source.name}`
+		)
 		const voiceSelection = normalizeOpenAIVoiceId(
 			agentRecord.voice?.provider === "openai"
 				? agentRecord.voice.voice_id
@@ -92,6 +126,15 @@ export async function POST(request: Request) {
 				: "",
 			"When scheduling appointments, call the scheduleAppointment tool with ISO-8601 start and end times.",
 			"For factual support, policy, pricing, product, or collections questions, call the searchKnowledgeBase tool before answering.",
+			effectiveKnowledgeSourceIds.length
+				? `Knowledge-base scope for this agent is restricted to source IDs: ${effectiveKnowledgeSourceIds.join(", ")}.`
+				: "",
+			knowledgeSourceHints.length
+				? `Knowledge-base source map: ${knowledgeSourceHints.join(" | ")}.`
+				: "",
+			effectiveKnowledgeSourceIds.length
+				? "Always include sourceIds in searchKnowledgeBase tool calls and keep them within the allowed IDs."
+				: "",
 			"Ground answers in tool results and cite supporting snippets using labels like [1], [2]."
 		].filter(Boolean)
 
@@ -206,7 +249,8 @@ export async function POST(request: Request) {
 				callId: callRow.id,
 				clientSecret,
 				sessionId,
-				expiresAt: sessionData.expires_at ?? null
+				expiresAt: sessionData.expires_at ?? null,
+				knowledgeSourceIds: effectiveKnowledgeSourceIds
 			}),
 			{
 				status: 200,

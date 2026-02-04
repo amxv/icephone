@@ -853,6 +853,7 @@ export const voiceAgents = pgTable(
 					keywords?: Record<string, unknown>
 				}
 				knowledge_base?: {
+					sourceIds?: number[]
 					files?: string[]
 					messages?: string[]
 				}

@@ -39,6 +39,7 @@ const querySchema = z.object({
 	query: z.string().trim().min(1),
 	limit: z.number().int().min(1).max(50).optional(),
 	sourceId: sourceIdSchema.optional(),
+	sourceIds: z.array(sourceIdSchema).min(1).max(20).optional(),
 	threshold: z.number().min(0).max(1).optional()
 })
 
@@ -597,6 +598,7 @@ export async function performRAGQuery(
 	options: {
 		limit?: number
 		sourceId?: number
+		sourceIds?: number[]
 		threshold?: number
 	} = {}
 ): Promise<RAGQueryResult> {
@@ -605,13 +607,28 @@ export async function performRAGQuery(
 			query: parsedQuery,
 			limit = 10,
 			sourceId,
+			sourceIds,
 			threshold
 		} = querySchema.parse({
 			query,
 			limit: options.limit,
 			sourceId: options.sourceId,
+			sourceIds: options.sourceIds,
 			threshold: options.threshold
 		})
+
+		const scopedSourceIds = Array.from(
+			new Set(
+				[
+					...(typeof sourceId === "number" ? [sourceId] : []),
+					...(Array.isArray(sourceIds) ? sourceIds : [])
+				].filter((value): value is number =>
+					Number.isInteger(value) && value > 0
+				)
+			)
+		)
+		const scopedSourceIdSet =
+			scopedSourceIds.length > 0 ? new Set(scopedSourceIds) : null
 
 		const { teamId } = await requireTeam()
 		const vectorStoreId = await getTeamVectorStoreId(teamId)
@@ -668,7 +685,12 @@ export async function performRAGQuery(
 		const mapped = filteredResults.flatMap((result): RAGSearchResult[] => {
 			const row = fileMap.get(result.file_id)
 			if (!row) return []
-			if (sourceId && row.file.sourceId !== sourceId) return []
+			if (
+				scopedSourceIdSet &&
+				!scopedSourceIdSet.has(row.file.sourceId)
+			) {
+				return []
+			}
 
 			const contentItems = Array.isArray(result.content)
 				? result.content

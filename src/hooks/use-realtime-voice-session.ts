@@ -66,6 +66,7 @@ export function useRealtimeVoiceSession(
 	const audioElementRef = useRef<HTMLAudioElement | null>(null)
 	const sessionStartTimeRef = useRef<number | null>(null)
 	const callIdRef = useRef<number | null>(null)
+	const knowledgeSourceScopeRef = useRef<number[]>([])
 	const isResponseInProgressRef = useRef(false)
 
 	const resetState = useCallback(() => {
@@ -133,14 +134,60 @@ export function useRealtimeVoiceSession(
 						query: z.string().trim().min(2),
 						limit: z.coerce.number().int().min(1).max(8).optional(),
 						sourceId: z.coerce.number().int().positive().optional(),
+						sourceIds: z
+							.array(
+								z.coerce.number().int().positive()
+							)
+							.max(20)
+							.optional(),
 						threshold: z.coerce.number().min(0).max(1).optional()
 					})
 
 					try {
 						const parsed = inputSchema.parse(args)
+						const scopedSourceIds = knowledgeSourceScopeRef.current
+						const requestedSourceIds = Array.from(
+							new Set(
+								[
+									...(typeof parsed.sourceId === "number"
+										? [parsed.sourceId]
+										: []),
+									...(Array.isArray(parsed.sourceIds)
+										? parsed.sourceIds
+										: [])
+								]
+							)
+						)
+						const effectiveSourceIds =
+							scopedSourceIds.length > 0
+								? requestedSourceIds.length > 0
+									? requestedSourceIds.filter((sourceId) =>
+											scopedSourceIds.includes(sourceId)
+										)
+									: scopedSourceIds
+								: requestedSourceIds
+
+						if (
+							scopedSourceIds.length > 0 &&
+							effectiveSourceIds.length === 0
+						) {
+							return {
+								success: false,
+								error: "Requested knowledge source is outside the agent's allowed scope.",
+								allowedSourceIds: scopedSourceIds
+							}
+						}
+
 						const result = await performRAGQuery(parsed.query, {
 							limit: parsed.limit ?? 5,
-							sourceId: parsed.sourceId,
+							sourceId:
+								effectiveSourceIds.length === 1
+									? effectiveSourceIds[0]
+									: undefined,
+							sourceIds:
+								effectiveSourceIds.length > 1
+									? effectiveSourceIds
+									: undefined,
 							threshold: parsed.threshold
 						})
 
@@ -195,6 +242,7 @@ export function useRealtimeVoiceSession(
 							success: true,
 							query: parsed.query,
 							totalResults: matches.length,
+							sourceIds: effectiveSourceIds,
 							citations,
 							snippets,
 							guidance:
@@ -332,6 +380,7 @@ export function useRealtimeVoiceSession(
 
 		setError(null)
 		setIsConnecting(true)
+		knowledgeSourceScopeRef.current = []
 
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({
@@ -360,6 +409,18 @@ export function useRealtimeVoiceSession(
 			}
 
 			callIdRef.current = sessionData.callId
+			knowledgeSourceScopeRef.current = Array.isArray(
+				sessionData.knowledgeSourceIds
+			)
+				? sessionData.knowledgeSourceIds
+						.filter(
+							(value: unknown): value is number =>
+								typeof value === "number" &&
+								Number.isInteger(value) &&
+								value > 0
+						)
+						.slice(0, 20)
+				: []
 
 			const pc = new RTCPeerConnection()
 			peerConnectionRef.current = pc
@@ -467,6 +528,7 @@ export function useRealtimeVoiceSession(
 		audioElementRef.current = null
 		sessionStartTimeRef.current = null
 		callIdRef.current = null
+		knowledgeSourceScopeRef.current = []
 
 		resetState()
 	}, [resetState, transcriptHistory])

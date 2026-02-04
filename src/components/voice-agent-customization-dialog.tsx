@@ -1,7 +1,9 @@
 "use client"
 
+import { getKnowledgeBaseSources } from "@/actions/knowledge-base"
 import { updateVoiceAgent } from "@/actions/voice-agents"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
 	Dialog,
 	DialogContent,
@@ -45,6 +47,12 @@ interface VoiceAgentCustomizationDialogProps {
 	trigger?: React.ReactNode
 }
 
+type KnowledgeSourceOption = {
+	id: number
+	name: string
+	type: string
+}
+
 export function VoiceAgentCustomizationDialog({
 	agent,
 	onUpdated,
@@ -61,6 +69,13 @@ export function VoiceAgentCustomizationDialog({
 	const [personality, setPersonality] = useState("")
 	const [scriptDirection, setScriptDirection] = useState("")
 	const [firstMessage, setFirstMessage] = useState("")
+	const [knowledgeSources, setKnowledgeSources] = useState<
+		KnowledgeSourceOption[]
+	>([])
+	const [selectedKnowledgeSourceIds, setSelectedKnowledgeSourceIds] =
+		useState<number[]>([])
+	const [isLoadingKnowledgeSources, setIsLoadingKnowledgeSources] =
+		useState(false)
 	const [isSaving, setIsSaving] = useState(false)
 
 	useEffect(() => {
@@ -86,10 +101,58 @@ export function VoiceAgentCustomizationDialog({
 				template?.scriptDirectionDefault ||
 				""
 		)
+		const configuredSourceIds = Array.isArray(
+			agent.configuration?.knowledge_base?.sourceIds
+		)
+			? agent.configuration.knowledge_base.sourceIds
+					.filter(
+						(value): value is number =>
+							Number.isInteger(value) && value > 0
+					)
+					.map((value) => Number(value))
+			: []
 		setFirstMessage(
 			agent.firstMessage || template?.firstMessageDefault || ""
 		)
+		setSelectedKnowledgeSourceIds(Array.from(new Set(configuredSourceIds)))
 	}, [open, agent.prompt, agent.voice, agent.configuration, agent.firstMessage])
+
+	useEffect(() => {
+		if (!open) return
+
+		let isMounted = true
+		setIsLoadingKnowledgeSources(true)
+		void getKnowledgeBaseSources()
+			.then((result) => {
+				if (!isMounted) return
+				if (!result.success || !result.data) {
+					setKnowledgeSources([])
+					return
+				}
+
+				const normalizedSources = result.data.map((source) => ({
+					id: source.id,
+					name: source.name,
+					type: source.type
+				}))
+				setKnowledgeSources(normalizedSources)
+			})
+			.catch((error) => {
+				console.error("Failed to load knowledge sources:", error)
+				if (isMounted) {
+					setKnowledgeSources([])
+				}
+			})
+			.finally(() => {
+				if (isMounted) {
+					setIsLoadingKnowledgeSources(false)
+				}
+			})
+
+		return () => {
+			isMounted = false
+		}
+	}, [open])
 
 	const applyTemplateDefaults = (templateId: string) => {
 		const template = getVoiceAgentCommandCenterTemplate(templateId)
@@ -101,6 +164,15 @@ export function VoiceAgentCustomizationDialog({
 		setPersonality(template.personalityDefault)
 		setScriptDirection(template.scriptDirectionDefault)
 		setFirstMessage(template.firstMessageDefault)
+	}
+
+	const toggleKnowledgeSource = (sourceId: number, checked: boolean) => {
+		setSelectedKnowledgeSourceIds((prev) => {
+			if (checked) {
+				return Array.from(new Set([...prev, sourceId]))
+			}
+			return prev.filter((id) => id !== sourceId)
+		})
 	}
 
 	const handleSave = async () => {
@@ -128,6 +200,13 @@ export function VoiceAgentCustomizationDialog({
 			}
 
 			const existingConfiguration = agent.configuration || {}
+			const normalizedKnowledgeSourceIds = Array.from(
+				new Set(
+					selectedKnowledgeSourceIds
+						.filter((id) => Number.isInteger(id) && id > 0)
+						.map((id) => Number(id))
+				)
+			).sort((a, b) => a - b)
 			const commandCenterMode =
 				selectedTemplate?.mode ||
 				existingConfiguration.command_center?.mode ||
@@ -143,6 +222,13 @@ export function VoiceAgentCustomizationDialog({
 				},
 				configuration: {
 					...existingConfiguration,
+					knowledge_base: {
+						...(existingConfiguration.knowledge_base || {}),
+						sourceIds:
+							normalizedKnowledgeSourceIds.length > 0
+								? normalizedKnowledgeSourceIds
+								: undefined
+					},
 					command_center: {
 						mode: commandCenterMode,
 						templateId: selectedTemplate?.id,
@@ -261,6 +347,79 @@ export function VoiceAgentCustomizationDialog({
 							placeholder="Describe tone and behavior (e.g., calm, concise, assertive)..."
 							className="min-h-[90px]"
 						/>
+					</div>
+
+					<div className="space-y-3">
+						<div className="space-y-1">
+							<Label>Knowledge Base Scope</Label>
+							<p className="text-xs text-muted-foreground">
+								Choose which sources this agent can use during
+								realtime tool calls. Leave empty to allow all
+								team sources.
+							</p>
+						</div>
+
+						<div className="rounded-xl border border-border/70 p-3 space-y-3">
+							<label className="flex items-center gap-2 text-sm">
+								<Checkbox
+									checked={
+										selectedKnowledgeSourceIds.length === 0
+									}
+									onCheckedChange={(checked) => {
+										if (checked) {
+											setSelectedKnowledgeSourceIds([])
+										}
+									}}
+								/>
+								<span>Use all available knowledge sources</span>
+							</label>
+
+							{isLoadingKnowledgeSources ? (
+								<p className="text-xs text-muted-foreground">
+									Loading sources...
+								</p>
+							) : knowledgeSources.length === 0 ? (
+								<p className="text-xs text-muted-foreground">
+									No knowledge sources found. Add sources in
+									the Knowledge Base screen.
+								</p>
+							) : (
+								<div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+									{knowledgeSources.map((source) => {
+										const checked =
+											selectedKnowledgeSourceIds.includes(
+												source.id
+											)
+
+										return (
+											<label
+												key={source.id}
+												className="flex items-start gap-2 text-sm"
+											>
+												<Checkbox
+													checked={checked}
+													onCheckedChange={(
+														value
+													) =>
+														toggleKnowledgeSource(
+															source.id,
+															value === true
+														)
+													}
+												/>
+												<span>
+													{source.name}
+													<span className="block text-xs text-muted-foreground">
+														#{source.id} •{" "}
+														{source.type}
+													</span>
+												</span>
+											</label>
+										)
+									})}
+								</div>
+							)}
+						</div>
 					</div>
 
 					<div className="space-y-2">

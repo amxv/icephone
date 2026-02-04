@@ -404,6 +404,7 @@ export interface VoiceAgentConfiguration {
 		keywords?: Record<string, unknown>
 	}
 	knowledge_base?: {
+		sourceIds?: number[]
 		files?: string[]
 		messages?: string[]
 	}

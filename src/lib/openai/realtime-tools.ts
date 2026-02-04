@@ -71,6 +71,12 @@ export const openAIRealtimeTools: OpenAIRealtimeTool[] = [
 					description:
 						"Optional knowledge source ID to limit search scope"
 				},
+				sourceIds: {
+					type: "array",
+					items: { type: "number" },
+					description:
+						"Optional list of knowledge source IDs to limit search scope"
+				},
 				threshold: {
 					type: "number",
 					description:

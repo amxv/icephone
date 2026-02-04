@@ -316,22 +316,21 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Added: `gg/voice-command-center-rebuild/telephony-recording-research.md`
 - Tests/commands run: Web research via `webctx` (`search`, `read-link`) and architecture documentation authoring.
-- Commit:
+- Commit: `954f107` (`phase-25: telephony research`)
 - Notes/blockers:
   - None.
 
 ---
 
 ## Phase 26 — Sidebar Feature Gap Pass (CRM Product Completeness)
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Closed a high-impact sidebar feature gap by wiring per-agent knowledge-base scoping into the active voice-agent customization and realtime tool execution path. Agents can now explicitly scope allowed knowledge sources, and `searchKnowledgeBase` tool calls are constrained to those configured sources for support/collections workflows. Added source-aware instructions in session bootstrap so realtime responses stay grounded and bounded to the intended KB context.
 - Files changed:
+  - Updated: `src/components/voice-agent-customization-dialog.tsx`, `src/app/api/voice/session/route.ts`, `src/hooks/use-realtime-voice-session.ts`, `src/lib/openai/realtime-tools.ts`, `src/actions/knowledge-base.ts`, `src/types.ts`, `src/db/schema.ts`
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
-  - Review sidebar feature set (Leads, Pipelines, Campaigns, Calls, Appointments, Knowledge Base, Analytics).
-  - Identify missing command-center capabilities for support, outbound sales, and loan repayment collections.
-  - Add/close high-impact gaps and document remaining follow-up phases.
+  - None.
 
 ---
 

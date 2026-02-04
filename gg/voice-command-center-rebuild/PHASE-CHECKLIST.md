@@ -185,11 +185,11 @@ Examples:
 - [x] Commit: `phase-25: telephony research`
 
 ### Phase 26 — Sidebar Feature Gap Pass (CRM Product Completeness)
-- [ ] Review Leads, Pipelines, Campaigns, Calls, Appointments, Knowledge Base, Analytics for product gaps
-- [ ] Add/close high-impact gaps for support, outbound sales, and loan repayment collections
-- [ ] Document new follow-up phases as needed
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-26: sidebar product gaps`
+- [x] Review Leads, Pipelines, Campaigns, Calls, Appointments, Knowledge Base, Analytics for product gaps
+- [x] Add/close high-impact gaps for support, outbound sales, and loan repayment collections
+- [x] Document new follow-up phases as needed
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-26: sidebar product gaps`
 
 ### Phase 27 — Backend Optimization Pass II
 - [ ] Profile and optimize campaign queue + CRM sync throughput
