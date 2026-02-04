@@ -73,6 +73,30 @@ export const callEventTypeEnum = pgEnum("call_event_type", [
 	"status"
 ])
 
+export const telephonyProviderEnum = pgEnum("telephony_provider", [
+	"mock",
+	"twilio",
+	"telnyx",
+	"vonage"
+])
+
+export const telephonyCallStatusEnum = pgEnum("telephony_call_status", [
+	"queued",
+	"ringing",
+	"in_progress",
+	"completed",
+	"failed",
+	"busy",
+	"no_answer",
+	"canceled",
+	"unknown"
+])
+
+export const telephonyRecordingStatusEnum = pgEnum(
+	"telephony_recording_status",
+	["processing", "ready", "failed"]
+)
+
 // Define task priority enum
 export const taskPriorityEnum = pgEnum("task_priority", [
 	"low",
@@ -259,7 +283,10 @@ export const crmExternalRecords = pgTable(
 	(table) => [
 		index("crm_external_records_team_idx").on(table.teamId),
 		index("crm_external_records_provider_idx").on(table.provider),
-		index("crm_external_records_entity_idx").on(table.entityType, table.entityId),
+		index("crm_external_records_entity_idx").on(
+			table.entityType,
+			table.entityId
+		),
 		index("crm_external_records_external_idx").on(table.externalId),
 		unique("crm_external_records_team_provider_entity_unique").on(
 			table.teamId,
@@ -540,6 +567,155 @@ export const callEvents = pgTable(
 	]
 )
 
+// Telephony call table - provider leg metadata for outbound/inbound PSTN execution
+export const telephonyCalls = pgTable(
+	"telephony_calls",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, {
+				onDelete: "cascade"
+			}),
+		callId: integer("call_id").references(() => calls.id, {
+			onDelete: "cascade"
+		}),
+		queueEntryId: integer("queue_entry_id"),
+		provider: telephonyProviderEnum("provider").notNull(),
+		providerCallId: varchar("provider_call_id", { length: 255 }),
+		providerSessionId: varchar("provider_session_id", { length: 255 }),
+		direction: communicationTypeEnum("direction").default("outgoing"),
+		status: telephonyCallStatusEnum("status").default("queued"),
+		toNumber: varchar("to_number", { length: 50 }),
+		fromNumber: varchar("from_number", { length: 50 }),
+		startedAt: timestamp("started_at"),
+		answeredAt: timestamp("answered_at"),
+		endedAt: timestamp("ended_at"),
+		duration: integer("duration"),
+		recordingStatus: telephonyRecordingStatusEnum("recording_status"),
+		recordingUrl: varchar("recording_url", { length: 1024 }),
+		lastWebhookAt: timestamp("last_webhook_at"),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull()
+	},
+	(table) => [
+		index("telephony_calls_team_id_idx").on(table.teamId),
+		index("telephony_calls_call_id_idx").on(table.callId),
+		index("telephony_calls_queue_entry_id_idx").on(table.queueEntryId),
+		index("telephony_calls_provider_idx").on(table.provider),
+		index("telephony_calls_status_idx").on(table.status),
+		index("telephony_calls_user_id_idx").on(table.userId),
+		index("telephony_calls_provider_call_id_idx").on(
+			table.provider,
+			table.providerCallId
+		),
+		unique("telephony_calls_provider_call_unique").on(
+			table.provider,
+			table.providerCallId
+		)
+	]
+)
+
+// Telephony event ingestion table - append-only provider callbacks
+export const telephonyEvents = pgTable(
+	"telephony_events",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 }).references(() => teams.id, {
+			onDelete: "cascade"
+		}),
+		telephonyCallId: integer("telephony_call_id").references(
+			() => telephonyCalls.id,
+			{
+				onDelete: "set null"
+			}
+		),
+		provider: telephonyProviderEnum("provider").notNull(),
+		providerEventId: varchar("provider_event_id", { length: 255 }),
+		eventType: varchar("event_type", { length: 100 }).notNull(),
+		dedupeKey: varchar("dedupe_key", { length: 255 }).notNull().unique(),
+		signatureValid: boolean("signature_valid").default(false).notNull(),
+		occurredAt: timestamp("occurred_at"),
+		receivedAt: timestamp("received_at").defaultNow().notNull(),
+		processingStatus: varchar("processing_status", { length: 30 })
+			.default("ingested")
+			.notNull(),
+		processingError: text("processing_error"),
+		payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 })
+	},
+	(table) => [
+		index("telephony_events_team_id_idx").on(table.teamId),
+		index("telephony_events_call_id_idx").on(table.telephonyCallId),
+		index("telephony_events_provider_idx").on(table.provider),
+		index("telephony_events_event_type_idx").on(table.eventType),
+		index("telephony_events_received_at_idx").on(table.receivedAt),
+		index("telephony_events_processing_status_idx").on(
+			table.processingStatus
+		)
+	]
+)
+
+// Call recording metadata for telephony provider capture lifecycle
+export const callRecordings = pgTable(
+	"call_recordings",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		callId: integer("call_id")
+			.notNull()
+			.references(() => calls.id, { onDelete: "cascade" }),
+		telephonyCallId: integer("telephony_call_id").references(
+			() => telephonyCalls.id,
+			{
+				onDelete: "set null"
+			}
+		),
+		provider: telephonyProviderEnum("provider").notNull(),
+		providerRecordingId: varchar("provider_recording_id", { length: 255 }),
+		recordingUrl: varchar("recording_url", { length: 1024 }),
+		storageKey: varchar("storage_key", { length: 1024 }),
+		status: telephonyRecordingStatusEnum("status")
+			.default("processing")
+			.notNull(),
+		duration: integer("duration"),
+		channels: integer("channels"),
+		recordedAt: timestamp("recorded_at"),
+		expiresAt: timestamp("expires_at"),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull()
+	},
+	(table) => [
+		index("call_recordings_team_id_idx").on(table.teamId),
+		index("call_recordings_call_id_idx").on(table.callId),
+		index("call_recordings_telephony_call_id_idx").on(
+			table.telephonyCallId
+		),
+		index("call_recordings_status_idx").on(table.status),
+		index("call_recordings_provider_idx").on(table.provider),
+		index("call_recordings_provider_recording_id_idx").on(
+			table.provider,
+			table.providerRecordingId
+		),
+		unique("call_recordings_provider_recording_unique").on(
+			table.provider,
+			table.providerRecordingId
+		)
+	]
+)
+
 // Text messages table - stores text message records with leads
 export const textMessages = pgTable(
 	"text_messages",
@@ -584,7 +760,7 @@ export const appointmentsRelations = relations(appointments, ({ one }) => ({
 	})
 }))
 
-export const callsRelations = relations(calls, ({ one }) => ({
+export const callsRelations = relations(calls, ({ one, many }) => ({
 	lead: one(leads, {
 		fields: [calls.leadId],
 		references: [leads.id]
@@ -592,7 +768,9 @@ export const callsRelations = relations(calls, ({ one }) => ({
 	campaign: one(campaigns, {
 		fields: [calls.campaignId],
 		references: [campaigns.id]
-	})
+	}),
+	telephonyCalls: many(telephonyCalls),
+	recordings: many(callRecordings)
 }))
 
 export const textMessagesRelations = relations(textMessages, ({ one }) => ({
@@ -1627,6 +1805,7 @@ export const callQueue = pgTable(
 		callResult: jsonb("call_result")
 			.$type<{
 				callId?: string
+				telephonyCallId?: string
 				sessionId?: string
 				duration?: number
 				outcome?: string // answered, voicemail, busy, no_answer, failed
@@ -1898,6 +2077,39 @@ export const campaignQueueRelations = relations(campaignQueue, ({ one }) => ({
 	campaignLead: one(campaignLeads, {
 		fields: [campaignQueue.campaignLeadId],
 		references: [campaignLeads.id]
+	})
+}))
+
+export const telephonyCallsRelations = relations(
+	telephonyCalls,
+	({ one, many }) => ({
+		call: one(calls, {
+			fields: [telephonyCalls.callId],
+			references: [calls.id]
+		}),
+		events: many(telephonyEvents),
+		recordings: many(callRecordings)
+	})
+)
+
+export const telephonyEventsRelations = relations(
+	telephonyEvents,
+	({ one }) => ({
+		telephonyCall: one(telephonyCalls, {
+			fields: [telephonyEvents.telephonyCallId],
+			references: [telephonyCalls.id]
+		})
+	})
+)
+
+export const callRecordingsRelations = relations(callRecordings, ({ one }) => ({
+	call: one(calls, {
+		fields: [callRecordings.callId],
+		references: [calls.id]
+	}),
+	telephonyCall: one(telephonyCalls, {
+		fields: [callRecordings.telephonyCallId],
+		references: [telephonyCalls.id]
 	})
 }))
 

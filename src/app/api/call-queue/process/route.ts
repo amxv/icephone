@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db_ws } from "@/db"
-import { callQueue, calls } from "@/db/schema"
+import { callQueue, calls, leads, telephonyCalls } from "@/db/schema"
+import { getTelephonyExecutionProvider } from "@/lib/telephony/providers"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 // Simple authentication for background processing
@@ -266,7 +267,9 @@ async function processTeamCallQueueDirect(
 	batchSize: number = 5
 ) {
 	const callExecutionEnabled = process.env.CALL_EXECUTION_ENABLED === "true"
-	const executionProvider = process.env.CALL_EXECUTION_PROVIDER || "mock"
+	const executionProvider = getTelephonyExecutionProvider(
+		process.env.CALL_EXECUTION_PROVIDER
+	)
 
 	if (!callExecutionEnabled) {
 		return {
@@ -278,7 +281,7 @@ async function processTeamCallQueueDirect(
 				failed: 0,
 				retries: 0,
 				message:
-					"Call execution is disabled (telephony deferred in this phase)."
+					"Call execution is disabled. Set CALL_EXECUTION_ENABLED=true to process queue entries."
 			},
 			error: null
 		}
@@ -297,10 +300,13 @@ async function processTeamCallQueueDirect(
 			maxRetries: callQueue.maxRetries,
 			retryInterval: callQueue.retryInterval,
 			instructions: callQueue.instructions,
-			phoneNumber: callQueue.phoneNumber,
+			phoneNumber: sql<
+				string | null
+			>`COALESCE(${callQueue.phoneNumber}, ${leads.phone})`,
 			userId: callQueue.userId
 		})
 		.from(callQueue)
+		.leftJoin(leads, eq(callQueue.leadId, leads.id))
 		.where(
 			and(
 				eq(callQueue.teamId, teamId),
@@ -351,14 +357,76 @@ async function processTeamCallQueueDirect(
 
 	for (const entry of queueEntries) {
 		try {
-			if (executionProvider !== "mock") {
-				throw new Error(
-					`Unsupported call execution provider: ${executionProvider}`
-				)
+			const execution = await executionProvider.execute({
+				teamId,
+				queueEntry: entry,
+				startedAt: now
+			})
+
+			if (execution.status !== "completed") {
+				const retryCount = (entry.retryCount || 0) + 1
+				const maxRetries = entry.maxRetries ?? 3
+
+				if (
+					execution.status === "retryable_failure" &&
+					retryCount <= maxRetries
+				) {
+					const retryAt = new Date(
+						Date.now() + (entry.retryInterval ?? 60) * 60_000
+					)
+					await updateCallQueueStatus(entry.id, "pending", {
+						retryCount,
+						scheduledTime: retryAt,
+						lastError: execution.error
+					})
+					retries += 1
+					results.push({
+						queueId: entry.id,
+						status: "retry_scheduled",
+						error: execution.error
+					})
+					continue
+				}
+
+				await updateCallQueueStatus(entry.id, "failed", {
+					retryCount,
+					lastError: execution.error,
+					completedAt: new Date()
+				})
+				failed += 1
+				results.push({
+					queueId: entry.id,
+					status: "failed",
+					error: execution.error
+				})
+				continue
 			}
 
-			const durationSeconds = 45 + Math.floor(Math.random() * 120)
-			const completedAt = new Date(Date.now() + durationSeconds * 1000)
+			const isTerminalCallStatus =
+				execution.callStatus === "completed" ||
+				execution.callStatus === "failed" ||
+				execution.callStatus === "busy" ||
+				execution.callStatus === "no_answer" ||
+				execution.callStatus === "canceled"
+
+			const callDuration = Math.max(
+				0,
+				Math.round(execution.durationSeconds)
+			)
+			const callStartTime = entry.scheduledTime || now
+			const callEndTime = isTerminalCallStatus
+				? execution.completedAt ||
+					(callDuration > 0
+						? new Date(
+								callStartTime.getTime() + callDuration * 1000
+							)
+						: new Date())
+				: null
+			const callStatus =
+				execution.callStatus && execution.callStatus !== "unknown"
+					? execution.callStatus
+					: "queued"
+
 			const [createdCall] = await db_ws
 				.insert(calls)
 				.values({
@@ -368,30 +436,75 @@ async function processTeamCallQueueDirect(
 					campaignId: entry.campaignId,
 					direction: "outgoing",
 					type: "outgoing",
-					duration: durationSeconds,
-					startTime: entry.scheduledTime || now,
-					endTime: completedAt,
-					status: "completed",
-					summary:
-						"Simulated call execution completed (telephony integration pending).",
+					duration: callDuration,
+					startTime: callStartTime,
+					endTime: callEndTime,
+					status: callStatus,
+					summary: execution.summary || "Call execution dispatched.",
+					recordingUrl: execution.recordingUrl || null,
 					metadata: {
 						queueId: entry.id,
-						executionProvider,
-						simulated: true
+						executionProvider: execution.provider,
+						providerCallId: execution.providerCallId || null,
+						providerSessionId: execution.providerSessionId || null,
+						callStatus,
+						...execution.metadata
 					},
 					createdAt: now,
-					updatedAt: completedAt,
+					updatedAt: callEndTime || now,
 					userId: entry.userId
 				})
 				.returning({ id: calls.id })
 
+			let telephonyCallId: number | undefined
+			if (
+				execution.providerCallId ||
+				execution.providerSessionId ||
+				execution.provider !== "mock"
+			) {
+				const [telephonyCall] = await db_ws
+					.insert(telephonyCalls)
+					.values({
+						teamId,
+						callId: createdCall.id,
+						queueEntryId: entry.id,
+						provider: execution.provider,
+						providerCallId: execution.providerCallId || null,
+						providerSessionId: execution.providerSessionId || null,
+						direction: "outgoing",
+						status: callStatus,
+						toNumber: entry.phoneNumber || null,
+						startedAt: callStartTime,
+						endedAt: callEndTime,
+						duration: callDuration,
+						recordingStatus: execution.recordingUrl
+							? "ready"
+							: null,
+						recordingUrl: execution.recordingUrl || null,
+						lastWebhookAt: null,
+						metadata: execution.metadata || {},
+						createdAt: now,
+						updatedAt: callEndTime || now,
+						userId: entry.userId
+					})
+					.returning({ id: telephonyCalls.id })
+
+				telephonyCallId = telephonyCall?.id
+			}
+
 			await updateCallQueueStatus(entry.id, "completed", {
-				completedAt,
+				completedAt: callEndTime || new Date(),
 				callResult: {
 					callId: String(createdCall.id),
-					duration: durationSeconds,
-					outcome: "simulated_completed",
-					notes: "Processed by mock call executor"
+					telephonyCallId: telephonyCallId
+						? String(telephonyCallId)
+						: undefined,
+					sessionId: execution.providerSessionId,
+					duration: callDuration,
+					outcome: execution.outcome || callStatus,
+					notes:
+						execution.notes ||
+						`Processed by ${execution.provider} execution provider`
 				}
 			})
 
@@ -447,10 +560,7 @@ async function processTeamCallQueueDirect(
 			successful,
 			failed,
 			retries,
-			message:
-				executionProvider === "mock"
-					? "Calls processed with mock execution provider."
-					: "Calls processed."
+			message: `Calls processed with ${executionProvider.name} execution provider.`
 		},
 		error: null
 	}

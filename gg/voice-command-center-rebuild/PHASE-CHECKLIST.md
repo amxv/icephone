@@ -222,11 +222,11 @@ Examples:
 - [x] Commit: `phase-31: telephony refresh`
 
 ### Phase 32 — Telephony Domain + Provider Adapters Foundation
-- [ ] Add backend telephony domain scaffolding (provider abstraction, execution contracts, normalized call-event shape)
-- [ ] Add first-class provider adapters for Twilio/Vonage/Telnyx (config + request/signature helper surfaces)
-- [ ] Wire call-queue processor to provider abstraction while preserving mock fallback mode
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-32: telephony foundation`
+- [x] Add backend telephony domain scaffolding (provider abstraction, execution contracts, normalized call-event shape)
+- [x] Add first-class provider adapters for Twilio/Vonage/Telnyx (config + request/signature helper surfaces)
+- [x] Wire call-queue processor to provider abstraction while preserving mock fallback mode
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-32: telephony foundation`
 
 ### Phase 33 — Recording Infrastructure (Backend + UI Readiness)
 - [ ] Add recording persistence model and APIs (recording metadata + provider links + storage pointers)

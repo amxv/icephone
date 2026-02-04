@@ -396,11 +396,13 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 32 — Telephony Domain + Provider Adapters Foundation
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added telephony execution domain scaffolding with normalized provider contracts, shared HTTP/error helpers, and provider adapters for `twilio`, `telnyx`, `vonage`, and `mock`. Rewired call queue execution to use provider abstraction end-to-end (including retries) and persisted provider dispatch metadata into `calls` + `telephony_calls` records while preserving mock fallback behavior.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Added: `src/lib/telephony/types.ts`, `src/lib/telephony/providers/http.ts`, `src/lib/telephony/providers/shared.ts`, `src/lib/telephony/providers/index.ts`, `src/lib/telephony/providers/twilio.ts`, `src/lib/telephony/providers/telnyx.ts`, `src/lib/telephony/providers/vonage.ts`
+  - Updated: `src/lib/telephony/providers/mock.ts`, `src/app/api/call-queue/process/route.ts`, `src/db/schema.ts`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-32: telephony foundation`
 - Notes/blockers:
   - Add provider abstraction and execution contracts for `twilio`, `vonage`, `telnyx` with `mock` fallback retained.
   - Keep queue processor behavior deterministic under retry/failure semantics.
