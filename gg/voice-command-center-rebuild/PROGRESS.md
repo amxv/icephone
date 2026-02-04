@@ -364,6 +364,6 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
 - Tests/commands run: `bun run typecheck`, `bun run lint`
-- Commit:
+- Commit: `7087bd4` (`phase-29: validation sync`)
 - Notes/blockers:
   - None.

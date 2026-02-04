@@ -206,4 +206,4 @@ Examples:
 ### Phase 29 — Final Validation + PR Sync II
 - [x] Run `bun run typecheck` and `bun run lint`
 - [x] Update planning docs after Phase 28
-- [ ] Commit: `phase-29: validation sync`
+- [x] Commit: `phase-29: validation sync`
