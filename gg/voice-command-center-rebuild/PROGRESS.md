@@ -340,6 +340,6 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `src/actions/call-analytics.ts`
 - Tests/commands run: `bun install`, `bun run typecheck`, `bun run lint`
-- Commit:
+- Commit: `3d8fb09` (`phase-27: backend optimization`)
 - Notes/blockers:
   - Re-profile campaign queue + CRM sync throughput in a dedicated pass when real telephony traffic is available.
