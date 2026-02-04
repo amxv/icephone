@@ -224,7 +224,9 @@ export const teamIntegrations = pgTable(
 			.references(() => teams.id, { onDelete: "cascade" }),
 		provider: varchar("provider", { length: 50 }).notNull(),
 		apiKey: text("api_key"),
-		settings: jsonb("settings").$type<Record<string, unknown>>().default({}),
+		settings: jsonb("settings")
+			.$type<Record<string, unknown>>()
+			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull()
 	},
@@ -291,9 +293,9 @@ export const leads = pgTable(
 		teamId: varchar("team_id", { length: 21 })
 			.notNull()
 			.references(() => teams.id, { onDelete: "cascade" }),
-		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
-			() => users.id
-		),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
 		assignedUserId: varchar("assigned_user_id", { length: 21 }).references(
 			() => users.id
 		),
@@ -325,9 +327,9 @@ export const leadNotes = pgTable(
 			.notNull()
 			.references(() => leads.id, { onDelete: "cascade" }),
 		body: text("body").notNull(),
-		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
-			() => users.id
-		),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
 		createdAt: timestamp("created_at").defaultNow().notNull()
 	},
 	(table) => [
@@ -356,9 +358,9 @@ export const appointments = pgTable(
 		calBookingId: varchar("cal_booking_id", { length: 255 }),
 		completed: boolean("completed").default(false),
 		notes: text("notes"),
-		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
-			() => users.id
-		),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
@@ -425,9 +427,9 @@ export const campaigns = pgTable(
 			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
-			() => users.id
-		),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
@@ -463,7 +465,9 @@ export const calls = pgTable(
 		status: varchar("status", { length: 50 }), // answered, voicemail, missed, etc.
 		sentiment: varchar("sentiment", { length: 20 }),
 		cost: decimal("cost", { precision: 10, scale: 4 }),
-		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
@@ -830,9 +834,9 @@ export const voiceAgents = pgTable(
 		firstMessage: text("first_message"), // First message the agent says
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
-			() => users.id
-		),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
@@ -1079,9 +1083,9 @@ export const knowledgeSources = pgTable(
 		uri: text("uri").notNull(),
 		status: varchar("status", { length: 20 }).default("active"),
 		lastIndexedAt: timestamp("last_indexed_at"),
-		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
-			() => users.id
-		),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull()
 	},
@@ -1129,12 +1133,12 @@ export const knowledgeChunks = pgTable(
 			.notNull()
 			.references(() => knowledgeFiles.id, { onDelete: "cascade" }),
 		contentChunk: text("content_chunk").notNull(),
-		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull()
 	},
-	(table) => [
-		index("knowledge_chunks_file_id_idx").on(table.fileId)
-	]
+	(table) => [index("knowledge_chunks_file_id_idx").on(table.fileId)]
 )
 
 // Agent Knowledge join table
@@ -1205,7 +1209,9 @@ export const auditLogs = pgTable(
 		action: varchar("action", { length: 100 }).notNull(),
 		entityType: varchar("entity_type", { length: 100 }).notNull(),
 		entityId: varchar("entity_id", { length: 255 }),
-		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull()
 	},
 	(table) => [

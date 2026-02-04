@@ -186,7 +186,8 @@ export async function updateCallOutcome(callId: number, rawData: unknown) {
 
 		if (data.status !== undefined) updateData.status = data.status
 		if (data.summary !== undefined) updateData.summary = data.summary
-		if (data.transcript !== undefined) updateData.transcript = data.transcript
+		if (data.transcript !== undefined)
+			updateData.transcript = data.transcript
 		if (data.sentiment !== undefined) updateData.sentiment = data.sentiment
 		if (data.recordingUrl !== undefined)
 			updateData.recordingUrl = data.recordingUrl
@@ -316,6 +317,10 @@ export async function createCallEvent(rawData: unknown) {
 		return { data: event, success: true, error: null }
 	} catch (error) {
 		console.error("Error creating call event:", error)
-		return { error: "Failed to create call event", success: false, data: null }
+		return {
+			error: "Failed to create call event",
+			success: false,
+			data: null
+		}
 	}
 }

@@ -48,8 +48,8 @@ export default function AdminCallsPage() {
 					</h3>
 					<p className="text-muted-foreground">
 						Call records and transcripts management interface will
-						be implemented here. This will connect to the voice
-						API to fetch call data.
+						be implemented here. This will connect to the voice API
+						to fetch call data.
 					</p>
 				</div>
 			</Suspense>

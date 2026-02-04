@@ -22,12 +22,7 @@ import { CommunicationTimeline } from "@/components/communication/communication-
 import { QuickActionsFAB } from "@/components/communication/quick-actions-fab"
 import { FollowUpSuggestions } from "@/components/communication/follow-up-suggestions"
 import { KeyboardShortcutsHelper } from "@/components/communication/keyboard-shortcuts-helper"
-import type {
-	Appointment,
-	Call,
-	LeadDetailData,
-	TextMessage
-} from "@/types"
+import type { Appointment, Call, LeadDetailData, TextMessage } from "@/types"
 import { format, isAfter, isBefore } from "date-fns"
 import {
 	ArrowLeftIcon,
@@ -915,7 +910,6 @@ export default function LeadDetailPage() {
 								</div>
 							)}
 						</div>
-
 					</div>
 				</div>
 			</div>

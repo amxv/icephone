@@ -68,3 +68,25 @@ Examples:
 - [ ] Update `PROGRESS.md`
 - [ ] Commit: `phase-8: analytics + admin`
 
+### Phase 9 — Quality Pass (Typecheck + Lint)
+- [ ] Fix typecheck errors
+- [ ] Fix lint/format errors
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-9: quality pass`
+
+### Phase 10 — Realtime Tools (Cal.com + Scheduling)
+- [ ] Add Cal.com tool for Realtime agent
+- [ ] Wire tool handling into voice session route
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-10: realtime tools`
+
+### Phase 11 — Async Campaign Scheduling Infra
+- [ ] Map current scheduling/mass-calling flow
+- [ ] Add async infra scaffolding (queues/workers, status)
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-11: async scheduling`
+
+### Phase 12 — Codebase Optimization
+- [ ] Performance/structure pass
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-12: optimization`

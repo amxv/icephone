@@ -54,7 +54,10 @@ export function UserMenu() {
 				<Button variant="ghost" size="icon" className="rounded-full">
 					<Avatar className="h-7 w-7">
 						{user.image ? (
-							<AvatarImage src={user.image} alt={user.name || "User"} />
+							<AvatarImage
+								src={user.image}
+								alt={user.name || "User"}
+							/>
 						) : null}
 						<AvatarFallback>{initials}</AvatarFallback>
 					</Avatar>
@@ -64,7 +67,10 @@ export function UserMenu() {
 				<DropdownMenuItem disabled>
 					{user.name || user.email}
 				</DropdownMenuItem>
-				<DropdownMenuItem onClick={handleSignOut} disabled={isSigningOut}>
+				<DropdownMenuItem
+					onClick={handleSignOut}
+					disabled={isSigningOut}
+				>
 					{isSigningOut ? "Signing out..." : "Sign out"}
 				</DropdownMenuItem>
 			</DropdownMenuContent>

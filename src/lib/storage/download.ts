@@ -24,7 +24,7 @@ export async function downloadAsBuffer(key: string): Promise<Buffer> {
 	})
 
 	if (!buffer || buffer.length === 0) {
-		throw new Error(`Failed to download from R2: ${key} (empty buffer)`) 
+		throw new Error(`Failed to download from R2: ${key} (empty buffer)`)
 	}
 
 	return buffer

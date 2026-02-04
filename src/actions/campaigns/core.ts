@@ -11,15 +11,7 @@ import {
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
 import { teamScope, withTeamId } from "@/lib/team-scope"
-import {
-	and,
-	desc,
-	eq,
-	gte,
-	inArray,
-	lte,
-	sql
-} from "drizzle-orm"
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm"
 import { z } from "zod"
 
 export interface CampaignFilter {
@@ -31,14 +23,17 @@ export interface CampaignFilter {
 	orderDir?: "asc" | "desc"
 }
 
-export type CampaignStatus =
-	| "draft"
-	| "scheduled"
-	| "running"
-	| "paused"
-	| "completed"
-	| "cancelled"
-	| "archived"
+const campaignStatusValues = [
+	"draft",
+	"scheduled",
+	"running",
+	"paused",
+	"completed",
+	"cancelled",
+	"archived"
+] as const
+
+export type CampaignStatus = (typeof campaignStatusValues)[number]
 
 export interface EnhancedCampaignData {
 	name: string
@@ -81,10 +76,25 @@ export interface EnhancedCampaignData {
 	}
 }
 
+export type CampaignTemplate = {
+	id: number
+	name: string
+	description: string | null
+	startDate: Date | null
+	endDate: Date | null
+	status: CampaignStatus | null
+	voiceAgentId: number | null
+	campaignSettings: Record<string, unknown> | null
+	createdAt: Date
+	updatedAt: Date
+	userId: string
+	teamId: string
+}
+
 const campaignFilterSchema = z
 	.object({
 		search: z.string().trim().min(1).optional(),
-		status: z.array(z.string()).optional(),
+		status: z.array(z.enum(campaignStatusValues)).optional(),
 		startDate: z.coerce.date().optional(),
 		endDate: z.coerce.date().optional(),
 		orderBy: z
@@ -99,9 +109,7 @@ const campaignCreateSchema = z.object({
 	description: z.string().trim().optional().nullable(),
 	startDate: z.coerce.date().optional().nullable(),
 	endDate: z.coerce.date().optional().nullable(),
-	status: z
-		.enum(["draft", "scheduled", "running", "paused", "completed", "cancelled", "archived"])
-		.optional(),
+	status: z.enum(campaignStatusValues).optional(),
 	voiceAgentId: z.number().int().optional().nullable(),
 	campaignSettings: z.record(z.unknown()).optional()
 })
@@ -145,9 +153,10 @@ export async function getCampaigns(rawFilter: unknown = {}) {
 				endDate: campaigns.endDate,
 				createdAt: campaigns.createdAt,
 				updatedAt: campaigns.updatedAt,
-				leadsCount: sql<number>`COUNT(DISTINCT ${campaignLeads.leadId})`.as(
-					"leadsCount"
-				),
+				leadsCount:
+					sql<number>`COUNT(DISTINCT ${campaignLeads.leadId})`.as(
+						"leadsCount"
+					),
 				leadsConverted:
 					sql<number>`COUNT(DISTINCT CASE WHEN ${leads.status} = 'converted' THEN ${campaignLeads.leadId} END)`.as(
 						"leadsConverted"
@@ -191,7 +200,9 @@ export async function getCampaignById(campaignId: number) {
 				voiceAgentId: campaigns.voiceAgentId
 			})
 			.from(campaigns)
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.limit(1)
 
 		if (!campaignResult.length) {
@@ -210,7 +221,9 @@ export async function createCampaign(campaignData: EnhancedCampaignData) {
 }
 
 // Create enhanced campaign (full settings)
-export async function createEnhancedCampaign(campaignData: EnhancedCampaignData) {
+export async function createEnhancedCampaign(
+	campaignData: EnhancedCampaignData
+) {
 	try {
 		const { teamId, user } = await requireTeam()
 		const parsed = campaignCreateSchema.parse(campaignData)
@@ -249,7 +262,11 @@ export async function createEnhancedCampaign(campaignData: EnhancedCampaignData)
 		return { success: true, data: newCampaign, error: null }
 	} catch (error) {
 		console.error("Error creating campaign:", error)
-		return { success: false, error: "Failed to create campaign", data: null }
+		return {
+			success: false,
+			error: "Failed to create campaign",
+			data: null
+		}
 	}
 }
 
@@ -267,7 +284,9 @@ export async function updateCampaign(
 				...parsed,
 				updatedAt: new Date()
 			})
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.returning()
 
 		if (!updatedCampaign) {
@@ -286,7 +305,11 @@ export async function updateCampaign(
 		return { success: true, data: updatedCampaign, error: null }
 	} catch (error) {
 		console.error("Error updating campaign:", error)
-		return { success: false, error: "Failed to update campaign", data: null }
+		return {
+			success: false,
+			error: "Failed to update campaign",
+			data: null
+		}
 	}
 }
 
@@ -296,7 +319,9 @@ export async function deleteCampaign(campaignId: number) {
 
 		const [deletedCampaign] = await db_ws
 			.delete(campaigns)
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.returning()
 
 		if (!deletedCampaign) {
@@ -314,12 +339,16 @@ export async function deleteCampaign(campaignId: number) {
 		return { success: true, data: deletedCampaign, error: null }
 	} catch (error) {
 		console.error("Error deleting campaign:", error)
-		return { success: false, error: "Failed to delete campaign", data: null }
+		return {
+			success: false,
+			error: "Failed to delete campaign",
+			data: null
+		}
 	}
 }
 
 export async function getCampaignTemplates() {
-	return { success: true, data: [] as Array<Record<string, unknown>> }
+	return { success: true, data: [] as CampaignTemplate[] }
 }
 
 export async function createCampaignFromTemplate(
@@ -328,15 +357,13 @@ export async function createCampaignFromTemplate(
 ) {
 	try {
 		const templates = await getCampaignTemplates()
-		const template = templates.data.find(
-			(item) => (item as { id?: number }).id === templateId
-		)
+		const template = templates.data.find((item) => item.id === templateId)
 
 		if (!template) {
 			return { success: false, error: "Template not found", data: null }
 		}
 
-		const templateData = template as Record<string, unknown>
+		const templateData = template as CampaignTemplate
 		const campaignData: EnhancedCampaignData = {
 			name: String(templateData.name || "New Campaign"),
 			description: templateData.description as string | undefined,
@@ -376,7 +403,9 @@ export async function assignLeadsToCampaign(
 		const campaign = await db_ws
 			.select({ id: campaigns.id })
 			.from(campaigns)
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.limit(1)
 
 		if (!campaign.length) {
@@ -613,7 +642,9 @@ export async function startCampaign(campaignId: number) {
 				voiceAgentId: campaigns.voiceAgentId
 			})
 			.from(campaigns)
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.limit(1)
 
 		if (!campaign.length) {
@@ -660,7 +691,9 @@ async function updateCampaignStatus(
 				status,
 				updatedAt: new Date()
 			})
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.returning()
 
 		if (!updatedCampaign) {
@@ -683,7 +716,11 @@ async function updateCampaignStatus(
 		return { success: true, data: updatedCampaign, error: null }
 	} catch (error) {
 		console.error("Error updating campaign status:", error)
-		return { success: false, error: "Failed to update campaign", data: null }
+		return {
+			success: false,
+			error: "Failed to update campaign",
+			data: null
+		}
 	}
 }
 
@@ -700,7 +737,9 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 				endDate: campaigns.endDate
 			})
 			.from(campaigns)
-			.where(and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId)))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.limit(1)
 
 		if (!campaignResult.length) {
@@ -727,10 +766,9 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 			db_ws
 				.select({
 					total: sql<number>`COUNT(*)`.as("total"),
-					queued:
-						sql<number>`COUNT(CASE WHEN ${callQueue.status} = 'queued' THEN 1 END)`.as(
-							"queued"
-						),
+					queued: sql<number>`COUNT(CASE WHEN ${callQueue.status} = 'queued' THEN 1 END)`.as(
+						"queued"
+					),
 					completed:
 						sql<number>`COUNT(CASE WHEN ${callQueue.status} = 'completed' THEN 1 END)`.as(
 							"completed"

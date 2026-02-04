@@ -1,6 +1,5 @@
 const CALCOM_API_VERSION = "2024-08-13"
-const CALCOM_BASE_URL =
-	process.env.CALCOM_API_BASE_URL || "https://api.cal.com"
+const CALCOM_BASE_URL = process.env.CALCOM_API_BASE_URL || "https://api.cal.com"
 
 export interface CalcomRequestOptions {
 	method?: "GET" | "POST" | "PATCH" | "DELETE"
@@ -48,10 +47,10 @@ export async function getCalcomBookings<T>(
 	query: Record<string, string | number | undefined> = {}
 ) {
 	const searchParams = new URLSearchParams()
-	Object.entries(query).forEach(([key, value]) => {
-		if (value === undefined || value === null) return
+	for (const [key, value] of Object.entries(query)) {
+		if (value === undefined || value === null) continue
 		searchParams.set(key, String(value))
-	})
+	}
 
 	const queryString = searchParams.toString()
 	const path = queryString ? `/v2/bookings?${queryString}` : "/v2/bookings"

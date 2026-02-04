@@ -41,9 +41,7 @@ export async function getVectorStoreFileStatus(
 }> {
 	const client = getVectorStoreClient()
 	const file = await retryWithBackoff(() =>
-		client.vectorStores.files.retrieve(fileId, {
-			vector_store_id: vectorStoreId
-		})
+		client.vectorStores.files.retrieve(vectorStoreId, fileId)
 	)
 
 	return {
@@ -77,20 +75,19 @@ export async function retrieveVectorStoreFileContent(
 ): Promise<string> {
 	const client = getVectorStoreClient()
 	const response = await retryWithBackoff(() =>
-		client.vectorStores.files.content(fileId, {
-			vector_store_id: vectorStoreId
-		})
+		client.vectorStores.files.content(vectorStoreId, fileId)
 	)
 
-	if (typeof response === "string") {
-		return response
+	const contentItems = response?.data ?? []
+	const textChunks = contentItems
+		.map((item) => item.text || "")
+		.filter((chunk) => chunk.length > 0)
+
+	if (textChunks.length === 0) {
+		return ""
 	}
 
-	if (typeof response?.content === "string") {
-		return response.content
-	}
-
-	return JSON.stringify(response)
+	return textChunks.join("\n")
 }
 
 export async function removeFileFromVectorStore(
@@ -98,20 +95,8 @@ export async function removeFileFromVectorStore(
 	fileId: string
 ) {
 	const client = getVectorStoreClient()
-	const filesApi = client.vectorStores.files as {
-		del?: (fileId: string, params: { vector_store_id: string }) => Promise<unknown>
-		delete?: (fileId: string, params: { vector_store_id: string }) => Promise<unknown>
-	}
-
-	const deleteFn =
-		filesApi.del ||
-		filesApi.delete ||
-		(() => {
-			throw new Error("Vector store file delete API not available")
-		})
-
 	return retryWithBackoff(() =>
-		deleteFn(fileId, { vector_store_id: vectorStoreId })
+		client.vectorStores.files.del(vectorStoreId, fileId)
 	)
 }
 

@@ -1,10 +1,15 @@
 "use server"
 
-import { auth } from "@/lib/auth/session"
+import { requireTeam } from "@/lib/auth/session"
 import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { db_ws } from "@/db"
 import { campaigns, campaignLeads, leads } from "@/db/schema"
+
+async function getCampaignLeadContext() {
+	const { teamId, user } = await requireTeam()
+	return { teamId, userId: user.id }
+}
 
 // Assign leads to campaign
 export async function assignLeadsToCampaign(
@@ -17,17 +22,14 @@ export async function assignLeadsToCampaign(
 	}
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, userId } = await getCampaignLeadContext()
 
 		// Validate campaign ownership
 		const campaign = await db_ws
 			.select({ id: campaigns.id })
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
@@ -43,7 +45,7 @@ export async function assignLeadsToCampaign(
 		const validLeads = await db_ws
 			.select({ id: leads.id })
 			.from(leads)
-			.where(and(inArray(leads.id, leadIds), eq(leads.userId, userId)))
+			.where(and(inArray(leads.id, leadIds), eq(leads.teamId, teamId)))
 
 		if (validLeads.length !== leadIds.length) {
 			return {
@@ -57,6 +59,7 @@ export async function assignLeadsToCampaign(
 		const assignmentData = leadIds.map((leadId) => ({
 			campaignId,
 			leadId,
+			teamId,
 			priority: options?.priority || 0,
 			maxAttempts: options?.maxAttempts || 3,
 			notes: options?.notes || null,
@@ -85,10 +88,7 @@ export async function removeLeadFromCampaign(
 	leadId: number
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId, userId } = await getCampaignLeadContext()
 
 		const deletedAssignment = await db_ws
 			.delete(campaignLeads)
@@ -96,6 +96,7 @@ export async function removeLeadFromCampaign(
 				and(
 					eq(campaignLeads.campaignId, campaignId),
 					eq(campaignLeads.leadId, leadId),
+					eq(campaignLeads.teamId, teamId),
 					eq(campaignLeads.userId, userId)
 				)
 			)
@@ -126,17 +127,14 @@ export async function bulkAssignLeads(
 	}>
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, userId } = await getCampaignLeadContext()
 
 		// Validate campaign ownership
 		const campaign = await db_ws
 			.select({ id: campaigns.id })
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
@@ -152,6 +150,7 @@ export async function bulkAssignLeads(
 		const assignmentData = leadData.map((lead) => ({
 			campaignId,
 			leadId: lead.leadId,
+			teamId,
 			priority: lead.priority || 0,
 			maxAttempts: lead.maxAttempts || 3,
 			notes: lead.notes || null,
@@ -177,10 +176,7 @@ export async function bulkAssignLeads(
 // Get campaign leads with their queue status
 export async function getCampaignLeads(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getCampaignLeadContext()
 
 		const campaignLeadsData = await db_ws
 			.select({
@@ -210,7 +206,7 @@ export async function getCampaignLeads(campaignId: number) {
 			.where(
 				and(
 					eq(campaignLeads.campaignId, campaignId),
-					eq(campaignLeads.userId, userId)
+					eq(campaignLeads.teamId, teamId)
 				)
 			)
 			.orderBy(desc(campaignLeads.assignedAt))
@@ -238,10 +234,7 @@ export async function createLeadAndAssignToCampaign(
 	campaignId?: number
 ): Promise<{ success: boolean; leadId?: number; error?: string }> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const { teamId, userId } = await getCampaignLeadContext()
 
 		// Validate required fields
 		if (!leadData.name?.trim()) {
@@ -264,7 +257,7 @@ export async function createLeadAndAssignToCampaign(
 				.where(
 					and(
 						eq(leads.email, leadData.email.trim()),
-						eq(leads.userId, userId)
+						eq(leads.teamId, teamId)
 					)
 				)
 				.limit(1)
@@ -277,7 +270,7 @@ export async function createLeadAndAssignToCampaign(
 				.where(
 					and(
 						eq(leads.phone, leadData.phone.trim()),
-						eq(leads.userId, userId)
+						eq(leads.teamId, teamId)
 					)
 				)
 				.limit(1)
@@ -300,6 +293,8 @@ export async function createLeadAndAssignToCampaign(
 				notes: leadData.notes?.trim() || null,
 				source: leadData.source?.trim() || "Manual Entry",
 				status: "new",
+				teamId,
+				createdByUserId: userId,
 				userId
 			})
 			.returning({ id: leads.id })

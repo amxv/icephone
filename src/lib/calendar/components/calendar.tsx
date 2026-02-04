@@ -43,10 +43,7 @@ export function Calendar() {
 			if (!isLoading && user) {
 				usersArray.push({
 					id: user.id,
-					name:
-						user.name ||
-						user.email ||
-						"Current User",
+					name: user.name || user.email || "Current User",
 					picturePath: user.image || null
 				})
 			}

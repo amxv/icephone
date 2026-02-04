@@ -78,9 +78,7 @@ async function getLastSignInMap() {
 		.from(sessions)
 		.groupBy(sessions.userId)
 
-	return new Map(
-		signIns.map((row) => [row.userId, row.lastSignInAt || null])
-	)
+	return new Map(signIns.map((row) => [row.userId, row.lastSignInAt || null]))
 }
 
 async function getLastActivityAt(userId: string) {
@@ -608,9 +606,7 @@ export async function getUserStats() {
 	await requireAdmin()
 
 	try {
-		const totalUsersResult = await db
-			.select({ count: count() })
-			.from(users)
+		const totalUsersResult = await db.select({ count: count() }).from(users)
 
 		const activeUsersResult = await db
 			.select({ count: count() })

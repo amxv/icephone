@@ -15,8 +15,18 @@ import { teamScope, withTeamId } from "@/lib/team-scope"
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm"
 import { z } from "zod"
 
-const leadStatusValues = leadStatusEnum.enumValues as [string, ...string[]]
-const leadSortFields = ["createdAt", "updatedAt", "score", "name", "status"] as const
+type LeadStatus = (typeof leadStatusEnum.enumValues)[number]
+const leadStatusValues = leadStatusEnum.enumValues as [
+	LeadStatus,
+	...LeadStatus[]
+]
+const leadSortFields = [
+	"createdAt",
+	"updatedAt",
+	"score",
+	"name",
+	"status"
+] as const
 
 const leadFilterSchema = z
 	.object({
@@ -42,7 +52,9 @@ const createLeadSchema = z.object({
 const updateLeadSchema = z
 	.object({
 		name: z.string().trim().min(2).optional(),
-		email: z.union([z.string().email(), z.literal(""), z.null()]).optional(),
+		email: z
+			.union([z.string().email(), z.literal(""), z.null()])
+			.optional(),
 		phone: z.union([z.string(), z.null()]).optional(),
 		score: z.coerce.number().min(0).max(100).optional(),
 		status: z.enum(leadStatusValues).optional(),
@@ -133,28 +145,34 @@ export async function getLead(leadId: number) {
 			return { success: false, error: "Lead not found" }
 		}
 
-		const [leadAppointments, leadCalls, leadTextMessages] = await Promise.all([
-			db_ws
-				.select()
-				.from(appointments)
-				.where(
-					and(
-						eq(appointments.leadId, parsedLeadId),
-						teamScope(appointments, teamId)
+		const [leadAppointments, leadCalls, leadTextMessages] =
+			await Promise.all([
+				db_ws
+					.select()
+					.from(appointments)
+					.where(
+						and(
+							eq(appointments.leadId, parsedLeadId),
+							teamScope(appointments, teamId)
+						)
 					)
+					.orderBy(desc(appointments.startTime)),
+				db_ws
+					.select()
+					.from(calls)
+					.where(
+						and(
+							eq(calls.leadId, parsedLeadId),
+							teamScope(calls, teamId)
+						)
 					)
-				.orderBy(desc(appointments.startTime)),
-			db_ws
-				.select()
-				.from(calls)
-				.where(and(eq(calls.leadId, parsedLeadId), teamScope(calls, teamId)))
-				.orderBy(desc(calls.startTime)),
-			db_ws
-				.select()
-				.from(textMessages)
-				.where(eq(textMessages.leadId, parsedLeadId))
-				.orderBy(desc(textMessages.sentAt))
-		])
+					.orderBy(desc(calls.startTime)),
+				db_ws
+					.select()
+					.from(textMessages)
+					.where(eq(textMessages.leadId, parsedLeadId))
+					.orderBy(desc(textMessages.sentAt))
+			])
 
 		return {
 			success: true,
@@ -327,7 +345,11 @@ export async function updateLeadStatus(leadId: number, status: string) {
 		return { data: updatedLead, success: true, error: null }
 	} catch (error) {
 		console.error("Error updating lead status:", error)
-		return { error: "Failed to update lead status", success: false, data: null }
+		return {
+			error: "Failed to update lead status",
+			success: false,
+			data: null
+		}
 	}
 }
 
@@ -372,7 +394,11 @@ export async function createLeadNote(rawData: unknown) {
 		return { data: note, success: true, error: null }
 	} catch (error) {
 		console.error("Error creating lead note:", error)
-		return { error: "Failed to create lead note", success: false, data: null }
+		return {
+			error: "Failed to create lead note",
+			success: false,
+			data: null
+		}
 	}
 }
 

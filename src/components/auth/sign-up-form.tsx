@@ -85,7 +85,9 @@ export function SignUpForm() {
 							type="password"
 							autoComplete="new-password"
 							value={password}
-							onChange={(event) => setPassword(event.target.value)}
+							onChange={(event) =>
+								setPassword(event.target.value)
+							}
 							required
 						/>
 					</div>

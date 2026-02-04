@@ -1,6 +1,6 @@
 "use server"
 
-import { currentUser, requireTeam } from "@/lib/auth/session"
+import { requireTeam } from "@/lib/auth/session"
 import { createAppointment } from "@/actions/appointmentActions"
 import { db_ws } from "@/db"
 import {
@@ -62,16 +62,13 @@ interface CommunicationHistoryItem {
 // Schedule a call for a lead
 export async function scheduleCall(input: ScheduleCallInput) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate lead exists and belongs to user
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, input.leadId), eq(leads.userId, user.id)))
+			.where(and(eq(leads.id, input.leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!lead.length) {
@@ -86,7 +83,7 @@ export async function scheduleCall(input: ScheduleCallInput) {
 				.where(
 					and(
 						eq(voiceAgents.id, input.voiceAgentId),
-						eq(voiceAgents.userId, user.id)
+						teamScope(voiceAgents, teamId)
 					)
 				)
 				.limit(1)
@@ -101,6 +98,7 @@ export async function scheduleCall(input: ScheduleCallInput) {
 			.insert(callQueue)
 			.values({
 				leadId: input.leadId,
+				teamId,
 				voiceAgentId: input.voiceAgentId || null,
 				instructions: input.instructions || null,
 				scheduledTime: input.scheduledTime || null,
@@ -146,16 +144,13 @@ export async function scheduleCall(input: ScheduleCallInput) {
 // Send text message to a lead
 export async function sendTextMessage(input: SendTextMessageInput) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate lead exists and belongs to user
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, input.leadId), eq(leads.userId, user.id)))
+			.where(and(eq(leads.id, input.leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!lead.length) {
@@ -291,10 +286,7 @@ export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 // Get available voice agents for a user
 export async function getAvailableVoiceAgents() {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized", data: [] }
-		}
+		const { teamId } = await requireTeam()
 
 		const agents = await db_ws
 			.select({
@@ -306,7 +298,7 @@ export async function getAvailableVoiceAgents() {
 			.from(voiceAgents)
 			.where(
 				and(
-					eq(voiceAgents.userId, user.id),
+					teamScope(voiceAgents, teamId),
 					eq(voiceAgents.status, "active")
 				)
 			)
@@ -362,9 +354,7 @@ export async function cancelQueuedCall(queueId: number) {
 				completedAt: new Date(),
 				updatedAt: new Date()
 			})
-			.where(
-				and(eq(callQueue.id, queueId), teamScope(callQueue, teamId))
-			)
+			.where(and(eq(callQueue.id, queueId), teamScope(callQueue, teamId)))
 			.returning()
 
 		if (!updatedEntry) {
@@ -459,16 +449,13 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 	error?: string
 }> {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, data: [], error: "Unauthorized" }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate lead exists and belongs to user
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, leadId), eq(leads.userId, user.id)))
+			.where(and(eq(leads.id, leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!lead.length) {
@@ -552,10 +539,7 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 				const details = log.details as Record<string, unknown> | null
 				const item: CommunicationHistoryItem = {
 					id: `${log.method}-${log.id}`,
-					type: log.method as
-						| "call"
-						| "text"
-						| "appointment",
+					type: log.method as "call" | "text" | "appointment",
 					direction: log.type as "incoming" | "outgoing",
 					status: log.status,
 					timestamp: log.createdAt,

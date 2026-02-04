@@ -377,12 +377,7 @@ export async function getAgentPerformanceMetrics(
 	const agent = await db
 		.select()
 		.from(voiceAgents)
-		.where(
-			and(
-				eq(voiceAgents.id, agentId),
-				teamScope(voiceAgents, teamId)
-			)
-		)
+		.where(and(eq(voiceAgents.id, agentId), teamScope(voiceAgents, teamId)))
 		.limit(1)
 
 	if (agent.length === 0) {
@@ -404,10 +399,8 @@ export async function getAgentPerformanceMetrics(
 			totalCost: sum(voiceSessions.cost),
 			averageCost: avg(voiceSessions.cost)
 		})
-	.from(voiceSessions)
-	.where(
-		eq(voiceSessions.agentId, agentId)
-	)
+		.from(voiceSessions)
+		.where(eq(voiceSessions.agentId, agentId))
 
 	const stats = callStats[0]
 
@@ -417,10 +410,8 @@ export async function getAgentPerformanceMetrics(
 			sentiment: voiceSessions.sentiment,
 			count: count(voiceSessions.id)
 		})
-	.from(voiceSessions)
-	.where(
-		eq(voiceSessions.agentId, agentId)
-	)
+		.from(voiceSessions)
+		.where(eq(voiceSessions.agentId, agentId))
 		.groupBy(voiceSessions.sentiment)
 
 	const sentimentDistribution = {
@@ -445,11 +436,9 @@ export async function getAgentPerformanceMetrics(
 				sql`CASE WHEN ${leads.status} = 'converted' THEN 1 END`
 			)
 		})
-	.from(voiceSessions)
-	.leftJoin(leads, eq(voiceSessions.leadId, leads.id))
-	.where(
-		eq(voiceSessions.agentId, agentId)
-	)
+		.from(voiceSessions)
+		.leftJoin(leads, eq(voiceSessions.leadId, leads.id))
+		.where(eq(voiceSessions.agentId, agentId))
 
 	const leadData = leadStats[0]
 
@@ -508,9 +497,7 @@ export async function getRecentCalls(rawLimit = 20) {
 			leads,
 			and(eq(voiceSessions.leadId, leads.id), teamScope(leads, teamId))
 		)
-		.where(
-			teamScope(voiceAgents, teamId)
-		)
+		.where(teamScope(voiceAgents, teamId))
 		.orderBy(desc(voiceSessions.startTime))
 		.limit(limit)
 
@@ -832,9 +819,14 @@ export async function getPerformanceTrends(
 		}
 	}
 
-	await logAnalyticsEvent(teamId, user.id, "analytics.performance.trends.read", {
-		timeRange
-	})
+	await logAnalyticsEvent(
+		teamId,
+		user.id,
+		"analytics.performance.trends.read",
+		{
+			timeRange
+		}
+	)
 
 	return result
 }

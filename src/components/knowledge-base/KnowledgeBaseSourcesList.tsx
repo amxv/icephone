@@ -118,7 +118,9 @@ export default function KnowledgeBaseSourcesList({
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
 										<DropdownMenuItem asChild>
-											<Link href={`/knowledge/${source.id}`}>
+											<Link
+												href={`/knowledge/${source.id}`}
+											>
 												View Documents
 											</Link>
 										</DropdownMenuItem>

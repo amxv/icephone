@@ -72,7 +72,9 @@ export function SignInForm() {
 							type="password"
 							autoComplete="current-password"
 							value={password}
-							onChange={(event) => setPassword(event.target.value)}
+							onChange={(event) =>
+								setPassword(event.target.value)
+							}
 							required
 						/>
 					</div>

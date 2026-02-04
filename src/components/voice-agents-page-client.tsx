@@ -31,10 +31,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger
 } from "@/components/ui/tooltip"
-import type {
-	VoiceAgent,
-	VoiceAgentStatus
-} from "@/types"
+import type { VoiceAgent, VoiceAgentStatus } from "@/types"
 import {
 	BotIcon,
 	InfoIcon,
@@ -493,9 +490,7 @@ export function VoiceAgentsPageClient({
 
 	return (
 		<div className="space-y-6">
-			<PageHeader
-				onAgentCreated={handleAgentCreated}
-			/>
+			<PageHeader onAgentCreated={handleAgentCreated} />
 
 			{!initialVoiceAgents.success ? (
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">

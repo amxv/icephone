@@ -74,7 +74,9 @@ function normalizeVoiceAgent(agent: VoiceAgentRow): VoiceAgent {
 }
 
 // Get all voice agents with optional filtering
-export async function getVoiceAgents(rawFilter: VoiceAgentFilter = {}): Promise<{
+export async function getVoiceAgents(
+	rawFilter: VoiceAgentFilter = {}
+): Promise<{
 	data: VoiceAgent[] | null
 	success: boolean
 	error: string | null
@@ -174,7 +176,11 @@ export async function createVoiceAgentWithRole(data: {
 		}
 
 		if (!voicePreset) {
-			return { error: "Voice preset not found", success: false, data: null }
+			return {
+				error: "Voice preset not found",
+				success: false,
+				data: null
+			}
 		}
 
 		const voiceConfig: VoiceSettings = {

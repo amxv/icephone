@@ -43,8 +43,7 @@ export async function ensureDefaultTeam() {
 	}
 
 	const teamId = nanoid(12)
-	const teamName =
-		record.name || record.email?.split("@")[0] || "My Team"
+	const teamName = record.name || record.email?.split("@")[0] || "My Team"
 	const slug = buildTeamSlug(teamName, teamId.slice(0, 6))
 
 	await db_ws.insert(teams).values({

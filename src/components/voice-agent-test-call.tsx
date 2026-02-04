@@ -99,11 +99,13 @@ export function VoiceAgentTestCall({
 
 				<ScrollArea className="h-72 rounded-2xl border border-border bg-muted/10 p-4">
 					<div className="space-y-3 text-sm">
-						{transcriptHistory.length === 0 && !assistantTranscript && (
-							<p className="text-muted-foreground">
-								Transcripts will appear here during the call.
-							</p>
-						)}
+						{transcriptHistory.length === 0 &&
+							!assistantTranscript && (
+								<p className="text-muted-foreground">
+									Transcripts will appear here during the
+									call.
+								</p>
+							)}
 						{transcriptHistory.map((item, index) => (
 							<div
 								key={`${item.role}-${index}`}

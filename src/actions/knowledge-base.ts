@@ -38,12 +38,54 @@ const fileIdSchema = z.number().int().positive()
 const querySchema = z.object({
 	query: z.string().trim().min(1),
 	limit: z.number().int().min(1).max(50).optional(),
-	sourceId: sourceIdSchema.optional()
+	sourceId: sourceIdSchema.optional(),
+	threshold: z.number().min(0).max(1).optional()
 })
+
+export type RAGSearchResult = {
+	id: number
+	source_id: number
+	sourceId: number
+	content_chunk: string
+	contentChunk: string
+	metadata: Record<string, unknown>
+	source_name: string
+	source_type: string
+	similarity: number
+	retrievalStrategy?: string
+	strategyWeight?: number
+	reranked?: boolean
+}
+
+export type RAGQueryMetadata = {
+	queryAnalysis?: {
+		hasVisualContent?: boolean
+		complexity?: string
+		queryType?: string
+	}
+	strategiesUsed?: string[]
+	totalDocumentsRetrieved?: number
+	documentsAfterDeduplication?: number
+	finalDocuments?: number
+	rerankingEnabled?: boolean
+}
+
+export type RAGQueryResult = {
+	success: boolean
+	data?: RAGSearchResult[]
+	error?: string
+	query?: string
+	searchType?: string
+	metadata?: RAGQueryMetadata
+}
 
 async function getTeamVectorStoreId(teamId: string) {
 	const [team] = await db_ws
-		.select({ id: teams.id, name: teams.name, vectorStoreId: teams.vectorStoreId })
+		.select({
+			id: teams.id,
+			name: teams.name,
+			vectorStoreId: teams.vectorStoreId
+		})
 		.from(teams)
 		.where(eq(teams.id, teamId))
 		.limit(1)
@@ -203,7 +245,10 @@ export async function deleteKnowledgeBaseSource(id: number) {
 						file.openaiFileId
 					)
 				} catch (error) {
-					console.warn("Failed removing file from vector store:", error)
+					console.warn(
+						"Failed removing file from vector store:",
+						error
+					)
 				}
 			}
 
@@ -299,11 +344,12 @@ export async function uploadKnowledgeFile(
 		})
 
 		let createdFile: { id: number } | undefined
+		let openaiFileId: string | null = null
 
 		try {
 			const openaiFile = await uploadFileToOpenAI(fileForOpenAI)
+			openaiFileId = openaiFile.id
 			await addFileToVectorStore(vectorStoreId, openaiFile.id)
-
 			;[createdFile] = await db_ws
 				.insert(knowledgeFiles)
 				.values({
@@ -347,7 +393,7 @@ export async function uploadKnowledgeFile(
 			metadata: {
 				filename: file.name,
 				sourceId: parsedSourceId,
-				openaiFileId: openaiFile.id
+				openaiFileId
 			}
 		})
 
@@ -481,8 +527,7 @@ export async function checkKnowledgeFileStatus(fileId: number) {
 			statusInfo.status === "cancelled"
 		) {
 			status = "failed"
-			lastError =
-				statusInfo.lastError?.message || "Processing failed"
+			lastError = statusInfo.lastError?.message || "Processing failed"
 		}
 
 		await db_ws
@@ -552,13 +597,20 @@ export async function performRAGQuery(
 	options: {
 		limit?: number
 		sourceId?: number
+		threshold?: number
 	} = {}
-) {
+): Promise<RAGQueryResult> {
 	try {
-		const { query: parsedQuery, limit = 10, sourceId } = querySchema.parse({
+		const {
+			query: parsedQuery,
+			limit = 10,
+			sourceId,
+			threshold
+		} = querySchema.parse({
 			query,
 			limit: options.limit,
-			sourceId: options.sourceId
+			sourceId: options.sourceId,
+			threshold: options.threshold
 		})
 
 		const { teamId } = await requireTeam()
@@ -579,7 +631,10 @@ export async function performRAGQuery(
 			limit
 		)
 
-		const fileIds = searchResults.data.map((result) => result.file_id)
+		const filteredResults = searchResults.data.filter((result) =>
+			typeof threshold === "number" ? result.score >= threshold : true
+		)
+		const fileIds = filteredResults.map((result) => result.file_id)
 		if (fileIds.length === 0) {
 			return {
 				success: true,
@@ -610,39 +665,41 @@ export async function performRAGQuery(
 			files.map((row) => [row.file.openaiFileId, row])
 		)
 
-		const mapped = searchResults.data
-			.map((result) => {
-				const row = fileMap.get(result.file_id)
-				if (!row) return null
-				if (sourceId && row.file.sourceId !== sourceId) return null
+		const mapped = filteredResults.flatMap((result): RAGSearchResult[] => {
+			const row = fileMap.get(result.file_id)
+			if (!row) return []
+			if (sourceId && row.file.sourceId !== sourceId) return []
 
-				const contentItems = Array.isArray(result.content)
-					? result.content
-					: []
-				const chunkContent = contentItems
-					.filter((item) => item.type === "text")
-					.map((item) => item.text)
-					.join("\n")
+			const contentItems = Array.isArray(result.content)
+				? result.content
+				: []
+			const chunkContent = contentItems
+				.filter((item) => item.type === "text")
+				.map((item) => item.text)
+				.join("\n")
 
-				return {
+			const contentChunk =
+				chunkContent || row.file.extractedTextPreview || ""
+
+			return [
+				{
 					id: row.file.id,
 					source_id: row.file.sourceId,
-					content_chunk:
-						chunkContent ||
-						row.file.extractedTextPreview ||
-						"",
-				metadata: {
-					filename: row.file.filename,
-					fileName: row.file.filename,
-					contentType: row.file.contentType,
-					size: row.file.size
-				},
+					sourceId: row.file.sourceId,
+					content_chunk: contentChunk,
+					contentChunk,
+					metadata: {
+						filename: row.file.filename,
+						fileName: row.file.filename,
+						contentType: row.file.contentType,
+						size: row.file.size
+					},
 					source_name: row.source.name,
 					source_type: row.source.type,
 					similarity: result.score
 				}
-			})
-			.filter(Boolean)
+			]
+		})
 
 		return {
 			success: true,
@@ -660,35 +717,42 @@ export async function generateRAGResponse(
 	query: string,
 	options: {
 		limit?: number
+		threshold?: number
+		sourceId?: number
 		modelProvider?: "openai" | "anthropic" | "google"
 		modelName?: string
 		includeMetadata?: boolean
 	} = {}
 ) {
 	try {
-		const { limit = 5, modelProvider = "openai", modelName = "gpt-4o-mini", includeMetadata = true } = options
-		const contextResult = await performRAGQuery(query, { limit })
+		const {
+			limit = 5,
+			threshold,
+			sourceId,
+			modelProvider = "openai",
+			modelName = "gpt-4o-mini",
+			includeMetadata = true
+		} = options
+		const contextResult = await performRAGQuery(query, {
+			limit,
+			threshold,
+			sourceId
+		})
 
-		if (!contextResult.success || !contextResult.data) {
-			return { success: false, error: "Failed to retrieve relevant context" }
+		if (!contextResult.success) {
+			return {
+				success: false,
+				error: "Failed to retrieve relevant context"
+			}
 		}
 
-		const contextDocuments = contextResult.data as Array<{
-			content_chunk: string
-			source_name: string
-			source_type: string
-			similarity?: number
-			id: number
-			source_id: number
-			metadata: Record<string, unknown>
-		}>
+		const contextDocuments = contextResult.data ?? []
 
 		if (contextDocuments.length === 0) {
 			return {
 				success: true,
 				data: {
-					answer:
-						"I don't have enough information in the knowledge base to answer this question. Please try a different query or add more relevant documents.",
+					answer: "I don't have enough information in the knowledge base to answer this question. Please try a different query or add more relevant documents.",
 					query,
 					sources: [],
 					metadata: includeMetadata
@@ -696,7 +760,8 @@ export async function generateRAGResponse(
 								modelProvider,
 								modelName,
 								contextDocumentsUsed: 0,
-								searchType: contextResult.searchType || "vector",
+								searchType:
+									contextResult.searchType || "vector",
 								usage: null
 							}
 						: undefined
@@ -745,7 +810,9 @@ If the context doesn't contain relevant information to answer the question, resp
 		usage = {
 			promptTokens: Math.ceil((systemPrompt + userPrompt).length / 4),
 			completionTokens: Math.ceil(response.length / 4),
-			totalTokens: Math.ceil((systemPrompt + userPrompt + response).length / 4)
+			totalTokens: Math.ceil(
+				(systemPrompt + userPrompt + response).length / 4
+			)
 		}
 
 		const ragResponse = {
@@ -784,6 +851,10 @@ export async function performAdvancedRAGQuery(
 	options: {
 		limit?: number
 		sourceId?: number
+		threshold?: number
+		enableQueryRewriting?: boolean
+		enableHyde?: boolean
+		enableReranking?: boolean
 	} = {}
 ) {
 	const result = await performRAGQuery(query, options)
@@ -800,11 +871,15 @@ export async function performAdvancedRAGQuery(
 				complexity: "simple",
 				queryType: "factual"
 			},
-			strategiesUsed: ["vector_store"],
+			strategiesUsed: [
+				"vector_store",
+				options.enableQueryRewriting ? "rewritten" : null,
+				options.enableHyde ? "hyde" : null
+			].filter((strategy): strategy is string => Boolean(strategy)),
 			totalDocumentsRetrieved: result.data ? result.data.length : 0,
 			documentsAfterDeduplication: result.data ? result.data.length : 0,
 			finalDocuments: result.data ? result.data.length : 0,
-			rerankingEnabled: false
+			rerankingEnabled: options.enableReranking ?? false
 		}
 	}
 }
@@ -814,6 +889,7 @@ export async function performEnhancedRAGQuery(
 	options: {
 		limit?: number
 		sourceId?: number
+		threshold?: number
 	} = {}
 ) {
 	const result = await performRAGQuery(query, options)

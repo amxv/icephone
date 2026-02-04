@@ -1,16 +1,25 @@
 "use server"
 
 import type { KnowledgeBaseSourceType } from "@/types"
-import { createKnowledgeBaseSource, uploadKnowledgeFile } from "@/actions/knowledge-base"
+import {
+	createKnowledgeBaseSource,
+	uploadKnowledgeFile
+} from "@/actions/knowledge-base"
 
-function detectSourceType(filename: string, contentType: string | undefined): KnowledgeBaseSourceType {
+function detectSourceType(
+	filename: string,
+	contentType: string | undefined
+): KnowledgeBaseSourceType {
 	const extension = filename.split(".").pop()?.toLowerCase()
 
 	if (contentType?.includes("pdf") || extension === "pdf") {
 		return "pdf_upload"
 	}
 
-	if (contentType?.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif"].includes(extension || "")) {
+	if (
+		contentType?.startsWith("image/") ||
+		["png", "jpg", "jpeg", "webp", "gif"].includes(extension || "")
+	) {
 		return "image_upload"
 	}
 
@@ -38,7 +47,8 @@ export async function processAndEmbedFile(
 			return { success: false, error: "File is required" }
 		}
 
-		const detectedType = sourceType || detectSourceType(file.name, file.type)
+		const detectedType =
+			sourceType || detectSourceType(file.name, file.type)
 		const name = sourceName || file.name.replace(/\.[^/.]+$/, "")
 
 		const sourceResult = await createKnowledgeBaseSource({
@@ -54,7 +64,10 @@ export async function processAndEmbedFile(
 			}
 		}
 
-		const uploadResult = await uploadKnowledgeFile(sourceResult.data.id, file)
+		const uploadResult = await uploadKnowledgeFile(
+			sourceResult.data.id,
+			file
+		)
 		if (!uploadResult.success) {
 			return {
 				success: false,
@@ -79,7 +92,9 @@ export async function processAndEmbedFile(
 	}
 }
 
-export async function generateQueryEmbedding(_query: string): Promise<number[]> {
+export async function generateQueryEmbedding(
+	_query: string
+): Promise<number[]> {
 	return []
 }
 

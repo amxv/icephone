@@ -7,7 +7,8 @@ import {
 	agentRoles,
 	voicePresets,
 	adminSettings,
-	users
+	users,
+	teamMembers
 } from "@/db/schema"
 import type { VoiceAgent, VoiceAgentStatus } from "@/types"
 import { currentUser } from "@/lib/auth/session"
@@ -125,10 +126,27 @@ async function getUserMap(userIds: string[]) {
 	return new Map(rows.map((row) => [row.id, row]))
 }
 
-function buildUserPayload(
-	userId: string,
-	userMap: Map<string, UserSummary>
-) {
+async function resolveUserTeamId(userId: string) {
+	const [user] = await db
+		.select({ defaultTeamId: users.defaultTeamId })
+		.from(users)
+		.where(eq(users.id, userId))
+		.limit(1)
+
+	if (user?.defaultTeamId) {
+		return user.defaultTeamId
+	}
+
+	const [membership] = await db
+		.select({ teamId: teamMembers.teamId })
+		.from(teamMembers)
+		.where(eq(teamMembers.userId, userId))
+		.limit(1)
+
+	return membership?.teamId ?? null
+}
+
+function buildUserPayload(userId: string, userMap: Map<string, UserSummary>) {
 	const user = userMap.get(userId)
 	const { firstName, lastName } = splitName(user?.name ?? null)
 	return {
@@ -729,15 +747,22 @@ export async function createVoiceAgentForUser(data: {
 	language?: string
 	status?: VoiceAgentStatus
 }): Promise<DatabaseVoiceAgent> {
-	await requireAdmin()
+	const admin = await requireAdmin()
 
 	try {
+		const teamId = await resolveUserTeamId(data.userId)
+		if (!teamId) {
+			throw new Error("User does not belong to a team")
+		}
+
 		const [newAgent] = await db
 			.insert(voiceAgents)
 			.values({
 				name: data.name,
 				description: data.description || null,
+				teamId,
 				userId: data.userId,
+				createdByUserId: admin.id,
 				agentRoleId: data.agentRoleId || null,
 				voicePresetId: data.voicePresetId || null,
 				language: data.language || "en",

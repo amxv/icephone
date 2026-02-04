@@ -231,8 +231,7 @@ async function processUserCallQueueDirect(
 	_userId: string,
 	_batchSize: number = 5
 ) {
-	const callExecutionEnabled =
-		process.env.CALL_EXECUTION_ENABLED === "true"
+	const callExecutionEnabled = process.env.CALL_EXECUTION_ENABLED === "true"
 
 	if (!callExecutionEnabled) {
 		return {

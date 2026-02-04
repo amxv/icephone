@@ -34,16 +34,18 @@ export interface RealtimeVoiceSessionControls {
 export type UseRealtimeVoiceSessionReturn = RealtimeVoiceSessionState &
 	RealtimeVoiceSessionControls
 
-export function useRealtimeVoiceSession(agentId: number): UseRealtimeVoiceSessionReturn {
+export function useRealtimeVoiceSession(
+	agentId: number
+): UseRealtimeVoiceSessionReturn {
 	const [isConnected, setIsConnected] = useState(false)
 	const [isConnecting, setIsConnecting] = useState(false)
 	const [isListening, setIsListening] = useState(false)
 	const [isSpeaking, setIsSpeaking] = useState(false)
 	const [isMuted, setIsMuted] = useState(false)
 	const [error, setError] = useState<Error | null>(null)
-	const [transcriptHistory, setTranscriptHistory] = useState<TranscriptItem[]>(
-		[]
-	)
+	const [transcriptHistory, setTranscriptHistory] = useState<
+		TranscriptItem[]
+	>([])
 	const [assistantTranscript, setAssistantTranscript] = useState("")
 	const [userTranscript, setUserTranscript] = useState("")
 
@@ -186,9 +188,9 @@ export function useRealtimeVoiceSession(agentId: number): UseRealtimeVoiceSessio
 				console.error("Data channel error:", event)
 			}
 
-			stream.getTracks().forEach((track) => {
+			for (const track of stream.getTracks()) {
 				pc.addTrack(track, stream)
-			})
+			}
 
 			const offer = await pc.createOffer()
 			await pc.setLocalDescription(offer)
@@ -240,8 +242,9 @@ export function useRealtimeVoiceSession(agentId: number): UseRealtimeVoiceSessio
 				const duration = Math.floor(
 					(Date.now() - sessionStartTimeRef.current) / 1000
 				)
-				const transcriptLines = transcriptHistory.map((item) =>
-					`${item.role === "user" ? "User" : "Assistant"}: ${item.text}`
+				const transcriptLines = transcriptHistory.map(
+					(item) =>
+						`${item.role === "user" ? "User" : "Assistant"}: ${item.text}`
 				)
 				const transcript = transcriptLines.join("\n")
 
@@ -258,7 +261,10 @@ export function useRealtimeVoiceSession(agentId: number): UseRealtimeVoiceSessio
 
 		dataChannelRef.current?.close()
 		peerConnectionRef.current?.close()
-		mediaStreamRef.current?.getTracks().forEach((track) => track.stop())
+		const tracks = mediaStreamRef.current?.getTracks() || []
+		for (const track of tracks) {
+			track.stop()
+		}
 
 		dataChannelRef.current = null
 		peerConnectionRef.current = null
@@ -271,16 +277,18 @@ export function useRealtimeVoiceSession(agentId: number): UseRealtimeVoiceSessio
 	}, [resetState, transcriptHistory])
 
 	const mute = useCallback(() => {
-		mediaStreamRef.current?.getAudioTracks().forEach((track) => {
+		const tracks = mediaStreamRef.current?.getAudioTracks() || []
+		for (const track of tracks) {
 			track.enabled = false
-		})
+		}
 		setIsMuted(true)
 	}, [])
 
 	const unmute = useCallback(() => {
-		mediaStreamRef.current?.getAudioTracks().forEach((track) => {
+		const tracks = mediaStreamRef.current?.getAudioTracks() || []
+		for (const track of tracks) {
 			track.enabled = true
-		})
+		}
 		setIsMuted(false)
 	}, [])
 

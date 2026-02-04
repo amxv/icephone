@@ -201,9 +201,7 @@ async function fetchCallActivityData(
 	return activityData
 }
 
-async function fetchLeadSourceData(
-	teamId: string
-): Promise<LeadSourceData[]> {
+async function fetchLeadSourceData(teamId: string): Promise<LeadSourceData[]> {
 	const sourceStats = await db
 		.select({
 			source: leads.source,
@@ -254,7 +252,10 @@ async function fetchAgentPerformanceData(
 			})
 			.from(voiceAgents)
 			.where(
-				and(teamScope(voiceAgents, teamId), inArray(voiceAgents.id, agentIds))
+				and(
+					teamScope(voiceAgents, teamId),
+					inArray(voiceAgents.id, agentIds)
+				)
 			)
 	}
 
@@ -284,9 +285,14 @@ export async function getLeadAcquisitionData(
 	const { teamId, user } = await requireTeam()
 	const days = daysSchema.parse(rawDays)
 	const data = await fetchLeadAcquisitionData(teamId, days)
-	await logAnalyticsEvent(teamId, user.id, "analytics.lead_acquisition.read", {
-		days
-	})
+	await logAnalyticsEvent(
+		teamId,
+		user.id,
+		"analytics.lead_acquisition.read",
+		{
+			days
+		}
+	)
 	return data
 }
 

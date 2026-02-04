@@ -110,3 +110,46 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Tests/commands run: None.
 - Commit: `7b91731` (phase-8: analytics + admin)
 - Notes/blockers:
+
+---
+
+## Phase 9 — Quality Pass (Typecheck + Lint)
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Fixed typecheck and lint issues across knowledge base, campaigns, lead communication, and scripts. Updated OpenAI vector store client usage, added RAG query metadata/types, repaired team scoping in legacy campaign/lead flows, refreshed admin voice agent creation with team resolution, and replaced deprecated phone assignment scripts. Cleaned WebRTC hook loops, Cal.com query build, and updated enhanced RAG fallback embeddings. 
+- Files changed:
+  - Updated: `src/lib/openai/vector-store.ts`, `src/actions/knowledge-base.ts`, `src/actions/knowledge-base-enhanced-rag.ts`, `src/actions/lead-communication.ts`, `src/actions/campaigns/basic.ts`, `src/actions/campaigns/core.ts`, `src/actions/campaigns/leads.ts`, `src/actions/admin-voice-agents.ts`, `src/actions/leads.ts`, `src/lib/calendar/animations.ts`, `src/lib/calcom.ts`, `src/hooks/use-realtime-voice-session.ts`, `src/components/knowledge-base/AdvancedKnowledgeBaseSearch.tsx`.
+  - Updated scripts: `scripts/check-voice-agent-phone-assignments.ts`, `scripts/check-voice-agent.ts`, `scripts/test-call-initiation.ts`.
+  - Formatting updates from Biome across related files.
+- Tests/commands run: `bun install`, `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 10 — Realtime Tools (Cal.com + Scheduling)
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 11 — Async Campaign Scheduling Infra
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 12 — Codebase Optimization
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:

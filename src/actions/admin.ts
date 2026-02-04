@@ -71,10 +71,7 @@ async function requireAdmin() {
 		.select({ role: teamMembers.role })
 		.from(teamMembers)
 		.where(
-			and(
-				eq(teamMembers.teamId, teamId),
-				eq(teamMembers.userId, user.id)
-			)
+			and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, user.id))
 		)
 		.limit(1)
 
@@ -183,7 +180,10 @@ export async function getAdminStats(rawInput: Record<string, never> = {}) {
 				.select({ count: count() })
 				.from(leads)
 				.where(
-					and(teamScope(leads, teamId), gte(leads.createdAt, currentMonthStart))
+					and(
+						teamScope(leads, teamId),
+						gte(leads.createdAt, currentMonthStart)
+					)
 				)
 		])
 
@@ -231,7 +231,10 @@ function normalizeActivityType(action: string) {
 	return action.replace(/\./g, "_")
 }
 
-function formatActivityDescription(action: string, metadata?: ActivityMetadata) {
+function formatActivityDescription(
+	action: string,
+	metadata?: ActivityMetadata
+) {
 	if (metadata?.title) {
 		return metadata.title
 	}
@@ -247,9 +250,7 @@ function formatActivityDescription(action: string, metadata?: ActivityMetadata) 
 		.join(" ")
 }
 
-export async function getRecentActivity(
-	rawInput: { limit?: number } = {}
-) {
+export async function getRecentActivity(rawInput: { limit?: number } = {}) {
 	const { teamId, user } = await requireAdmin()
 	const { limit } = adminActivitySchema.parse(rawInput)
 
@@ -335,7 +336,9 @@ function formatTimeAgo(date: Date): string {
 	return `${days} day${days > 1 ? "s" : ""} ago`
 }
 
-export async function getDatabaseOverview(rawInput: Record<string, never> = {}) {
+export async function getDatabaseOverview(
+	rawInput: Record<string, never> = {}
+) {
 	emptySchema.parse(rawInput)
 	const { teamId, user } = await requireAdmin()
 
@@ -350,33 +353,41 @@ export async function getDatabaseOverview(rawInput: Record<string, never> = {}) 
 			textMessagesCount,
 			knowledgeDocsCount
 		] = await Promise.all([
-			db.select({ count: count() })
+			db
+				.select({ count: count() })
 				.from(leads)
 				.where(teamScope(leads, teamId)),
-			db.select({ count: count() })
+			db
+				.select({ count: count() })
 				.from(calls)
 				.where(teamScope(calls, teamId)),
-			db.select({ count: count(voiceSessions.id) })
+			db
+				.select({ count: count(voiceSessions.id) })
 				.from(voiceSessions)
 				.innerJoin(
 					voiceAgents,
 					eq(voiceSessions.agentId, voiceAgents.id)
 				)
 				.where(teamScope(voiceAgents, teamId)),
-			db.select({ count: count() })
+			db
+				.select({ count: count() })
 				.from(appointments)
 				.where(teamScope(appointments, teamId)),
-			db.select({ count: count() })
+			db
+				.select({ count: count() })
 				.from(campaigns)
 				.where(teamScope(campaigns, teamId)),
-			db.select({ count: count() })
+			db
+				.select({ count: count() })
 				.from(voiceAgents)
 				.where(teamScope(voiceAgents, teamId)),
-			db.select({ count: count() })
+			db
+				.select({ count: count() })
 				.from(textMessages)
 				.innerJoin(leads, eq(textMessages.leadId, leads.id))
 				.where(teamScope(leads, teamId)),
-			db.select({ count: count() })
+			db
+				.select({ count: count() })
 				.from(knowledgeFiles)
 				.where(teamScope(knowledgeFiles, teamId))
 		])
@@ -409,15 +420,17 @@ export async function getDatabaseOverview(rawInput: Record<string, never> = {}) 
 	}
 }
 
-export async function getAuditLogs(rawInput: {
-	limit?: number
-	offset?: number
-	action?: string
-	entityType?: string
-	actorUserId?: string
-	startDate?: Date
-	endDate?: Date
-} = {}) {
+export async function getAuditLogs(
+	rawInput: {
+		limit?: number
+		offset?: number
+		action?: string
+		entityType?: string
+		actorUserId?: string
+		startDate?: Date
+		endDate?: Date
+	} = {}
+) {
 	const { teamId, user } = await requireAdmin()
 	const filters = auditLogFilterSchema.parse(rawInput)
 

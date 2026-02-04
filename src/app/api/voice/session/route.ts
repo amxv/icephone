@@ -20,7 +20,8 @@ const DEFAULT_REALTIME_VOICE = "alloy"
 export async function POST(request: Request) {
 	try {
 		const payload = await request.json()
-		const { agentId, leadId, direction } = sessionRequestSchema.parse(payload)
+		const { agentId, leadId, direction } =
+			sessionRequestSchema.parse(payload)
 		const { teamId, user } = await requireTeam()
 
 		const agent = await db_ws
@@ -31,14 +32,19 @@ export async function POST(request: Request) {
 				firstMessage: voiceAgents.firstMessage
 			})
 			.from(voiceAgents)
-			.where(and(eq(voiceAgents.id, agentId), teamScope(voiceAgents, teamId)))
+			.where(
+				and(eq(voiceAgents.id, agentId), teamScope(voiceAgents, teamId))
+			)
 			.limit(1)
 
 		if (!agent.length) {
-			return new Response(JSON.stringify({ error: "Voice agent not found" }), {
-				status: 404,
-				headers: { "Content-Type": "application/json" }
-			})
+			return new Response(
+				JSON.stringify({ error: "Voice agent not found" }),
+				{
+					status: 404,
+					headers: { "Content-Type": "application/json" }
+				}
+			)
 		}
 
 		if (leadId) {
@@ -48,10 +54,13 @@ export async function POST(request: Request) {
 				.where(and(eq(leads.id, leadId), teamScope(leads, teamId)))
 				.limit(1)
 			if (!lead.length) {
-				return new Response(JSON.stringify({ error: "Lead not found" }), {
-					status: 404,
-					headers: { "Content-Type": "application/json" }
-				})
+				return new Response(
+					JSON.stringify({ error: "Lead not found" }),
+					{
+						status: 404,
+						headers: { "Content-Type": "application/json" }
+					}
+				)
 			}
 		}
 
@@ -89,7 +98,9 @@ export async function POST(request: Request) {
 				},
 				session: {
 					type: "realtime",
-					model: process.env.OPENAI_REALTIME_MODEL || DEFAULT_REALTIME_MODEL,
+					model:
+						process.env.OPENAI_REALTIME_MODEL ||
+						DEFAULT_REALTIME_MODEL,
 					instructions,
 					output_modalities: ["audio", "text"],
 					tools: [],
@@ -189,7 +200,8 @@ export async function POST(request: Request) {
 		return new Response(
 			JSON.stringify({
 				error: "Internal server error",
-				message: error instanceof Error ? error.message : "Unknown error"
+				message:
+					error instanceof Error ? error.message : "Unknown error"
 			}),
 			{
 				status: 500,

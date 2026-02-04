@@ -4,7 +4,11 @@ import { db_ws } from "@/db"
 import { appointments, teamIntegrations } from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
-import { cancelCalcomBooking, createCalcomBooking, rescheduleCalcomBooking } from "@/lib/calcom"
+import {
+	cancelCalcomBooking,
+	createCalcomBooking,
+	rescheduleCalcomBooking
+} from "@/lib/calcom"
 import type { IEvent, IUser } from "@/lib/calendar/interfaces"
 import type { TEventColor } from "@/lib/calendar/types"
 import { and, asc, eq } from "drizzle-orm"
@@ -128,7 +132,9 @@ const resolveCalcomSettings = (settings: Record<string, unknown> = {}) => {
 	}
 }
 
-const buildBookingTarget = (settings: ReturnType<typeof resolveCalcomSettings>) => {
+const buildBookingTarget = (
+	settings: ReturnType<typeof resolveCalcomSettings>
+) => {
 	if (settings.eventTypeId && !Number.isNaN(settings.eventTypeId)) {
 		return { eventTypeId: settings.eventTypeId }
 	}
@@ -251,9 +257,7 @@ export async function createAppointment(
 			return { error: "Cal.com booking response missing" }
 		}
 
-		const appointmentStart = booking.start
-			? new Date(booking.start)
-			: start
+		const appointmentStart = booking.start ? new Date(booking.start) : start
 		const appointmentEnd = booking.end ? new Date(booking.end) : end
 
 		const [created] = await db_ws
@@ -310,7 +314,10 @@ export async function updateAppointment(
 			.select()
 			.from(appointments)
 			.where(
-				and(eq(appointments.id, appointmentId), eq(appointments.teamId, teamId))
+				and(
+					eq(appointments.id, appointmentId),
+					eq(appointments.teamId, teamId)
+				)
 			)
 			.limit(1)
 
@@ -346,15 +353,16 @@ export async function updateAppointment(
 					return { error: "Cal.com API key not configured" }
 				}
 
-				const calcomResponse = await rescheduleCalcomBooking<CalcomResponse>(
-					apiKey,
-					appointment.calBookingId,
-					{
-						start: start.toISOString(),
-						rescheduledBy: user.email,
-						reschedulingReason: payload.description
-					}
-				)
+				const calcomResponse =
+					await rescheduleCalcomBooking<CalcomResponse>(
+						apiKey,
+						appointment.calBookingId,
+						{
+							start: start.toISOString(),
+							rescheduledBy: user.email,
+							reschedulingReason: payload.description
+						}
+					)
 
 				if (calcomResponse.status !== "success") {
 					return { error: "Failed to reschedule booking" }
@@ -416,7 +424,10 @@ export async function deleteAppointment(
 			.select()
 			.from(appointments)
 			.where(
-				and(eq(appointments.id, appointmentId), eq(appointments.teamId, teamId))
+				and(
+					eq(appointments.id, appointmentId),
+					eq(appointments.teamId, teamId)
+				)
 			)
 			.limit(1)
 
@@ -428,7 +439,10 @@ export async function deleteAppointment(
 			const integration = await getCalcomIntegration(teamId)
 			const apiKey = getApiKey(integration)
 			if (!apiKey) {
-				return { success: false, error: "Cal.com API key not configured" }
+				return {
+					success: false,
+					error: "Cal.com API key not configured"
+				}
 			}
 
 			await cancelCalcomBooking<CalcomResponse>(
