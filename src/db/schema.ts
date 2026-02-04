@@ -41,6 +41,37 @@ export const communicationTypeEnum = pgEnum("communication_type", [
 	"outgoing"
 ])
 
+// Define appointment status enum
+export const appointmentStatusEnum = pgEnum("appointment_status", [
+	"scheduled",
+	"cancelled",
+	"completed"
+])
+
+// Knowledge base enums (Vector Store + R2)
+export const knowledgeSourceTypeEnum = pgEnum("knowledge_source_type", [
+	"website_url",
+	"pdf_upload",
+	"gdoc",
+	"txt_upload",
+	"image_upload",
+	"docx_upload"
+])
+
+export const knowledgeFileStatusEnum = pgEnum("knowledge_file_status", [
+	"processing",
+	"ready",
+	"failed"
+])
+
+// Call event type enum
+export const callEventTypeEnum = pgEnum("call_event_type", [
+	"transcript",
+	"tool_call",
+	"tool_result",
+	"status"
+])
+
 // Define task priority enum
 export const taskPriorityEnum = pgEnum("task_priority", [
 	"low",
@@ -81,6 +112,7 @@ export const teams = pgTable(
 		id: varchar("id", { length: 21 }).primaryKey(),
 		name: varchar("name", { length: 255 }).notNull(),
 		slug: varchar("slug", { length: 255 }).notNull().unique(),
+		vectorStoreId: varchar("vector_store_id", { length: 255 }),
 		createdByUserId: varchar("created_by_user_id", { length: 21 }),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull()
@@ -182,6 +214,26 @@ export const verifications = pgTable("verifications", {
 	updatedAt: timestamp("updated_at")
 })
 
+// Team integrations (e.g., Cal.com)
+export const teamIntegrations = pgTable(
+	"team_integrations",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		provider: varchar("provider", { length: 50 }).notNull(),
+		apiKey: text("api_key"),
+		settings: jsonb("settings").$type<Record<string, unknown>>().default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("team_integrations_team_id_idx").on(table.teamId),
+		index("team_integrations_provider_idx").on(table.provider)
+	]
+)
+
 // Define campaign status enum
 export const campaignStatusEnum = pgEnum("campaign_status", [
 	"draft",
@@ -236,6 +288,15 @@ export const leads = pgTable(
 		expectedCloseDate: timestamp("expected_close_date"),
 		source: varchar("source", { length: 100 }),
 		notes: text("notes"),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
+			() => users.id
+		),
+		assignedUserId: varchar("assigned_user_id", { length: 21 }).references(
+			() => users.id
+		),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
@@ -245,7 +306,34 @@ export const leads = pgTable(
 		index("lead_email_idx").on(table.email),
 		index("lead_status_idx").on(table.status),
 		index("lead_deal_stage_idx").on(table.dealStage),
+		index("lead_team_id_idx").on(table.teamId),
+		index("lead_created_by_idx").on(table.createdByUserId),
+		index("lead_assigned_user_idx").on(table.assignedUserId),
 		index("lead_user_id_idx").on(table.userId)
+	]
+)
+
+// Lead Notes table - stores notes for leads
+export const leadNotes = pgTable(
+	"lead_notes",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		leadId: integer("lead_id")
+			.notNull()
+			.references(() => leads.id, { onDelete: "cascade" }),
+		body: text("body").notNull(),
+		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
+			() => users.id
+		),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("lead_notes_team_id_idx").on(table.teamId),
+		index("lead_notes_lead_id_idx").on(table.leadId),
+		index("lead_notes_created_by_idx").on(table.createdByUserId)
 	]
 )
 
@@ -255,19 +343,31 @@ export const appointments = pgTable(
 	{
 		id: serial("id").primaryKey(),
 		leadId: integer("lead_id").references(() => leads.id),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
 		title: varchar("title", { length: 255 }).notNull(),
 		description: text("description"),
 		startTime: timestamp("start_time").notNull(),
 		endTime: timestamp("end_time").notNull(),
 		location: varchar("location", { length: 255 }),
+		status: appointmentStatusEnum("status").default("scheduled"),
+		calEventId: varchar("cal_event_id", { length: 255 }),
+		calBookingId: varchar("cal_booking_id", { length: 255 }),
 		completed: boolean("completed").default(false),
 		notes: text("notes"),
+		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
+			() => users.id
+		),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("appointment_lead_id_idx").on(table.leadId),
+		index("appointment_team_id_idx").on(table.teamId),
+		index("appointment_status_idx").on(table.status),
+		index("appointment_cal_event_idx").on(table.calEventId),
 		index("appointment_start_time_idx").on(table.startTime),
 		index("appointment_user_id_idx").on(table.userId)
 	]
@@ -280,6 +380,9 @@ export const campaigns = pgTable(
 		id: serial("id").primaryKey(),
 		name: varchar("name", { length: 255 }).notNull(),
 		description: text("description"),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
 		startDate: timestamp("start_date"),
 		endDate: timestamp("end_date"),
 		status: campaignStatusEnum("status").default("draft"),
@@ -322,12 +425,17 @@ export const campaigns = pgTable(
 			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
+			() => users.id
+		),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("campaign_name_idx").on(table.name),
 		index("campaign_status_idx").on(table.status),
 		index("campaign_voice_agent_idx").on(table.voiceAgentId),
+		index("campaign_team_id_idx").on(table.teamId),
+		index("campaign_created_by_idx").on(table.createdByUserId),
 		index("campaign_user_id_idx").on(table.userId)
 	]
 )
@@ -340,14 +448,24 @@ export const calls = pgTable(
 		leadId: integer("lead_id")
 			.notNull()
 			.references(() => leads.id),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		agentId: integer("agent_id").references(() => voiceAgents.id),
 		campaignId: integer("campaign_id").references(() => campaigns.id),
+		direction: communicationTypeEnum("direction"),
 		type: communicationTypeEnum("type").notNull(),
 		duration: integer("duration"), // in seconds
 		startTime: timestamp("start_time").notNull(),
+		endTime: timestamp("end_time"),
+		sessionId: varchar("session_id", { length: 255 }),
 		summary: text("summary"),
 		transcript: text("transcript"),
 		recordingUrl: varchar("recording_url", { length: 1024 }),
 		status: varchar("status", { length: 50 }), // answered, voicemail, missed, etc.
+		sentiment: varchar("sentiment", { length: 20 }),
+		cost: decimal("cost", { precision: 10, scale: 4 }),
+		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
@@ -355,8 +473,29 @@ export const calls = pgTable(
 	(table) => [
 		index("call_lead_id_idx").on(table.leadId),
 		index("call_campaign_id_idx").on(table.campaignId),
+		index("call_team_id_idx").on(table.teamId),
+		index("call_agent_id_idx").on(table.agentId),
 		index("call_start_time_idx").on(table.startTime),
 		index("call_user_id_idx").on(table.userId)
+	]
+)
+
+// Call Events table - stores realtime call events (transcript, tool calls, status)
+export const callEvents = pgTable(
+	"call_events",
+	{
+		id: serial("id").primaryKey(),
+		callId: integer("call_id")
+			.notNull()
+			.references(() => calls.id, { onDelete: "cascade" }),
+		type: callEventTypeEnum("type").notNull(),
+		payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("call_events_call_id_idx").on(table.callId),
+		index("call_events_type_idx").on(table.type),
+		index("call_events_created_at_idx").on(table.createdAt)
 	]
 )
 
@@ -595,6 +734,9 @@ export const voiceAgents = pgTable(
 		id: serial("id").primaryKey(),
 		name: varchar("name", { length: 255 }).notNull(),
 		description: text("description"),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
 		// Business simplification layer references
 		voicePresetId: integer("voice_preset_id").references(
 			() => voicePresets.id
@@ -690,6 +832,9 @@ export const voiceAgents = pgTable(
 		firstMessage: text("first_message"), // First message the agent says
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
+			() => users.id
+		),
 		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
@@ -697,6 +842,8 @@ export const voiceAgents = pgTable(
 		index("voice_agent_status_idx").on(table.status),
 		index("voice_agent_voice_preset_idx").on(table.voicePresetId),
 		index("voice_agent_role_idx").on(table.agentRoleId),
+		index("voice_agent_team_id_idx").on(table.teamId),
+		index("voice_agent_created_by_idx").on(table.createdByUserId),
 		index("voice_agent_user_id_idx").on(table.userId)
 	]
 )
@@ -921,6 +1068,95 @@ export const knowledgeBaseDocuments = pgTable(
 	]
 )
 
+// Knowledge Sources (Vector Store + R2)
+export const knowledgeSources = pgTable(
+	"knowledge_sources",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		name: varchar("name", { length: 255 }).notNull(),
+		type: knowledgeSourceTypeEnum("type").notNull(),
+		uri: text("uri").notNull(),
+		status: varchar("status", { length: 20 }).default("active"),
+		lastIndexedAt: timestamp("last_indexed_at"),
+		createdByUserId: varchar("created_by_user_id", { length: 21 }).references(
+			() => users.id
+		),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("knowledge_sources_team_id_idx").on(table.teamId),
+		index("knowledge_sources_type_idx").on(table.type),
+		index("knowledge_sources_status_idx").on(table.status)
+	]
+)
+
+export const knowledgeFiles = pgTable(
+	"knowledge_files",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		sourceId: integer("source_id")
+			.notNull()
+			.references(() => knowledgeSources.id, { onDelete: "cascade" }),
+		filename: varchar("filename", { length: 255 }).notNull(),
+		contentType: varchar("content_type", { length: 100 }),
+		size: integer("size"),
+		r2Key: varchar("r2_key", { length: 512 }),
+		openaiFileId: varchar("openai_file_id", { length: 255 }),
+		vectorStoreId: varchar("vector_store_id", { length: 255 }),
+		status: knowledgeFileStatusEnum("status").default("processing"),
+		extractedTextPreview: text("extracted_text_preview"),
+		lastError: text("last_error"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("knowledge_files_team_id_idx").on(table.teamId),
+		index("knowledge_files_source_id_idx").on(table.sourceId),
+		index("knowledge_files_status_idx").on(table.status)
+	]
+)
+
+export const knowledgeChunks = pgTable(
+	"knowledge_chunks",
+	{
+		id: serial("id").primaryKey(),
+		fileId: integer("file_id")
+			.notNull()
+			.references(() => knowledgeFiles.id, { onDelete: "cascade" }),
+		contentChunk: text("content_chunk").notNull(),
+		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("knowledge_chunks_file_id_idx").on(table.fileId)
+	]
+)
+
+// Agent Knowledge join table
+export const agentKnowledge = pgTable(
+	"agent_knowledge",
+	{
+		id: serial("id").primaryKey(),
+		agentId: integer("agent_id")
+			.notNull()
+			.references(() => voiceAgents.id, { onDelete: "cascade" }),
+		knowledgeSourceId: integer("knowledge_source_id").references(
+			() => knowledgeSources.id
+		)
+	},
+	(table) => [
+		index("agent_knowledge_agent_id_idx").on(table.agentId),
+		index("agent_knowledge_source_id_idx").on(table.knowledgeSourceId)
+	]
+)
+
 // Optional: Table for storing visual elements separately
 export const visualElements = pgTable(
 	"visual_elements",
@@ -954,6 +1190,31 @@ export const visualElements = pgTable(
 			"hnsw",
 			table.embedding.op("vector_cosine_ops")
 		)
+	]
+)
+
+// Audit Logs table - tracks user actions across the platform
+export const auditLogs = pgTable(
+	"audit_logs",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		actorUserId: varchar("actor_user_id", { length: 21 }).references(
+			() => users.id
+		),
+		action: varchar("action", { length: 100 }).notNull(),
+		entityType: varchar("entity_type", { length: 100 }).notNull(),
+		entityId: varchar("entity_id", { length: 255 }),
+		metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("audit_logs_team_id_idx").on(table.teamId),
+		index("audit_logs_actor_idx").on(table.actorUserId),
+		index("audit_logs_entity_idx").on(table.entityType),
+		index("audit_logs_created_at_idx").on(table.createdAt)
 	]
 )
 
@@ -1217,6 +1478,9 @@ export const campaignLeads = pgTable(
 		leadId: integer("lead_id")
 			.notNull()
 			.references(() => leads.id, { onDelete: "cascade" }),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
 		status: campaignLeadStatusEnum("status").default("pending"),
 		priority: integer("priority").default(0), // 0 = normal, higher numbers = higher priority
 		assignedAt: timestamp("assigned_at").defaultNow().notNull(),
@@ -1243,12 +1507,33 @@ export const campaignLeads = pgTable(
 	(table) => [
 		index("campaign_leads_campaign_id_idx").on(table.campaignId),
 		index("campaign_leads_lead_id_idx").on(table.leadId),
+		index("campaign_leads_team_id_idx").on(table.teamId),
 		index("campaign_leads_status_idx").on(table.status),
 		index("campaign_leads_priority_idx").on(table.priority),
 		index("campaign_leads_next_attempt_idx").on(table.nextAttemptAt),
 		index("campaign_leads_user_id_idx").on(table.userId),
 		// Unique constraint to prevent duplicate lead assignments to same campaign
 		index("campaign_leads_unique_idx").on(table.campaignId, table.leadId)
+	]
+)
+
+// Campaign Runs table - tracks execution runs
+export const campaignRuns = pgTable(
+	"campaign_runs",
+	{
+		id: serial("id").primaryKey(),
+		campaignId: integer("campaign_id")
+			.notNull()
+			.references(() => campaigns.id, { onDelete: "cascade" }),
+		status: varchar("status", { length: 50 }).notNull(),
+		startedAt: timestamp("started_at").defaultNow().notNull(),
+		endedAt: timestamp("ended_at"),
+		stats: jsonb("stats").$type<Record<string, unknown>>().default({})
+	},
+	(table) => [
+		index("campaign_runs_campaign_id_idx").on(table.campaignId),
+		index("campaign_runs_status_idx").on(table.status),
+		index("campaign_runs_started_at_idx").on(table.startedAt)
 	]
 )
 
@@ -1260,6 +1545,11 @@ export const callQueue = pgTable(
 		leadId: integer("lead_id")
 			.notNull()
 			.references(() => leads.id, { onDelete: "cascade" }),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		campaignId: integer("campaign_id").references(() => campaigns.id),
+		agentId: integer("agent_id").references(() => voiceAgents.id),
 		voiceAgentId: integer("voice_agent_id").references(
 			() => voiceAgents.id
 		),
@@ -1298,6 +1588,9 @@ export const callQueue = pgTable(
 	},
 	(table) => [
 		index("call_queue_lead_id_idx").on(table.leadId),
+		index("call_queue_team_id_idx").on(table.teamId),
+		index("call_queue_campaign_id_idx").on(table.campaignId),
+		index("call_queue_agent_id_idx").on(table.agentId),
 		index("call_queue_voice_agent_id_idx").on(table.voiceAgentId),
 		index("call_queue_status_idx").on(table.status),
 		index("call_queue_priority_idx").on(table.priority),

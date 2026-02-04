@@ -24,19 +24,22 @@ This file must be updated after **every phase**. Keep notes concise but specific
   - Added: `src/lib/auth.ts`, `src/lib/auth-client.ts`, `src/lib/auth/session.ts`, `src/lib/auth/use-auth-user.ts`, `src/actions/teams.ts`, `src/components/auth/*`, `src/app/api/auth/[...all]/route.ts`, `src/app/sign-up/[[...sign-up]]/page.tsx`.
   - Updated: `src/middleware.ts`, `src/app/layout.tsx`, `src/app/sign-in/[[...sign-in]]/page.tsx`, `src/app/admin/layout.tsx`, `src/components/sidebar-nav.tsx`, `src/components/admin/AdminSidebar.tsx`, `src/components/dashboard-client.tsx`, `src/lib/calendar/components/calendar.tsx`, `src/lib/admin-check.ts`, `src/actions/admin-users.ts`, `src/actions/admin-voice-agents.ts`, auth-dependent actions to use `@/lib/auth/session`, `src/db/schema.ts`, `package.json`.
 - Tests/commands run: None.
-- Commit:
+- Commit: `phase-1: auth + teams`
 - Notes/blockers:
   - Added `users.is_active` for admin toggles and enforced in middleware/session; requires migration in Phase 2.
 
 ---
 
 ## Phase 2 — Schema + Data Layer
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added team-scoped fields and v1 schema additions (team integrations, knowledge sources/files/chunks, call events, campaign runs, lead notes, audit logs) and extended core tables with `team_id` + attribution fields. Added `requireSession`/`requireTeam` helpers, team-scoping utility, and audit logging helper.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Updated: `src/db/schema.ts`, `src/lib/auth/session.ts`.
+  - Added: `src/lib/team-scope.ts`, `src/lib/audit-log.ts`.
+- Tests/commands run: None.
+- Commit: `phase-2: schema + data layer`
 - Notes/blockers:
+  - New columns/tables require migrations in Phase 2/next DB migration step.
 
 ---
 

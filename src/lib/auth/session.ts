@@ -21,6 +21,27 @@ export async function requireUser() {
 	return user
 }
 
+export async function requireSession() {
+	const session = await getSession()
+	if (!session?.user || session.user.isActive === false) {
+		throw new Error("Unauthorized")
+	}
+	return session
+}
+
+export async function requireTeam() {
+	const session = await requireSession()
+	const teamId = session.user.defaultTeamId
+	if (!teamId) {
+		throw new Error("No team configured")
+	}
+	return {
+		teamId,
+		user: session.user,
+		session
+	}
+}
+
 export async function auth() {
 	const session = await getSession()
 	if (session?.user?.isActive === false) {
