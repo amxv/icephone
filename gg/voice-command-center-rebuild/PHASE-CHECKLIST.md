@@ -369,3 +369,15 @@ Examples:
 - [x] Run `bun run typecheck` and `bun run lint`
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-52: telephony spec conformance audit`
+
+### Phase 53 — Next.js 16 Framework Upgrade
+- [x] Review official Next.js 16 migration guide + breaking changes docs
+- [x] Upgrade `next` to v16 and align React/React DOM + React type packages
+- [x] Migrate deprecated `middleware` convention to `proxy`
+- [x] Update Next config for v16 stable options (`reactCompiler` top-level)
+- [x] Remove redundant Turbopack CLI flags from scripts (Turbopack is default in v16)
+- [x] Update dynamic route handler params typing for async request APIs
+- [x] Run `bun run typecheck` and `bun run lint`
+- [x] Attempt `bun run build` (document Node runtime blocker if environment is < 20.9)
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-53: nextjs 16 upgrade`

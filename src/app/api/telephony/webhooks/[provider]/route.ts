@@ -78,10 +78,10 @@ function resolveRecordingStatus(event: {
 
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: { provider: string } }
+	{ params }: { params: Promise<{ provider: string }> }
 ) {
 	const now = new Date()
-	const { provider: rawProvider } = params
+	const { provider: rawProvider } = await params
 	const adapter = getTelephonyWebhookAdapter(rawProvider)
 
 	if (!adapter) {

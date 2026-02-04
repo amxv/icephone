@@ -651,3 +651,17 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-52: telephony spec conformance audit`
 - Notes/blockers:
   - Vonage signed webhook validation remains HS256 shared-secret based (per signed-webhook docs). If teams use multiple signature secrets keyed by `api_key`, we should add key-resolution support in a follow-up phase.
+
+---
+
+## Phase 53 — Next.js 16 Framework Upgrade
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Upgraded framework/runtime dependencies to Next.js 16 and latest React 19 line, then applied migration-safe code changes based on the official Next.js v16 upgrade docs. Replaced deprecated `middleware` file convention with `proxy`, promoted `reactCompiler` config from `experimental` to stable top-level, removed redundant `--turbopack` CLI flags from scripts, and updated dynamic API route params typing to async promise form for v16 async request API compliance.
+- Files changed:
+  - Updated: `package.json`, `bun.lock`, `next.config.ts`, `src/proxy.ts`, `src/app/api/telephony/webhooks/[provider]/route.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+  - Deleted: `src/middleware.ts`
+- Tests/commands run: `bun run typecheck`, `bun run lint`, `bun run build` (fails in current environment with Node.js `20.5.1`; Next.js 16 requires `>=20.9.0`)
+- Commit: `phase-53: nextjs 16 upgrade`
+- Notes/blockers:
+  - Official docs referenced: `https://nextjs.org/docs/app/guides/upgrading/version-16`, `https://nextjs.org/blog/next-16`, `https://nextjs.org/docs/app/guides/upgrading/codemods`.
+  - Build validation is blocked until the execution environment Node runtime is upgraded to at least `20.9.0`.

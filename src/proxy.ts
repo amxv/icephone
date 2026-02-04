@@ -12,7 +12,7 @@ const PUBLIC_ROUTES = [
 const isPublicRoute = (pathname: string) =>
 	PUBLIC_ROUTES.some((pattern) => pattern.test(pathname))
 
-export default async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
 	if (isPublicRoute(request.nextUrl.pathname)) {
 		return NextResponse.next()
 	}
