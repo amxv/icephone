@@ -231,3 +231,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-18: final qa`
 - Notes/blockers:
   - PR opened: `https://github.com/amxv/icephone/pull/1`
+
+---
+
+## Phase 19 — UX/Performance Hardening
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Removed full-page reload behavior from the voice agents management screen and switched to in-place server-action refresh for create/update flows, improving responsiveness and reducing unnecessary rerenders/navigation cost.
+- Files changed:
+- Updated: `src/components/voice-agents-page-client.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-19: ux hardening`
+- Notes/blockers:
+  - None.

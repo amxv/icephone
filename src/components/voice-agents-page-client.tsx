@@ -4,7 +4,7 @@ import { SimpleAgentCreator } from "@/components/simple-agent-creator"
 import { EssentialSettings } from "@/components/essential-settings"
 import { VoiceAgentCustomizationDialog } from "@/components/voice-agent-customization-dialog"
 import { VoiceAgentTestCall } from "@/components/voice-agent-test-call"
-import { updateVoiceAgentStatus } from "@/actions/voice-agents"
+import { getVoiceAgents, updateVoiceAgentStatus } from "@/actions/voice-agents"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -46,7 +46,7 @@ import {
 	BarChartIcon,
 	EditIcon
 } from "lucide-react"
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { toast } from "sonner"
 
 // Helper function to get role display information
@@ -485,14 +485,26 @@ export function VoiceAgentsPageClient({
 	const [isLoading, setIsLoading] = useState(false)
 	const [agents, setAgents] = useState(initialVoiceAgents.data || [])
 
-	const handleAgentCreated = () => {
-		// Refresh the page to get the updated list
-		window.location.reload()
-	}
+	const refreshAgents = useCallback(async () => {
+		setIsLoading(true)
+		try {
+			const result = await getVoiceAgents()
+			if (result.success && result.data) {
+				setAgents(result.data)
+				return
+			}
+			toast.error(result.error || "Failed to refresh voice agents")
+		} catch (error) {
+			console.error("Failed to refresh voice agents:", error)
+			toast.error("Failed to refresh voice agents")
+		} finally {
+			setIsLoading(false)
+		}
+	}, [])
 
 	return (
 		<div className="space-y-6">
-			<PageHeader onAgentCreated={handleAgentCreated} />
+			<PageHeader onAgentCreated={refreshAgents} />
 
 			{!initialVoiceAgents.success ? (
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
@@ -507,7 +519,7 @@ export function VoiceAgentsPageClient({
 				<VoiceAgentsSection
 					agents={agents}
 					isLoading={isLoading}
-					onAgentUpdated={handleAgentCreated}
+					onAgentUpdated={refreshAgents}
 				/>
 			)}
 		</div>

@@ -132,3 +132,9 @@ Examples:
 - [x] Open PR on completion
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-18: final qa`
+
+### Phase 19 — UX/Performance Hardening
+- [x] Replace full-page reload flows in voice-agent management with in-place data refresh
+- [x] Keep list state synchronized after create/update actions
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-19: ux hardening`
