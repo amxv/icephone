@@ -36,7 +36,6 @@ import {
 	Settings,
 	Brain,
 	MessageSquare,
-	TestTube2,
 	Globe,
 	Plus,
 	Save,
@@ -254,7 +253,7 @@ export function AgentCustomizationDialog({
 				</DialogHeader>
 
 				<Tabs defaultValue="prompts" className="w-full">
-					<TabsList className="grid w-full grid-cols-4">
+					<TabsList className="grid w-full grid-cols-3">
 						<TabsTrigger value="prompts" className="gap-2">
 							<MessageSquare className="h-4 w-4" />
 							Prompts
@@ -266,10 +265,6 @@ export function AgentCustomizationDialog({
 						<TabsTrigger value="templates" className="gap-2">
 							<Copy className="h-4 w-4" />
 							Templates
-						</TabsTrigger>
-						<TabsTrigger value="testing" className="gap-2">
-							<TestTube2 className="h-4 w-4" />
-							A/B Testing
 						</TabsTrigger>
 					</TabsList>
 
@@ -869,35 +864,6 @@ export function AgentCustomizationDialog({
 								</Card>
 							</TabsContent>
 
-							{/* A/B Testing Tab */}
-							<TabsContent value="testing" className="space-y-6">
-								<Card>
-									<CardHeader>
-										<CardTitle className="flex items-center gap-2">
-											<TestTube2 className="h-5 w-5" />
-											A/B Testing Configurations
-										</CardTitle>
-										<CardDescription>
-											Set up A/B tests for agent
-											configurations (Coming Soon).
-										</CardDescription>
-									</CardHeader>
-									<CardContent>
-										<div className="text-center py-8">
-											<TestTube2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-											<h3 className="text-lg font-medium mb-2">
-												A/B Testing
-											</h3>
-											<p className="text-sm text-muted-foreground">
-												This feature will allow you to
-												test different agent
-												configurations and compare their
-												performance.
-											</p>
-										</div>
-									</CardContent>
-								</Card>
-							</TabsContent>
 						</div>
 					</ScrollArea>
 				</Tabs>

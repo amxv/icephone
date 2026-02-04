@@ -591,3 +591,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-47: settings completeness`
 - Notes/blockers:
   - Notification toggles are persisted client-side (local storage) and prepared for future server-backed preference syncing.
+
+---
+
+## Phase 48 — Admin Placeholder Cleanup (Agent Customization)
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Removed the unfinished A/B testing placeholder path from the admin agent customization dialog so admins only see actively supported, production-ready tabs. Updated tab layout sizing accordingly and cleaned now-unused icon imports.
+- Files changed:
+  - Updated: `src/components/admin/AgentCustomizationDialog.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-48: admin placeholder cleanup`
+- Notes/blockers:
+  - A/B testing can be reintroduced in a future phase once backed by persistence + analytics comparison logic.

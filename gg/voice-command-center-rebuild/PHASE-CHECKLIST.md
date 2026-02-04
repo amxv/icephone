@@ -331,3 +331,10 @@ Examples:
 - [x] Replace account/notification placeholder tabs with functional controls (session sign-out + persisted notification toggles)
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-47: settings completeness`
+
+### Phase 48 — Admin Placeholder Cleanup (Agent Customization)
+- [x] Remove unfinished A/B testing placeholder tab from admin agent customization dialog
+- [x] Keep active tabs fully functional without exposing incomplete UI paths
+- [x] Re-run quality gates after cleanup
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-48: admin placeholder cleanup`
