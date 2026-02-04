@@ -29,10 +29,16 @@ interface CallAnalytics {
 	successRate: number
 	pickupRate: number
 	outcomeBreakdown: Record<string, number>
+	dispositionBreakdown: Record<string, number>
 	directionBreakdown: {
 		incoming: number
 		outgoing: number
 		unknown: number
+	}
+	collectionSignals: {
+		intentToPay: number
+		promiseToPay: number
+		didNotPickUp: number
 	}
 	sentimentBreakdown: {
 		positive: number
@@ -258,6 +264,60 @@ export async function getCallAnalytics(
 
 	const answeredCalls =
 		(outcomeBreakdown.completed || 0) + (outcomeBreakdown.answered || 0)
+
+	// Disposition breakdown for collections/support workflows
+	const callDispositionExpr = sql<string>`
+		COALESCE(
+			NULLIF(${calls.metadata}->>'disposition', ''),
+			CASE
+				WHEN ${calls.status} IN ('no_answer', 'missed', 'busy', 'failed', 'voicemail') THEN 'did_not_pick_up'
+				WHEN ${calls.status} IN ('completed', 'answered') THEN 'connected'
+				ELSE 'other'
+			END
+		)
+	`
+
+	const callDispositionStats = await db
+		.select({
+			disposition: callDispositionExpr.as("disposition"),
+			count: count(calls.id)
+		})
+		.from(calls)
+		.where(
+			and(
+				teamScope(calls, teamId),
+				gte(calls.startTime, startDate),
+				lte(calls.startTime, endDate)
+			)
+		)
+		.groupBy(callDispositionExpr)
+
+	const dispositionBreakdown: Record<string, number> = {
+		intent_to_pay: 0,
+		promise_to_pay: 0,
+		did_not_pick_up: 0,
+		requested_callback: 0,
+		payment_completed: 0,
+		disputed: 0,
+		not_interested: 0,
+		connected: 0,
+		other: 0
+	}
+
+	for (const row of callDispositionStats) {
+		const key = row.disposition || "other"
+		if (Object.prototype.hasOwnProperty.call(dispositionBreakdown, key)) {
+			dispositionBreakdown[key] = row.count
+		} else {
+			dispositionBreakdown.other += row.count
+		}
+	}
+
+	const collectionSignals = {
+		intentToPay: dispositionBreakdown.intent_to_pay || 0,
+		promiseToPay: dispositionBreakdown.promise_to_pay || 0,
+		didNotPickUp: dispositionBreakdown.did_not_pick_up || 0
+	}
 
 	// Direction breakdown (incoming/outgoing)
 	const callDirectionStats = await db
@@ -527,7 +587,9 @@ export async function getCallAnalytics(
 				? Math.round((answeredCalls / combinedStats.totalCalls) * 100)
 				: 0,
 		outcomeBreakdown,
+		dispositionBreakdown,
 		directionBreakdown,
+		collectionSignals,
 		sentimentBreakdown,
 		topPerformingAgents,
 		dailyCallVolume,

@@ -138,3 +138,47 @@ Examples:
 - [x] Keep list state synchronized after create/update actions
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-19: ux hardening`
+
+### Phase 20 — Analytics Deep Dive + Call Dispositions
+- [x] Audit analytics coverage for user/team/campaign level (calls, outcomes, productivity, quality)
+- [x] Add explicit disposition tracking for collections/support outcomes (`intent_to_pay`, `promise_to_pay`, `did_not_pick_up`)
+- [x] Add automatic call categorization + auto-notes scaffolding from call outcomes/transcripts
+- [x] Expand analytics dashboard sections for disposition and follow-up metrics
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-20: analytics deep dive`
+
+### Phase 21 — Realtime KB Tooling
+- [ ] Add knowledge-base lookup tools for OpenAI Realtime agent (parallel to scheduling tools)
+- [ ] Wire tool execution so agent can query KB and answer with grounded context/citations
+- [ ] Validate support workflows where agent answers from KB
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-21: realtime kb tools`
+
+### Phase 22 — Voice Agent Command Center Modes + Templates
+- [ ] Add configurable operating modes for `support`, `outbound cold calling`, and `loan repayment collections`
+- [ ] Add at least 3 additional templates/use-cases as quick starts
+- [ ] Ensure templates drive prompt/personality/script defaults and remain user-customizable
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-22: command center templates`
+
+### Phase 23 — CRM Integrations Research + Design
+- [ ] Pick 4 high-priority CRMs and document API/auth/data-mapping strategy
+- [ ] Define lead import, campaign switcher sync, and call outcome/notes sync contracts
+- [ ] Document rollout plan and risk constraints
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-23: crm research`
+
+### Phase 24 — CRM Integrations Implementation
+- [ ] Implement integrations for selected CRMs (team-scoped credentials + sync jobs/actions)
+- [ ] Implement lead import into campaign switcher
+- [ ] Implement call data + notes + disposition sync back to CRM records
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-24: crm integrations`
+
+### Phase 25 — Telephony + Recording Research
+- [ ] Research telephony provider options and integration patterns for future call execution
+- [ ] Research OpenAI Realtime capabilities/limits for recordings/voice artifacts
+- [ ] Produce findings in markdown (`gg/voice-command-center-rebuild/telephony-recording-research.md`)
+- [ ] Add recommended backend architecture path for rollout
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-25: telephony research`

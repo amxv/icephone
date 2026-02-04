@@ -9,6 +9,19 @@ import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm"
 import { z } from "zod"
 
 const callTypeValues = ["incoming", "outgoing"] as const
+const callDispositionValues = [
+	"intent_to_pay",
+	"promise_to_pay",
+	"did_not_pick_up",
+	"requested_callback",
+	"payment_completed",
+	"disputed",
+	"not_interested",
+	"connected",
+	"other"
+] as const
+
+type CallDisposition = (typeof callDispositionValues)[number]
 
 const callFilterSchema = z
 	.object({
@@ -25,6 +38,7 @@ const callFilterSchema = z
 
 const callOutcomeSchema = z.object({
 	status: z.string().optional(),
+	disposition: z.enum(callDispositionValues).optional(),
 	summary: z.string().nullable().optional(),
 	transcript: z.string().nullable().optional(),
 	sentiment: z.string().nullable().optional(),
@@ -35,6 +49,114 @@ const callOutcomeSchema = z.object({
 	duration: z.coerce.number().int().nullable().optional(),
 	metadata: z.record(z.unknown()).optional()
 })
+
+function inferDispositionFromText(
+	status?: string | null,
+	summary?: string | null,
+	transcript?: string | null
+): CallDisposition {
+	const normalizedStatus = (status || "").toLowerCase()
+	const combinedText = `${summary || ""}\n${transcript || ""}`.toLowerCase()
+
+	if (
+		combinedText.includes("promise to pay") ||
+		combinedText.includes("will pay") ||
+		combinedText.includes("payment by") ||
+		combinedText.includes("pay by ")
+	) {
+		return "promise_to_pay"
+	}
+
+	if (
+		combinedText.includes("intent to pay") ||
+		combinedText.includes("intends to pay") ||
+		combinedText.includes("agreed to pay") ||
+		combinedText.includes("can pay")
+	) {
+		return "intent_to_pay"
+	}
+
+	if (
+		combinedText.includes("paid in full") ||
+		combinedText.includes("payment completed") ||
+		combinedText.includes("already paid")
+	) {
+		return "payment_completed"
+	}
+
+	if (
+		combinedText.includes("dispute") ||
+		combinedText.includes("chargeback") ||
+		combinedText.includes("wrong amount")
+	) {
+		return "disputed"
+	}
+
+	if (
+		normalizedStatus === "no_answer" ||
+		normalizedStatus === "missed" ||
+		normalizedStatus === "busy" ||
+		normalizedStatus === "voicemail" ||
+		normalizedStatus === "failed"
+	) {
+		return "did_not_pick_up"
+	}
+
+	if (
+		combinedText.includes("call me back") ||
+		combinedText.includes("callback") ||
+		combinedText.includes("follow up later")
+	) {
+		return "requested_callback"
+	}
+
+	if (combinedText.includes("not interested")) {
+		return "not_interested"
+	}
+
+	if (
+		normalizedStatus === "completed" ||
+		normalizedStatus === "answered" ||
+		normalizedStatus === "active"
+	) {
+		return "connected"
+	}
+
+	return "other"
+}
+
+function createAutoCallNote(input: {
+	disposition: CallDisposition
+	status?: string | null
+	summary?: string | null
+	sentiment?: string | null
+	duration?: number | null
+}) {
+	const lineItems = [
+		`Disposition: ${input.disposition.replace(/_/g, " ")}`,
+		input.status ? `Status: ${input.status}` : null,
+		input.sentiment ? `Sentiment: ${input.sentiment}` : null,
+		typeof input.duration === "number"
+			? `Duration: ${Math.max(0, Math.round(input.duration))}s`
+			: null,
+		input.summary
+			? `Summary: ${input.summary.trim().slice(0, 280)}`
+			: null
+	].filter(Boolean)
+
+	const recommendation =
+		input.disposition === "promise_to_pay"
+			? "Recommended follow-up: schedule reminder before promised payment date."
+			: input.disposition === "intent_to_pay"
+				? "Recommended follow-up: send payment options and schedule follow-up call."
+				: input.disposition === "did_not_pick_up"
+					? "Recommended follow-up: retry based on campaign retry cadence."
+					: input.disposition === "requested_callback"
+						? "Recommended follow-up: queue callback at requested time."
+						: null
+
+	return [...lineItems, recommendation].filter(Boolean).join(" | ")
+}
 
 const callEventSchema = z.object({
 	callId: z.number().int().positive(),
@@ -180,6 +302,40 @@ export async function updateCallOutcome(callId: number, rawData: unknown) {
 		const data = callOutcomeSchema.parse(rawData)
 		const { teamId, user } = await requireTeam()
 
+		const existingCall = await db_ws
+			.select({
+				id: calls.id,
+				metadata: calls.metadata
+			})
+			.from(calls)
+			.where(and(eq(calls.id, callId), teamScope(calls, teamId)))
+			.limit(1)
+
+		if (!existingCall.length) {
+			return {
+				error: "Call not found or update failed",
+				success: false,
+				data: null
+			}
+		}
+
+		const disposition =
+			data.disposition ||
+			inferDispositionFromText(data.status, data.summary, data.transcript)
+		const autoNote = createAutoCallNote({
+			disposition,
+			status: data.status,
+			summary: data.summary,
+			sentiment: data.sentiment,
+			duration: data.duration
+		})
+		const mergedMetadata: Record<string, unknown> = {
+			...((existingCall[0].metadata as Record<string, unknown>) || {}),
+			...(data.metadata || {}),
+			disposition,
+			autoNotes: autoNote
+		}
+
 		const updateData: Record<string, unknown> = {
 			updatedAt: new Date()
 		}
@@ -195,7 +351,7 @@ export async function updateCallOutcome(callId: number, rawData: unknown) {
 		if (data.sessionId !== undefined) updateData.sessionId = data.sessionId
 		if (data.endTime !== undefined) updateData.endTime = data.endTime
 		if (data.duration !== undefined) updateData.duration = data.duration
-		if (data.metadata !== undefined) updateData.metadata = data.metadata
+		updateData.metadata = mergedMetadata
 
 		const updatedFields = Object.keys(updateData).filter(
 			(field) => field !== "updatedAt"
@@ -231,7 +387,8 @@ export async function updateCallOutcome(callId: number, rawData: unknown) {
 			entityType: "call",
 			entityId: updatedCall.id,
 			metadata: {
-				updatedFields
+				updatedFields,
+				disposition
 			}
 		})
 

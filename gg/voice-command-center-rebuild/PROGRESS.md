@@ -243,3 +243,70 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-19: ux hardening`
 - Notes/blockers:
   - None.
+
+---
+
+## Phase 20 — Analytics Deep Dive + Call Dispositions
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Completed analytics deep-dive hardening with collections/support-focused disposition infrastructure. Added server-side call disposition inference and auto-note generation in call outcome updates, added disposition + collection-signal analytics metrics, and expanded analytics dashboard with dedicated collection signal cards (`intent_to_pay`, `promise_to_pay`, `did_not_pick_up`) plus disposition breakdown and richer CSV export.
+- Files changed:
+- Updated: `src/actions/calls.ts`, `src/actions/call-analytics.ts`, `src/app/(pages)/analytics/components/AnalyticsDashboard.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-20: analytics deep dive`
+- Notes/blockers:
+  - Heuristic auto-categorization is rule-based for now; optional LLM-assisted classification can be layered in a follow-up.
+
+---
+
+## Phase 21 — Realtime KB Tooling
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Add KB lookup as Realtime tool so voice agent can answer grounded questions from company knowledge.
+
+---
+
+## Phase 22 — Voice Agent Command Center Modes + Templates
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Must support support, outbound cold-calling, and loan repayment collections plus 3 additional templates.
+
+---
+
+## Phase 23 — CRM Integrations Research + Design
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Pick 4 popular CRMs and document auth + sync + data mapping strategy.
+
+---
+
+## Phase 24 — CRM Integrations Implementation
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Include lead import into campaign switcher and call outcome/notes sync back to CRM.
+
+---
+
+## Phase 25 — Telephony + Recording Research
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Write findings to `gg/voice-command-center-rebuild/telephony-recording-research.md`.

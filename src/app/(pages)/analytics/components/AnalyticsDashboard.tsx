@@ -62,10 +62,16 @@ interface CallAnalytics {
 	successRate: number
 	pickupRate: number
 	outcomeBreakdown: Record<string, number>
+	dispositionBreakdown: Record<string, number>
 	directionBreakdown: {
 		incoming: number
 		outgoing: number
 		unknown: number
+	}
+	collectionSignals: {
+		intentToPay: number
+		promiseToPay: number
+		didNotPickUp: number
 	}
 	sentimentBreakdown: {
 		positive: number
@@ -303,6 +309,28 @@ export default function AnalyticsDashboard({
 
 	const exportData = () => {
 		const csvData = [
+			["Voice Analytics Export"],
+			["Time Range", timeRange],
+			["Total Calls", initialAnalytics.totalCalls.toString()],
+			[
+				"Intent To Pay",
+				initialAnalytics.collectionSignals.intentToPay.toString()
+			],
+			[
+				"Promise To Pay",
+				initialAnalytics.collectionSignals.promiseToPay.toString()
+			],
+			[
+				"Did Not Pick Up",
+				initialAnalytics.collectionSignals.didNotPickUp.toString()
+			],
+			[""],
+			["Disposition", "Count"],
+			...dispositionData.map((entry) => [
+				entry.name,
+				entry.value.toString()
+			]),
+			[""],
 			["Date", "Calls", "Duration (min)", "Cost"],
 			...initialAnalytics.dailyCallVolume.map((day) => [
 				day.date,
@@ -353,6 +381,15 @@ export default function AnalyticsDashboard({
 			name: formatOutcomeLabel(key),
 			value,
 			color: OUTCOME_COLORS[key] ?? "#94a3b8"
+		}))
+		.filter((item) => item.value > 0)
+		.sort((a, b) => b.value - a.value)
+
+	const dispositionData = Object.entries(initialAnalytics.dispositionBreakdown)
+		.map(([key, value]) => ({
+			key,
+			name: formatOutcomeLabel(key),
+			value
 		}))
 		.filter((item) => item.value > 0)
 		.sort((a, b) => b.value - a.value)
@@ -585,6 +622,92 @@ export default function AnalyticsDashboard({
 						<p className="text-xs text-muted-foreground">
 							{voiceAgents.length} total agents
 						</p>
+					</CardContent>
+				</Card>
+			</div>
+
+			{/* Collections/Support Disposition Signals */}
+			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="text-base">
+							Collection Signals
+						</CardTitle>
+						<CardDescription>
+							High-value repayment/support outcomes in selected
+							period
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+							<div className="rounded-2xl border border-border/60 p-4">
+								<p className="text-xs text-muted-foreground">
+									Intent To Pay
+								</p>
+								<p className="text-2xl font-semibold">
+									{
+										initialAnalytics.collectionSignals
+											.intentToPay
+									}
+								</p>
+							</div>
+							<div className="rounded-2xl border border-border/60 p-4">
+								<p className="text-xs text-muted-foreground">
+									Promise To Pay
+								</p>
+								<p className="text-2xl font-semibold">
+									{
+										initialAnalytics.collectionSignals
+											.promiseToPay
+									}
+								</p>
+							</div>
+							<div className="rounded-2xl border border-border/60 p-4">
+								<p className="text-xs text-muted-foreground">
+									Did Not Pick Up
+								</p>
+								<p className="text-2xl font-semibold">
+									{
+										initialAnalytics.collectionSignals
+											.didNotPickUp
+									}
+								</p>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="text-base">
+							Disposition Breakdown
+						</CardTitle>
+						<CardDescription>
+							Automatically categorized call outcomes
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{dispositionData.length === 0 ? (
+							<p className="text-sm text-muted-foreground">
+								No disposition data in this range yet.
+							</p>
+						) : (
+							<div className="space-y-2">
+								{dispositionData.slice(0, 8).map((item) => (
+									<div
+										key={item.key}
+										className="flex items-center justify-between rounded-xl border border-border/50 px-3 py-2"
+									>
+										<span className="text-sm">
+											{item.name}
+										</span>
+										<Badge variant="outline">
+											{item.value}
+										</Badge>
+									</div>
+								))}
+							</div>
+						)}
 					</CardContent>
 				</Card>
 			</div>
