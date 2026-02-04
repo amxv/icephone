@@ -290,3 +290,9 @@ Examples:
 - [x] Populate campaigns UI rows with real leads-contacted/calls-completed/duration/voice-agent values
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-41: campaign metrics accuracy`
+
+### Phase 42 — Campaign Voice Config Persistence Safety
+- [x] Fix campaign voice-config save path so existing campaign settings are preserved (no overwrite regression)
+- [x] Ensure voice-configuration updates merge with existing retry/timing/goal settings
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-42: voice config merge`

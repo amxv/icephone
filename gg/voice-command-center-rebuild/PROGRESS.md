@@ -519,3 +519,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-41: campaign metrics accuracy`
 - Notes/blockers:
   - Metrics currently rely on persisted `calls` records; provider-webhook-driven status updates remain the source of truth for near-real-time freshness.
+
+---
+
+## Phase 42 — Campaign Voice Config Persistence Safety
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Fixed a data-loss regression in campaign voice settings. `configureCampaignVoiceAgent` previously overwrote `campaignSettings` with only `voiceConfiguration`, which could silently delete existing campaign timing/retry/goals settings. The update now loads existing `campaignSettings` and merges voice config into it before persisting.
+- Files changed:
+  - Updated: `src/actions/campaigns/voice-integration.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-42: voice config merge`
+- Notes/blockers:
+  - None.

@@ -76,7 +76,11 @@ export async function configureCampaignVoiceAgent(
 
 		// Verify campaign ownership
 		const campaign = await db_ws
-			.select({ id: campaigns.id, voiceAgentId: campaigns.voiceAgentId })
+			.select({
+				id: campaigns.id,
+				voiceAgentId: campaigns.voiceAgentId,
+				campaignSettings: campaigns.campaignSettings
+			})
 			.from(campaigns)
 			.where(
 				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
@@ -94,8 +98,12 @@ export async function configureCampaignVoiceAgent(
 			}
 		}
 
-		// Update campaign settings with voice configuration
+		// Merge voice configuration into existing campaign settings to avoid
+		// dropping call timing, retry, goals, and other previously saved options.
+		const existingSettings = campaign[0].campaignSettings || {}
+
 		const updatedSettings: ExtendedCampaignSettings = {
+			...existingSettings,
 			voiceConfiguration: voiceConfig
 		}
 
