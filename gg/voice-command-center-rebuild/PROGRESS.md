@@ -155,7 +155,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `src/actions/campaigns/execution.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
 - Tests/commands run:
-- Commit:
+- Commit: `phase-12: optimization` (`daa4019`)
 - Notes/blockers:
   - Include backend optimizations for campaigns/queue/analytics.
 
@@ -167,10 +167,10 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `src/actions/campaigns/execution.ts`, `src/actions/campaigns/queue.ts`, `src/actions/campaigns/monitoring.ts`, `src/actions/campaigns/validation.ts`, `src/actions/campaigns/voice-integration.ts`, `src/app/api/campaigns/process/route.ts`, `src/app/api/call-queue/process/route.ts`
 - Tests/commands run:
-- Commit:
+- Commit: `phase-13: campaign gaps` (`00b704b`)
 - Notes/blockers:
   - Daily call limits are enforced in server time (timezone-aware day boundaries still needed).
-  - Telephony execution remains deferred; call-queue processor is still stubbed behind `CALL_EXECUTION_ENABLED`.
+  - Telephony provider adapters are deferred; queue execution now supports non-telephony `mock` mode.
 
 ---
 
@@ -181,7 +181,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
   - Added: `src/components/voice-agent-customization-dialog.tsx`
   - Updated: `src/app/api/voice/session/route.ts`, `src/components/voice-agents-page-client.tsx`, `src/actions/voice-agents.ts`, `src/db/schema.ts`, `src/types.ts`
 - Tests/commands run:
-- Commit:
+- Commit: `phase-14: agent customization` (`48125d1`)
 - Notes/blockers:
 
 ---
@@ -192,7 +192,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `src/actions/call-analytics.ts`, `src/app/(pages)/analytics/components/AnalyticsDashboard.tsx`, `src/app/(pages)/analytics/page.tsx`
 - Tests/commands run:
-- Commit:
+- Commit: `phase-15: analytics expansion` (`566fa37`)
 - Notes/blockers:
 
 ---
