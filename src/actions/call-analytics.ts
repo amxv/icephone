@@ -46,6 +46,12 @@ interface CallAnalytics {
 		promiseToPay: number
 		didNotPickUp: number
 	}
+	collectionRates: {
+		intentToPayRate: number
+		promiseToPayRate: number
+		didNotPickUpRate: number
+		connectedRate: number
+	}
 	recordingCount: number
 	recordingCoverageRate: number
 	recordingsByProvider: Record<string, number>
@@ -498,6 +504,40 @@ export async function getCallAnalytics(
 		promiseToPay: dispositionBreakdown.promise_to_pay || 0,
 		didNotPickUp: dispositionBreakdown.did_not_pick_up || 0
 	}
+	const collectionRates = {
+		intentToPayRate:
+			combinedStats.totalCalls > 0
+				? Math.round(
+						(collectionSignals.intentToPay /
+							combinedStats.totalCalls) *
+							100
+					)
+				: 0,
+		promiseToPayRate:
+			combinedStats.totalCalls > 0
+				? Math.round(
+						(collectionSignals.promiseToPay /
+							combinedStats.totalCalls) *
+							100
+					)
+				: 0,
+		didNotPickUpRate:
+			combinedStats.totalCalls > 0
+				? Math.round(
+						(collectionSignals.didNotPickUp /
+							combinedStats.totalCalls) *
+							100
+					)
+				: 0,
+		connectedRate:
+			combinedStats.totalCalls > 0
+				? Math.round(
+						((dispositionBreakdown.connected || 0) /
+							combinedStats.totalCalls) *
+							100
+					)
+				: 0
+	}
 
 	const recordingCount = recordingCoverageStats[0]?.recordingCount || 0
 	const recordingsByProvider = recordingProviderStats.reduce<
@@ -634,6 +674,7 @@ export async function getCallAnalytics(
 		dispositionBreakdown,
 		directionBreakdown,
 		collectionSignals,
+		collectionRates,
 		recordingCount,
 		recordingCoverageRate:
 			combinedStats.totalCalls > 0

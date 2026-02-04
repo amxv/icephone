@@ -73,6 +73,12 @@ interface CallAnalytics {
 		promiseToPay: number
 		didNotPickUp: number
 	}
+	collectionRates: {
+		intentToPayRate: number
+		promiseToPayRate: number
+		didNotPickUpRate: number
+		connectedRate: number
+	}
 	recordingCount: number
 	recordingCoverageRate: number
 	recordingsByProvider: Record<string, number>
@@ -697,6 +703,13 @@ export default function AnalyticsDashboard({
 											.intentToPay
 									}
 								</p>
+								<p className="text-xs text-muted-foreground mt-1">
+									{
+										initialAnalytics.collectionRates
+											.intentToPayRate
+									}
+									% of calls
+								</p>
 							</div>
 							<div className="rounded-2xl border border-border/60 p-4">
 								<p className="text-xs text-muted-foreground">
@@ -707,6 +720,13 @@ export default function AnalyticsDashboard({
 										initialAnalytics.collectionSignals
 											.promiseToPay
 									}
+								</p>
+								<p className="text-xs text-muted-foreground mt-1">
+									{
+										initialAnalytics.collectionRates
+											.promiseToPayRate
+									}
+									% of calls
 								</p>
 							</div>
 							<div className="rounded-2xl border border-border/60 p-4">
@@ -719,7 +739,21 @@ export default function AnalyticsDashboard({
 											.didNotPickUp
 									}
 								</p>
+								<p className="text-xs text-muted-foreground mt-1">
+									{
+										initialAnalytics.collectionRates
+											.didNotPickUpRate
+									}
+									% of calls
+								</p>
 							</div>
+						</div>
+						<div className="mt-3 text-xs text-muted-foreground">
+							Connected disposition rate:{" "}
+							<span className="font-medium text-foreground">
+								{initialAnalytics.collectionRates.connectedRate}
+								%
+							</span>
 						</div>
 					</CardContent>
 				</Card>

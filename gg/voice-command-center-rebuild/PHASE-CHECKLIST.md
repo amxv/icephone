@@ -310,3 +310,10 @@ Examples:
 - [x] Keep lead communication timelines consistent across manual and campaign queue call flows
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-44: queue communication sync`
+
+### Phase 45 — Analytics Collections Rate Expansion
+- [x] Add backend collection-rate metrics (`intent_to_pay`, `promise_to_pay`, `did_not_pick_up`, `connected`) in call analytics payload
+- [x] Surface these rates in analytics UI alongside raw collection signal counts
+- [x] Preserve existing pickup/outcome/disposition analytics without regressions
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-45: analytics collection rates`

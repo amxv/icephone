@@ -555,3 +555,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-44: queue communication sync`
 - Notes/blockers:
   - Queue-to-log sync currently updates by `relatedRecordId` + `relatedRecordType = call_queue`; this intentionally supports both manual and campaign queue paths.
+
+---
+
+## Phase 45 — Analytics Collections Rate Expansion
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Expanded analytics depth for collections/support workflows by adding derived rate metrics on top of existing disposition counts. Backend now returns `collectionRates` (`intentToPayRate`, `promiseToPayRate`, `didNotPickUpRate`, `connectedRate`), and analytics UI displays these percentages next to raw signal counts so teams can quickly assess quality and conversion trends, not just absolute volume.
+- Files changed:
+  - Updated: `src/actions/call-analytics.ts`, `src/app/(pages)/analytics/components/AnalyticsDashboard.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-45: analytics collection rates`
+- Notes/blockers:
+  - Rates are period-scoped and depend on normalized disposition/status ingestion; telephony webhook freshness directly affects near-real-time accuracy.
