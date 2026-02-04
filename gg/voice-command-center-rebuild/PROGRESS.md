@@ -449,10 +449,11 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 36 — End-to-End Validation + PR Final Sync
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Completed final validation + PR sync for phases 31-35. Re-ran install/typecheck/lint gates, verified clean branch state, and updated PR title/body/checklist to reflect telephony + recording readiness scope through Phase 36.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Updated: `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun install`, `bun run typecheck`, `bun run lint`, `gh pr view 1 --json ...`, `gh pr edit 1 --title ... --body-file ...`
+- Commit: `phase-36: final sync`
 - Notes/blockers:
   - Final quality gates (`bun install`, `bun run typecheck`, `bun run lint`) and PR scope sync.

@@ -250,8 +250,8 @@ Examples:
 - [x] Commit: `phase-35: backend gap audit`
 
 ### Phase 36 — End-to-End Validation + PR Final Sync
-- [ ] Run `bun install`, `bun run typecheck`, `bun run lint`
-- [ ] Ensure planning docs reflect completion state for phases 31-35
-- [ ] Update PR title/body/checklist for telephony + recording readiness scope
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-36: final sync`
+- [x] Run `bun install`, `bun run typecheck`, `bun run lint`
+- [x] Ensure planning docs reflect completion state for phases 31-35
+- [x] Update PR title/body/checklist for telephony + recording readiness scope
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-36: final sync`
