@@ -57,7 +57,12 @@ export function useRealtimeVoiceSession(
 	const sessionStartTimeRef = useRef<number | null>(null)
 	const callIdRef = useRef<number | null>(null)
 	const knowledgeSourceScopeRef = useRef<number[]>([])
+	const transcriptHistoryRef = useRef<TranscriptItem[]>([])
 	const isResponseInProgressRef = useRef(false)
+
+	useEffect(() => {
+		transcriptHistoryRef.current = transcriptHistory
+	}, [transcriptHistory])
 
 	const resetState = useCallback(() => {
 		setIsConnected(false)
@@ -216,7 +221,9 @@ export function useRealtimeVoiceSession(
 			if (!sessionResponse.ok) {
 				const errorData = await sessionResponse.json().catch(() => null)
 				throw new Error(
-					errorData?.error || "Failed to create voice session"
+					errorData?.error ||
+						errorData?.message ||
+						`Failed to create voice session (${sessionResponse.status})`
 				)
 			}
 
@@ -317,7 +324,7 @@ export function useRealtimeVoiceSession(
 				const duration = Math.floor(
 					(Date.now() - sessionStartTimeRef.current) / 1000
 				)
-				const transcriptLines = transcriptHistory.map(
+				const transcriptLines = transcriptHistoryRef.current.map(
 					(item) =>
 						`${item.role === "user" ? "User" : "Assistant"}: ${item.text}`
 				)
@@ -349,8 +356,8 @@ export function useRealtimeVoiceSession(
 		callIdRef.current = null
 		knowledgeSourceScopeRef.current = []
 
-		resetState()
-	}, [resetState, transcriptHistory])
+			resetState()
+	}, [resetState])
 
 	const mute = useCallback(() => {
 		const tracks = mediaStreamRef.current?.getAudioTracks() || []

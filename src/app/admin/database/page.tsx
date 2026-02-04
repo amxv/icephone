@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { AdminDatabaseClient } from "./AdminDatabaseClient"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getDatabaseOverview } from "@/actions/admin"
+import { requireAdminPageAccess } from "@/lib/admin-check"
 
 function AdminDatabaseLoading() {
 	return (
@@ -60,7 +61,9 @@ async function AdminDatabaseContent() {
 	return <AdminDatabaseClient initialData={databaseOverview} />
 }
 
-export default function AdminDatabasePage() {
+export default async function AdminDatabasePage() {
+	await requireAdminPageAccess()
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">

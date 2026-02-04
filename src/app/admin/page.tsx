@@ -4,8 +4,11 @@ import { AdminActivityFeed } from "@/components/admin/AdminActivityFeed"
 import { AdminQuickActions } from "@/components/admin/AdminQuickActions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { requireAdminPageAccess } from "@/lib/admin-check"
 
-export default function AdminDashboard() {
+export default async function AdminDashboard() {
+	await requireAdminPageAccess()
+
 	return (
 		<div className="space-y-8">
 			{/* Page Header */}

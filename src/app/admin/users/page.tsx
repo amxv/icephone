@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { AdminUsersClient } from "./AdminUsersClient"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getAllUsers, getUserStats } from "@/actions/admin-users"
+import { requireAdminPageAccess } from "@/lib/admin-check"
 
 function AdminUsersLoading() {
 	return (
@@ -62,7 +63,9 @@ async function AdminUsersContent() {
 	return <AdminUsersClient initialUsers={users} initialStats={userStats} />
 }
 
-export default function AdminUsersPage() {
+export default async function AdminUsersPage() {
+	await requireAdminPageAccess()
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">

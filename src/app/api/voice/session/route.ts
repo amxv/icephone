@@ -163,7 +163,7 @@ export async function POST(request: Request) {
 					type: "realtime",
 					model: OPENAI_REALTIME_MODEL,
 					instructions,
-					output_modalities: ["audio", "text"],
+					output_modalities: ["audio"],
 					tools: openAIRealtimeTools,
 					tool_choice: "auto",
 					audio: {
@@ -183,9 +183,20 @@ export async function POST(request: Request) {
 		if (!openaiResponse.ok) {
 			const errorText = await openaiResponse.text()
 			console.error("OpenAI Realtime API error:", errorText)
+			let upstreamMessage = "Failed to create voice session"
+			try {
+				const parsed = JSON.parse(errorText) as {
+					error?: { message?: string }
+				}
+				if (parsed.error?.message) {
+					upstreamMessage = parsed.error.message
+				}
+			} catch {
+				// keep default message
+			}
 			return new Response(
 				JSON.stringify({
-					error: "Failed to create voice session"
+					error: upstreamMessage
 				}),
 				{
 					status: 502,

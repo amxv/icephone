@@ -1,25 +1,12 @@
-import { redirect } from "next/navigation"
 import { AdminSidebar } from "@/components/admin/AdminSidebar"
-import { currentUser } from "@/lib/auth/session"
+import { requireAdminPageAccess } from "@/lib/admin-check"
 
 export default async function AdminLayout({
 	children
 }: {
 	children: React.ReactNode
 }) {
-	// Get current user
-	const user = await currentUser()
-
-	// Check if user is authenticated
-	if (!user) {
-		redirect("/sign-in")
-	}
-
-	// Check if user is the admin (owner)
-	const ownerUserId = process.env.OWNER_USER_ID
-	if (user.id !== ownerUserId) {
-		redirect("/")
-	}
+	const user = await requireAdminPageAccess()
 
 	// Extract only the plain data we need for the client component
 	const userData = {

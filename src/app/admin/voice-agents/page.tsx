@@ -6,6 +6,7 @@ import {
 } from "@/actions/admin-voice-agents"
 import { AdminVoiceAgentsClient } from "./AdminVoiceAgentsClient"
 import { Skeleton } from "@/components/ui/skeleton"
+import { requireAdminPageAccess } from "@/lib/admin-check"
 
 // Force dynamic rendering for admin pages
 export const dynamic = "force-dynamic"
@@ -82,6 +83,8 @@ function ErrorState() {
 }
 
 export default async function AdminVoiceAgentsPage() {
+	await requireAdminPageAccess()
+
 	return (
 		<div className="container h-[calc(100vh-5rem)]">
 			<div className="flex flex-col gap-4 p-2 md:px-8 md:py-4 h-full">
