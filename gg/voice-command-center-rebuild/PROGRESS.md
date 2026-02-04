@@ -436,11 +436,13 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 35 — Backend Rewrite Gap Audit II
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Performed a deep backend/code-quality audit pass for stale or bypassed logic. Verified there are no `@ts-nocheck`, `@ts-ignore`, or `eslint-disable` bypasses in source paths; normalized inconsistent code paths surfaced by formatter in CRM/knowledge/realtime modules; and fixed accessibility-contract regressions in voice-agent knowledge-scope selectors that were blocking full Biome checks.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Updated: `src/components/voice-agent-customization-dialog.tsx`, `src/components/voice-agent-settings.tsx`
+  - Formatting/consistency updates: `src/actions/crm-integrations.ts`, `src/actions/knowledge-base.ts`, `src/app/api/voice/session/route.ts`, `src/components/add-leads-modal.tsx`, `src/hooks/use-realtime-voice-session.ts`, `src/lib/crm/integration-service.ts`, `src/lib/crm/providers/http.ts`, `src/lib/crm/providers/hubspot.ts`, `src/lib/crm/providers/pipedrive.ts`, `src/lib/crm/providers/salesforce.ts`
+- Tests/commands run: `bunx biome check --write --unsafe .`, `bun run typecheck`, `bun run lint`
+- Commit: `phase-35: backend gap audit`
 - Notes/blockers:
   - Deep pass for stale/legacy backend paths that conflict with rewrite goals.
 

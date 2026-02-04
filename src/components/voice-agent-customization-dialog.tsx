@@ -90,9 +90,7 @@ export function VoiceAgentCustomizationDialog({
 		)
 		setSelectedVoice(normalizeOpenAIVoiceId(agentVoice))
 		setSelectedTemplateId(template?.id || CUSTOM_TEMPLATE_VALUE)
-		setInstructions(
-			agent.prompt || template?.instructionsDefault || ""
-		)
+		setInstructions(agent.prompt || template?.instructionsDefault || "")
 		setPersonality(
 			commandCenter?.personality || template?.personalityDefault || ""
 		)
@@ -115,7 +113,13 @@ export function VoiceAgentCustomizationDialog({
 			agent.firstMessage || template?.firstMessageDefault || ""
 		)
 		setSelectedKnowledgeSourceIds(Array.from(new Set(configuredSourceIds)))
-	}, [open, agent.prompt, agent.voice, agent.configuration, agent.firstMessage])
+	}, [
+		open,
+		agent.prompt,
+		agent.voice,
+		agent.configuration,
+		agent.firstMessage
+	])
 
 	useEffect(() => {
 		if (!open) return
@@ -360,8 +364,9 @@ export function VoiceAgentCustomizationDialog({
 						</div>
 
 						<div className="rounded-xl border border-border/70 p-3 space-y-3">
-							<label className="flex items-center gap-2 text-sm">
+							<div className="flex items-center gap-2 text-sm">
 								<Checkbox
+									id="customization-kb-all"
 									checked={
 										selectedKnowledgeSourceIds.length === 0
 									}
@@ -371,8 +376,10 @@ export function VoiceAgentCustomizationDialog({
 										}
 									}}
 								/>
-								<span>Use all available knowledge sources</span>
-							</label>
+								<Label htmlFor="customization-kb-all">
+									Use all available knowledge sources
+								</Label>
+							</div>
 
 							{isLoadingKnowledgeSources ? (
 								<p className="text-xs text-muted-foreground">
@@ -392,29 +399,30 @@ export function VoiceAgentCustomizationDialog({
 											)
 
 										return (
-											<label
+											<div
 												key={source.id}
 												className="flex items-start gap-2 text-sm"
 											>
 												<Checkbox
+													id={`customization-kb-source-${source.id}`}
 													checked={checked}
-													onCheckedChange={(
-														value
-													) =>
+													onCheckedChange={(value) =>
 														toggleKnowledgeSource(
 															source.id,
 															value === true
 														)
 													}
 												/>
-												<span>
+												<Label
+													htmlFor={`customization-kb-source-${source.id}`}
+												>
 													{source.name}
 													<span className="block text-xs text-muted-foreground">
 														#{source.id} •{" "}
 														{source.type}
 													</span>
-												</span>
-											</label>
+												</Label>
+											</div>
 										)
 									})}
 								</div>

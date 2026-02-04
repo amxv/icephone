@@ -243,11 +243,11 @@ Examples:
 - [x] Commit: `phase-34: webhook ingestion`
 
 ### Phase 35 — Backend Rewrite Gap Audit II
-- [ ] Deep-scan backend for stale/legacy code paths that conflict with rewrite vision
-- [ ] Remove or rewrite incomplete/duplicate implementations surfaced during telephony integration prep
-- [ ] Document newly discovered product/tech debt as follow-up phases if needed
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-35: backend gap audit`
+- [x] Deep-scan backend for stale/legacy code paths that conflict with rewrite vision
+- [x] Remove or rewrite incomplete/duplicate implementations surfaced during telephony integration prep
+- [x] Document newly discovered product/tech debt as follow-up phases if needed
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-35: backend gap audit`
 
 ### Phase 36 — End-to-End Validation + PR Final Sync
 - [ ] Run `bun install`, `bun run typecheck`, `bun run lint`

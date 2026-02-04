@@ -537,9 +537,7 @@ export function AddLeadsModal({
 										}
 										disabled={isLoading}
 									>
-										<option value="hubspot">
-											HubSpot
-										</option>
+										<option value="hubspot">HubSpot</option>
 										<option value="salesforce">
 											Salesforce
 										</option>
@@ -583,8 +581,8 @@ export function AddLeadsModal({
 													Math.min(
 														100,
 														Number(
-															event.target.value ||
-																25
+															event.target
+																.value || 25
 														)
 													)
 												)
@@ -608,13 +606,13 @@ export function AddLeadsModal({
 										<CheckCircleIcon className="h-4 w-4 text-green-600" />
 										<AlertDescription className="text-green-800">
 											Imported{" "}
-											{crmImportResult.totalProcessed} leads
-											(
+											{crmImportResult.totalProcessed}{" "}
+											leads (
 											{crmImportResult.createdCount} new,{" "}
-											{crmImportResult.updatedCount} updated
-											) and assigned{" "}
-											{crmImportResult.assignedCount} to the
-											campaign.
+											{crmImportResult.updatedCount}{" "}
+											updated ) and assigned{" "}
+											{crmImportResult.assignedCount} to
+											the campaign.
 										</AlertDescription>
 									</Alert>
 								)}

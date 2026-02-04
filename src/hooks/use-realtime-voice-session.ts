@@ -135,9 +135,7 @@ export function useRealtimeVoiceSession(
 						limit: z.coerce.number().int().min(1).max(8).optional(),
 						sourceId: z.coerce.number().int().positive().optional(),
 						sourceIds: z
-							.array(
-								z.coerce.number().int().positive()
-							)
+							.array(z.coerce.number().int().positive())
 							.max(20)
 							.optional(),
 						threshold: z.coerce.number().min(0).max(1).optional()
@@ -147,16 +145,14 @@ export function useRealtimeVoiceSession(
 						const parsed = inputSchema.parse(args)
 						const scopedSourceIds = knowledgeSourceScopeRef.current
 						const requestedSourceIds = Array.from(
-							new Set(
-								[
-									...(typeof parsed.sourceId === "number"
-										? [parsed.sourceId]
-										: []),
-									...(Array.isArray(parsed.sourceIds)
-										? parsed.sourceIds
-										: [])
-								]
-							)
+							new Set([
+								...(typeof parsed.sourceId === "number"
+									? [parsed.sourceId]
+									: []),
+								...(Array.isArray(parsed.sourceIds)
+									? parsed.sourceIds
+									: [])
+							])
 						)
 						const effectiveSourceIds =
 							scopedSourceIds.length > 0

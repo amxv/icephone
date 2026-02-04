@@ -74,7 +74,9 @@ export class PipedriveAdapter implements CRMProviderAdapter {
 		)
 
 		return {
-			leads: (response.data || []).map((person) => mapPipedrivePerson(person)),
+			leads: (response.data || []).map((person) =>
+				mapPipedrivePerson(person)
+			),
 			nextCursor:
 				response.additional_data?.pagination?.next_cursor ||
 				response.additional_data?.next_cursor ||
@@ -111,7 +113,9 @@ export class PipedriveAdapter implements CRMProviderAdapter {
 			leads: items
 				.map((entry) => entry.item)
 				.filter(Boolean)
-				.map((person) => mapPipedrivePerson(person as Record<string, unknown>)),
+				.map((person) =>
+					mapPipedrivePerson(person as Record<string, unknown>)
+				),
 			nextCursor:
 				response.additional_data?.pagination?.next_cursor ||
 				response.additional_data?.next_cursor ||
@@ -195,7 +199,10 @@ function getPrimaryContactField(value: unknown) {
 			}
 			if (entry && typeof entry === "object") {
 				const record = entry as Record<string, unknown>
-				if (typeof record.value === "string" && record.value.trim().length > 0) {
+				if (
+					typeof record.value === "string" &&
+					record.value.trim().length > 0
+				) {
 					return record.value.trim()
 				}
 			}

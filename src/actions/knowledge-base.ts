@@ -622,8 +622,9 @@ export async function performRAGQuery(
 				[
 					...(typeof sourceId === "number" ? [sourceId] : []),
 					...(Array.isArray(sourceIds) ? sourceIds : [])
-				].filter((value): value is number =>
-					Number.isInteger(value) && value > 0
+				].filter(
+					(value): value is number =>
+						Number.isInteger(value) && value > 0
 				)
 			)
 		)

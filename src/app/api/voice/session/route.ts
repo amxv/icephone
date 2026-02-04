@@ -115,9 +115,7 @@ export async function POST(request: Request) {
 			agentRecord.firstMessage
 				? `Begin the conversation with: ${agentRecord.firstMessage}`
 				: "",
-			commandCenter?.mode
-				? `Operating mode: ${commandCenter.mode}.`
-				: "",
+			commandCenter?.mode ? `Operating mode: ${commandCenter.mode}.` : "",
 			commandCenter?.personality
 				? `Personality guidance: ${commandCenter.personality}`
 				: "",

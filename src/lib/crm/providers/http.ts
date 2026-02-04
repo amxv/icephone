@@ -68,7 +68,10 @@ export function ensureToken(
 	token?: string | null
 ): string {
 	if (!token) {
-		throw new CRMProviderError(provider, `${provider} token is not configured`)
+		throw new CRMProviderError(
+			provider,
+			`${provider} token is not configured`
+		)
 	}
 
 	return token

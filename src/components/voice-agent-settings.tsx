@@ -1161,8 +1161,9 @@ export function VoiceAgentSettings({
 								</div>
 
 								<div className="rounded-2xl border border-border/70 p-4 space-y-3">
-									<label className="flex items-center gap-2 text-sm">
+									<div className="flex items-center gap-2 text-sm">
 										<Checkbox
+											id="kb-scope-all"
 											checked={
 												selectedKnowledgeSourceIds.length ===
 												0
@@ -1176,10 +1177,10 @@ export function VoiceAgentSettings({
 												}
 											}}
 										/>
-										<span>
+										<Label htmlFor="kb-scope-all">
 											Use all available knowledge sources
-										</span>
-									</label>
+										</Label>
+									</div>
 
 									{isLoadingKnowledgeSources ? (
 										<p className="text-sm text-muted-foreground">
@@ -1193,11 +1194,12 @@ export function VoiceAgentSettings({
 									) : (
 										<div className="max-h-48 overflow-y-auto space-y-2 pr-1">
 											{knowledgeSources.map((source) => (
-												<label
+												<div
 													key={source.id}
 													className="flex items-start gap-2 text-sm"
 												>
 													<Checkbox
+														id={`kb-scope-source-${source.id}`}
 														checked={selectedKnowledgeSourceIds.includes(
 															source.id
 														)}
@@ -1210,14 +1212,16 @@ export function VoiceAgentSettings({
 															)
 														}
 													/>
-													<span>
+													<Label
+														htmlFor={`kb-scope-source-${source.id}`}
+													>
 														{source.name}
 														<span className="block text-xs text-muted-foreground">
 															#{source.id} •{" "}
 															{source.type}
 														</span>
-													</span>
-												</label>
+													</Label>
+												</div>
 											))}
 										</div>
 									)}

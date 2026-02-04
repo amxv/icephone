@@ -207,8 +207,7 @@ export async function importLeadsFromCRM(rawInput: unknown) {
 				assignedCount,
 				leadIds: imported.leadIds,
 				nextCursor: imported.nextCursor,
-				totalProcessed:
-					imported.createdCount + imported.updatedCount
+				totalProcessed: imported.createdCount + imported.updatedCount
 			},
 			error: null
 		}

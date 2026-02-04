@@ -34,8 +34,8 @@ export class HubSpotAdapter implements CRMProviderAdapter {
 			config.settings?.accessToken || config.apiKey
 		)
 		this.baseUrl = "https://api.hubapi.com"
-		const associationType = config.settings?.objectMapping
-			?.noteAssociationTypeId
+		const associationType =
+			config.settings?.objectMapping?.noteAssociationTypeId
 		this.noteToContactAssociationTypeId =
 			typeof associationType === "number" ? associationType : 202
 	}

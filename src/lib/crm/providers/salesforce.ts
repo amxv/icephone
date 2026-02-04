@@ -66,7 +66,9 @@ export class SalesforceAdapter implements CRMProviderAdapter {
 			return this.toImportResult(response)
 		}
 
-		const escapedQuery = params.query ? escapeSoql(params.query.trim()) : null
+		const escapedQuery = params.query
+			? escapeSoql(params.query.trim())
+			: null
 		const whereClause = escapedQuery
 			? ` WHERE Name LIKE '%${escapedQuery}%' OR Email LIKE '%${escapedQuery}%'`
 			: ""
@@ -99,7 +101,8 @@ export class SalesforceAdapter implements CRMProviderAdapter {
 		}
 
 		const payload: Record<string, unknown> = {
-			Subject: `IcePhone Call ${input.disposition ? `- ${input.disposition}` : ""}`.trim(),
+			Subject:
+				`IcePhone Call ${input.disposition ? `- ${input.disposition}` : ""}`.trim(),
 			Description: buildCallNoteBody(input),
 			Status: "Completed",
 			Priority: "Normal",
@@ -134,7 +137,9 @@ export class SalesforceAdapter implements CRMProviderAdapter {
 		}
 	}
 
-	private toImportResult(response: SalesforceQueryResponse): CRMLeadImportResult {
+	private toImportResult(
+		response: SalesforceQueryResponse
+	): CRMLeadImportResult {
 		const leads = (response.records || []).map((record) => ({
 			externalId: String(record.Id),
 			name: String(record.Name || "Unknown"),

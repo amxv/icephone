@@ -116,7 +116,10 @@ export async function deleteTeamCRMIntegration(
 }
 
 export async function importCRMLeadsForTeam(params: ImportCRMLeadsParams) {
-	const integration = await getTeamCRMIntegration(params.teamId, params.provider)
+	const integration = await getTeamCRMIntegration(
+		params.teamId,
+		params.provider
+	)
 	if (!integration) {
 		throw new Error(`${params.provider} integration is not configured`)
 	}
@@ -324,7 +327,10 @@ async function persistImportedLeads(params: {
 			.select()
 			.from(leads)
 			.where(
-				and(eq(leads.teamId, params.teamId), inArray(leads.phone, phoneCandidates))
+				and(
+					eq(leads.teamId, params.teamId),
+					inArray(leads.phone, phoneCandidates)
+				)
 			)
 		for (const row of byPhoneRows) {
 			if (row.phone) {
@@ -380,7 +386,9 @@ async function persistImportedLeads(params: {
 							: targetLead.dealValue,
 					updatedAt: new Date()
 				})
-				.where(and(eq(leads.id, leadId), eq(leads.teamId, params.teamId)))
+				.where(
+					and(eq(leads.id, leadId), eq(leads.teamId, params.teamId))
+				)
 			updatedCount += 1
 		} else {
 			const [created] = await db_ws
@@ -465,10 +473,7 @@ function normalizeLeadStatus(value?: string | null) {
 		normalized.includes("won")
 	)
 		return "converted"
-	if (
-		normalized.includes("lost") ||
-		normalized.includes("unqualified")
-	)
+	if (normalized.includes("lost") || normalized.includes("unqualified"))
 		return "lost"
 	if (normalized.includes("contact")) return "contacted"
 	return "new"
