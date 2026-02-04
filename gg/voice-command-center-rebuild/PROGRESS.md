@@ -79,10 +79,12 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 6 — Knowledge Base
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Rebuilt knowledge base to use Cloudflare R2 + OpenAI Vector Store. Added R2 storage utilities + OpenAI vector store client helpers, rewrote knowledge base actions to be team-scoped with audit logging, implemented upload/index pipeline, vector store search, and manual status refresh. Updated knowledge base UI links, stats copy, and documents list to show status + refresh control. Simplified worker/file ingestion wrappers to use the new pipeline.
 - Files changed:
-- Tests/commands run:
+  - Added: `src/lib/storage/*`, `src/lib/utils/retry.ts`, `src/lib/openai/*`
+  - Updated: `src/actions/knowledge-base.ts`, `src/actions/knowledge-base-files.ts`, `src/actions/knowledge-base-worker.ts`, `src/components/knowledge-base/KnowledgeBaseDocumentsList.tsx`, `src/components/knowledge-base/KnowledgeBaseSourcesList.tsx`, `src/components/knowledge-base/KnowledgeBaseStats.tsx`, `next.config.ts`, `package.json`, `src/types.ts`
+- Tests/commands run: None.
 - Commit:
 - Notes/blockers:
 

@@ -42,7 +42,7 @@ export default function KnowledgeBaseStats({ stats }: KnowledgeBaseStatsProps) {
 						{stats.documentCount}
 					</div>
 					<p className="text-xs text-muted-foreground">
-						Total document chunks with embeddings
+						Total indexed files in the knowledge base
 					</p>
 				</CardContent>
 			</Card>

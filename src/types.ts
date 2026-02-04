@@ -44,18 +44,20 @@ export interface KnowledgeBaseSource {
 	lastIndexedAt: string | Date | null
 	createdAt: string | Date
 	updatedAt: string | Date
-	userId: string
+	teamId?: string
+	createdByUserId?: string | null
+	status?: string | null
 }
 
 export interface KnowledgeBaseDocument {
 	id: number
 	sourceId: number | null
 	contentChunk: string
-	chunkType: ChunkType
+	chunkType?: ChunkType
 
 	// Text embedding
 	textEmbeddingModel: string
-	textEmbedding: unknown // Vector type will be handled specially
+	textEmbedding?: unknown // Vector type will be handled specially
 
 	// Multimodal embedding
 	multimodalEmbeddingModel?: string | null
@@ -74,7 +76,8 @@ export interface KnowledgeBaseDocument {
 	metadata: Record<string, unknown>
 	createdAt: string | Date
 	updatedAt: string | Date
-	userId: string
+	teamId?: string
+	createdByUserId?: string | null
 }
 
 export interface VisualElement {

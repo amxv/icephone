@@ -18,9 +18,11 @@ import {
 	TableHeader,
 	TableRow
 } from "@/components/ui/table"
+import { checkKnowledgeFileStatus } from "@/actions/knowledge-base"
 import type { KnowledgeBaseDocument } from "@/types"
-import { Eye, FileText } from "lucide-react"
-import { useState } from "react"
+import { Eye, FileText, RefreshCcw } from "lucide-react"
+import { useEffect, useState } from "react"
+import { toast } from "@/components/ui/use-toast"
 
 interface KnowledgeBaseDocumentsListProps {
 	sourceId: number
@@ -33,8 +35,14 @@ export default function KnowledgeBaseDocumentsList({
 }: KnowledgeBaseDocumentsListProps) {
 	const [selectedDocument, setSelectedDocument] =
 		useState<KnowledgeBaseDocument | null>(null)
+	const [items, setItems] = useState<KnowledgeBaseDocument[]>(documents)
+	const [refreshingId, setRefreshingId] = useState<number | null>(null)
 
-	if (!documents || documents.length === 0) {
+	useEffect(() => {
+		setItems(documents)
+	}, [documents])
+
+	if (!items || items.length === 0) {
 		return (
 			<div className="flex flex-col items-center justify-center h-48 text-center">
 				<FileText className="h-10 w-10 text-muted-foreground mb-2" />
@@ -58,6 +66,52 @@ export default function KnowledgeBaseDocumentsList({
 		return `${content.substring(0, maxLength)}...`
 	}
 
+	const handleRefresh = async (docId: number) => {
+		try {
+			setRefreshingId(docId)
+			const result = await checkKnowledgeFileStatus(docId)
+
+			if (result.success && result.data) {
+				setItems((prev) =>
+					prev.map((doc) =>
+						doc.id === docId
+							? {
+									...doc,
+									contentChunk:
+										result.data.extractedTextPreview ||
+										doc.contentChunk,
+									metadata: {
+										...doc.metadata,
+										status: result.data.status,
+										lastError: result.data.lastError
+									}
+								}
+							: doc
+					)
+				)
+
+				toast({
+					title: "Status refreshed",
+					description: `File status is now ${result.data.status}`
+				})
+			} else {
+				toast({
+					title: "Refresh failed",
+					description: result.error || "Unable to refresh status",
+					variant: "destructive"
+				})
+			}
+		} catch (error) {
+			toast({
+				title: "Refresh failed",
+				description: "An unexpected error occurred",
+				variant: "destructive"
+			})
+		} finally {
+			setRefreshingId(null)
+		}
+	}
+
 	return (
 		<>
 			<div className="rounded-2xl border overflow-hidden">
@@ -67,6 +121,7 @@ export default function KnowledgeBaseDocumentsList({
 							<TableHead>ID</TableHead>
 							<TableHead>Content Preview</TableHead>
 							<TableHead>Embedding Model</TableHead>
+							<TableHead>Status</TableHead>
 							<TableHead>Created</TableHead>
 							<TableHead className="text-right">
 								Actions
@@ -74,7 +129,7 @@ export default function KnowledgeBaseDocumentsList({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{documents.map((doc) => (
+						{items.map((doc) => (
 							<TableRow key={doc.id}>
 								<TableCell className="font-medium">
 									{doc.id}
@@ -88,9 +143,26 @@ export default function KnowledgeBaseDocumentsList({
 									</Badge>
 								</TableCell>
 								<TableCell>
+									<Badge variant="secondary">
+										{(doc.metadata?.status as string) ||
+											"unknown"}
+									</Badge>
+								</TableCell>
+								<TableCell>
 									{formatDate(doc.createdAt)}
 								</TableCell>
 								<TableCell className="text-right">
+									<Button
+										variant="ghost"
+										size="sm"
+										disabled={refreshingId === doc.id}
+										onClick={() => handleRefresh(doc.id)}
+									>
+										<RefreshCcw className="h-4 w-4 mr-1" />
+										{refreshingId === doc.id
+											? "Refreshing..."
+											: "Refresh"}
+									</Button>
 									<Button
 										variant="ghost"
 										size="sm"
