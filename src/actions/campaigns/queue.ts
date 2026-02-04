@@ -1,6 +1,7 @@
 "use server"
 
-import { auth } from "@/lib/auth/session"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
 import { and, eq, inArray } from "drizzle-orm"
 
 import { db_ws } from "@/db"
@@ -14,10 +15,7 @@ export async function addLeadsToQueue(
 	priority: number = 0
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Get campaign lead assignments
 		const campaignLeadIds = await db_ws
@@ -30,7 +28,7 @@ export async function addLeadsToQueue(
 				and(
 					eq(campaignLeads.campaignId, campaignId),
 					inArray(campaignLeads.leadId, leadIds),
-					eq(campaignLeads.userId, userId)
+					eq(campaignLeads.teamId, teamId)
 				)
 			)
 
@@ -48,7 +46,7 @@ export async function addLeadsToQueue(
 			campaignLeadId: campaignLead.id,
 			scheduledTime: scheduledTime || new Date(),
 			priority,
-			userId
+			userId: user.id
 		}))
 
 		const queueEntries = await db_ws
@@ -70,17 +68,14 @@ export async function addLeadsToQueue(
 // Remove lead from campaign queue
 export async function removeLeadFromQueue(queueId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId, user } = await requireTeam()
 
 		const deletedQueueEntry = await db_ws
 			.delete(campaignQueue)
 			.where(
 				and(
 					eq(campaignQueue.id, queueId),
-					eq(campaignQueue.userId, userId)
+					eq(campaignQueue.userId, user.id)
 				)
 			)
 			.returning()
@@ -102,10 +97,7 @@ export async function removeLeadFromQueue(queueId: number) {
 // Get campaign queue status
 export async function getCampaignQueue(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await requireTeam()
 
 		const queueData = await db_ws
 			.select({
@@ -139,7 +131,7 @@ export async function getCampaignQueue(campaignId: number) {
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId)
+					eq(campaignLeads.teamId, teamId)
 				)
 			)
 			.orderBy(campaignQueue.scheduledTime)
@@ -165,17 +157,14 @@ export async function reorderQueue(
 	}>
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate campaign ownership
 		const campaign = await db_ws
 			.select({ id: campaigns.id })
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -196,7 +185,7 @@ export async function reorderQueue(
 				and(
 					inArray(campaignQueue.id, queueIds),
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId)
+					eq(campaignQueue.userId, user.id)
 				)
 			)
 

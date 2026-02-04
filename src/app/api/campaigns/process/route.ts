@@ -5,7 +5,7 @@ import { and, eq, lte, sql } from "drizzle-orm"
 import { db_ws } from "@/db"
 import { campaigns, campaignQueue } from "@/db/schema"
 import {
-	processNextQueueBatch,
+	processNextQueueBatchDirect,
 	processScheduledCampaigns
 } from "@/actions/campaigns/execution"
 
@@ -65,17 +65,25 @@ export async function POST(request: NextRequest) {
 			}
 		}
 
-		let campaignsToProcess: Array<{ id: number; userId: string }> = []
+		let campaignsToProcess: Array<{
+			id: number
+			userId: string
+			teamId: string
+		}> = []
 
 		if (campaignId && userId) {
 			// Process specific campaign for specific user
 			const campaign = await db_ws
-				.select({ id: campaigns.id, userId: campaigns.userId })
+				.select({
+					id: campaigns.id,
+					userId: campaigns.userId,
+					teamId: campaigns.teamId
+				})
 				.from(campaigns)
 				.where(
 					and(
 						eq(campaigns.id, campaignId),
-						eq(campaigns.userId, userId),
+						userId ? eq(campaigns.userId, userId) : sql`true`,
 						eq(campaigns.status, "running")
 					)
 				)
@@ -87,7 +95,11 @@ export async function POST(request: NextRequest) {
 		} else if (userId) {
 			// Process all running campaigns for a specific user
 			const userCampaigns = await db_ws
-				.select({ id: campaigns.id, userId: campaigns.userId })
+				.select({
+					id: campaigns.id,
+					userId: campaigns.userId,
+					teamId: campaigns.teamId
+				})
 				.from(campaigns)
 				.where(
 					and(
@@ -101,7 +113,11 @@ export async function POST(request: NextRequest) {
 		} else {
 			// Process all running campaigns across all users (system-wide processing)
 			const runningCampaigns = await db_ws
-				.select({ id: campaigns.id, userId: campaigns.userId })
+				.select({
+					id: campaigns.id,
+					userId: campaigns.userId,
+					teamId: campaigns.teamId
+				})
 				.from(campaigns)
 				.where(eq(campaigns.status, "running"))
 				.limit(maxCampaigns)
@@ -133,7 +149,6 @@ export async function POST(request: NextRequest) {
 					.where(
 						and(
 							eq(campaignQueue.campaignId, campaign.id),
-							eq(campaignQueue.userId, campaign.userId),
 							eq(campaignQueue.status, "queued"),
 							forceProcessing
 								? sql`true`
@@ -159,6 +174,7 @@ export async function POST(request: NextRequest) {
 				// For now, we'll use a direct approach that doesn't require auth context
 				const result = await processQueueBatchDirect(
 					campaign.id,
+					campaign.teamId,
 					campaign.userId,
 					batchSize
 				)
@@ -232,6 +248,7 @@ export async function POST(request: NextRequest) {
 // Direct queue processing function that doesn't require auth context
 async function processQueueBatchDirect(
 	campaignId: number,
+	teamId: string,
 	userId: string,
 	batchSize: number = 5
 ) {
@@ -313,7 +330,12 @@ async function processQueueBatchDirect(
 		)
 
 		// Process the queue batch using existing infrastructure
-		const result = await processNextQueueBatch(campaignId, batchSize)
+		const result = await processNextQueueBatchDirect(
+			campaignId,
+			teamId,
+			userId,
+			batchSize
+		)
 
 		if (result.success && result.data) {
 			return {

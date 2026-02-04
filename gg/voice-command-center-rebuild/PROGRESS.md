@@ -139,10 +139,11 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 11 — Async Campaign Scheduling Infra
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added async campaign queue processing that promotes `campaign_queue` items into the manual `call_queue` table, with team-scoped validation. Updated campaign execution, queue helpers, and background campaign processor to use team-aware selections and shared direct processing.
 - Files changed:
-- Tests/commands run:
+  - Updated: `src/actions/campaigns/execution.ts`, `src/actions/campaigns/queue.ts`, `src/app/api/campaigns/process/route.ts`.
+- Tests/commands run: `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
 - Commit:
 - Notes/blockers:
 
@@ -153,5 +154,65 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Summary:
 - Files changed:
 - Tests/commands run:
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 13 — Campaigns & Call Queue Gap Analysis
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 14 — Voice Agent Customization (Voice + Instructions)
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 15 — Analytics Expansion (Calls + KPIs)
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 16 — Codebase Cleanup (No Lint/TS Bypass)
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 17 — CRM Product Gap Analysis (Leads/Pipeline/Appointments)
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+
+---
+
+## Phase 18 — Final QA + PR
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run: `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
 - Commit:
 - Notes/blockers:

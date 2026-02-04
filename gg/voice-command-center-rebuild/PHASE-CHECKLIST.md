@@ -90,3 +90,38 @@ Examples:
 - [ ] Performance/structure pass
 - [ ] Update `PROGRESS.md`
 - [ ] Commit: `phase-12: optimization`
+
+### Phase 13 — Campaigns & Call Queue Gap Analysis
+- [ ] Review campaigns + call queue for product gaps
+- [ ] Address critical gaps (backend scaffolding)
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-13: campaign gaps`
+
+### Phase 14 — Voice Agent Customization (Voice + Instructions)
+- [ ] Add voice selection + custom instructions fields
+- [ ] Wire to Realtime session prompt/tooling
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-14: agent customization`
+
+### Phase 15 — Analytics Expansion (Calls + KPIs)
+- [ ] Backend metrics for call KPIs (pickup rate, outcomes, etc)
+- [ ] Analytics UI expansion
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-15: analytics expansion`
+
+### Phase 16 — Codebase Cleanup (No Lint/TS Bypass)
+- [ ] Remove @ts-nocheck/@ts-ignore/eslint-disable
+- [ ] Replace with proper types/logic
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-16: codebase cleanup`
+
+### Phase 17 — CRM Product Gap Analysis (Leads/Pipeline/Appointments)
+- [ ] Identify CRM gaps and add missing logic
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-17: crm gaps`
+
+### Phase 18 — Final QA + PR
+- [ ] Run `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
+- [ ] Open PR on completion
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-18: final qa`

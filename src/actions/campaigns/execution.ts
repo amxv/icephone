@@ -1,6 +1,7 @@
 "use server"
 
-import { auth } from "@/lib/auth/session"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
 import { and, eq, lte, sql } from "drizzle-orm"
 
 import { db_ws } from "@/db"
@@ -8,16 +9,67 @@ import {
 	campaigns,
 	campaignLeads,
 	campaignQueue,
+	campaignRuns,
+	callQueue,
+	leads,
 	voiceAgents
 } from "@/db/schema"
+
+async function getExecutionContext() {
+	const { teamId, user } = await requireTeam()
+	return { teamId, userId: user.id }
+}
+
+async function ensureCampaignRun(campaignId: number) {
+	const [existing] = await db_ws
+		.select({ id: campaignRuns.id })
+		.from(campaignRuns)
+		.where(
+			and(
+				eq(campaignRuns.campaignId, campaignId),
+				eq(campaignRuns.status, "running")
+			)
+		)
+		.limit(1)
+
+	if (existing) return existing
+
+	const [created] = await db_ws
+		.insert(campaignRuns)
+		.values({
+			campaignId,
+			status: "running",
+			startedAt: new Date()
+		})
+		.returning({ id: campaignRuns.id })
+
+	return created
+}
+
+async function updateCampaignRunStatus(
+	campaignId: number,
+	status: string,
+	updates: { endedAt?: Date } = {}
+) {
+	await db_ws
+		.update(campaignRuns)
+		.set({
+			status,
+			endedAt: updates.endedAt,
+			stats: sql`COALESCE(${campaignRuns.stats}, '{}')`
+		})
+		.where(
+			and(
+				eq(campaignRuns.campaignId, campaignId),
+				eq(campaignRuns.status, "running")
+			)
+		)
+}
 
 // Start campaign execution
 export async function startCampaign(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getExecutionContext()
 
 		// Validate campaign ownership and check it can be started
 		const campaign = await db_ws
@@ -30,7 +82,7 @@ export async function startCampaign(campaignId: number) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -80,7 +132,7 @@ export async function startCampaign(campaignId: number) {
 			.where(
 				and(
 					eq(voiceAgents.id, campaignData.voiceAgentId),
-					eq(voiceAgents.userId, userId)
+					teamScope(voiceAgents, teamId)
 				)
 			)
 			.limit(1)
@@ -105,11 +157,15 @@ export async function startCampaign(campaignId: number) {
 		const queueCount = await db_ws
 			.select({ count: sql<number>`COUNT(*)` })
 			.from(campaignQueue)
+			.innerJoin(
+				campaignLeads,
+				eq(campaignQueue.campaignLeadId, campaignLeads.id)
+			)
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
-					eq(campaignQueue.status, "queued")
+					eq(campaignQueue.status, "queued"),
+					eq(campaignLeads.teamId, teamId)
 				)
 			)
 
@@ -128,8 +184,12 @@ export async function startCampaign(campaignId: number) {
 				status: "running",
 				updatedAt: new Date()
 			})
-			.where(eq(campaigns.id, campaignId))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.returning()
+
+		await ensureCampaignRun(campaignId)
 
 		// Process the first batch of calls
 		await processNextQueueBatch(campaignId)
@@ -152,10 +212,7 @@ export async function startCampaign(campaignId: number) {
 // Pause campaign execution
 export async function pauseCampaign(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getExecutionContext()
 
 		const campaign = await db_ws
 			.select({
@@ -164,7 +221,7 @@ export async function pauseCampaign(campaignId: number) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -191,7 +248,9 @@ export async function pauseCampaign(campaignId: number) {
 				status: "paused",
 				updatedAt: new Date()
 			})
-			.where(eq(campaigns.id, campaignId))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.returning()
 
 		// Pause any queued calls
@@ -204,10 +263,11 @@ export async function pauseCampaign(campaignId: number) {
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
 					eq(campaignQueue.status, "queued")
 				)
 			)
+
+		await updateCampaignRunStatus(campaignId, "paused")
 
 		return {
 			success: true,
@@ -227,10 +287,7 @@ export async function pauseCampaign(campaignId: number) {
 // Resume campaign execution
 export async function resumeCampaign(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getExecutionContext()
 
 		const campaign = await db_ws
 			.select({
@@ -239,7 +296,7 @@ export async function resumeCampaign(campaignId: number) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -266,7 +323,9 @@ export async function resumeCampaign(campaignId: number) {
 				status: "running",
 				updatedAt: new Date()
 			})
-			.where(eq(campaigns.id, campaignId))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.returning()
 
 		// Resume paused calls in queue
@@ -279,10 +338,11 @@ export async function resumeCampaign(campaignId: number) {
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
 					eq(campaignQueue.status, "paused")
 				)
 			)
+
+		await updateCampaignRunStatus(campaignId, "running")
 
 		// Process the next batch of calls
 		await processNextQueueBatch(campaignId)
@@ -305,10 +365,7 @@ export async function resumeCampaign(campaignId: number) {
 // Stop campaign execution
 export async function stopCampaign(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getExecutionContext()
 
 		const campaign = await db_ws
 			.select({
@@ -317,7 +374,7 @@ export async function stopCampaign(campaignId: number) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -347,7 +404,9 @@ export async function stopCampaign(campaignId: number) {
 				status: "completed",
 				updatedAt: new Date()
 			})
-			.where(eq(campaigns.id, campaignId))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.returning()
 
 		// Mark all remaining queued calls as completed
@@ -361,10 +420,13 @@ export async function stopCampaign(campaignId: number) {
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
 					sql`${campaignQueue.status} IN ('queued', 'paused')`
 				)
 			)
+
+		await updateCampaignRunStatus(campaignId, "completed", {
+			endedAt: new Date()
+		})
 
 		return {
 			success: true,
@@ -384,39 +446,50 @@ export async function stopCampaign(campaignId: number) {
 // Process next batch of calls in queue
 export async function processNextQueueBatch(
 	campaignId: number,
-	_batchSize: number = 5
+	batchSize: number = 5
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
+		const { teamId, userId } = await getExecutionContext()
+		return await processNextQueueBatchDirect(
+			campaignId,
+			teamId,
+			userId,
+			batchSize
+		)
+	} catch (error) {
+		console.error("Error processing queue batch:", error)
+		return {
+			success: false,
+			error: "Failed to process queue batch",
+			data: null
 		}
+	}
+}
 
-		// Get campaign details
+export async function processNextQueueBatchDirect(
+	campaignId: number,
+	teamId: string,
+	userId: string,
+	batchSize: number = 5
+) {
+	try {
 		const campaign = await db_ws
 			.select({
 				id: campaigns.id,
 				status: campaigns.status,
-				voiceAgentId: campaigns.voiceAgentId,
-				campaignSettings: campaigns.campaignSettings
+				voiceAgentId: campaigns.voiceAgentId
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
-		if (!campaign || campaign.length === 0) {
-			return {
-				success: false,
-				error: "Campaign not found",
-				data: null
-			}
+		if (!campaign.length) {
+			return { success: false, error: "Campaign not found", data: null }
 		}
 
 		const campaignData = campaign[0]
-
-		// Only process if campaign is running
 		if (campaignData.status !== "running") {
 			return {
 				success: false,
@@ -425,7 +498,6 @@ export async function processNextQueueBatch(
 			}
 		}
 
-		// Get voice agent details
 		if (!campaignData.voiceAgentId) {
 			return {
 				success: false,
@@ -443,12 +515,12 @@ export async function processNextQueueBatch(
 			.where(
 				and(
 					eq(voiceAgents.id, campaignData.voiceAgentId),
-					eq(voiceAgents.userId, userId)
+					eq(voiceAgents.teamId, teamId)
 				)
 			)
 			.limit(1)
 
-		if (!voiceAgent || voiceAgent.length === 0) {
+		if (!voiceAgent.length) {
 			return {
 				success: false,
 				error: "Voice agent not found",
@@ -464,10 +536,34 @@ export async function processNextQueueBatch(
 			}
 		}
 
-		const callExecutionEnabled =
-			process.env.CALL_EXECUTION_ENABLED === "true"
+		const queueEntries = await db_ws
+			.select({
+				queueId: campaignQueue.id,
+				campaignLeadId: campaignQueue.campaignLeadId,
+				leadId: campaignLeads.leadId,
+				priority: campaignQueue.priority,
+				scheduledTime: campaignQueue.scheduledTime
+			})
+			.from(campaignQueue)
+			.innerJoin(
+				campaignLeads,
+				eq(campaignQueue.campaignLeadId, campaignLeads.id)
+			)
+			.where(
+				and(
+					eq(campaignQueue.campaignId, campaignId),
+					eq(campaignQueue.status, "queued"),
+					lte(campaignQueue.scheduledTime, new Date()),
+					eq(campaignLeads.teamId, teamId)
+				)
+			)
+			.orderBy(
+				sql`${campaignQueue.priority} DESC`,
+				campaignQueue.scheduledTime
+			)
+			.limit(batchSize)
 
-		if (!callExecutionEnabled) {
+		if (!queueEntries.length) {
 			return {
 				success: true,
 				data: {
@@ -476,17 +572,82 @@ export async function processNextQueueBatch(
 					successful: 0,
 					failed: 0,
 					retries: 0,
-					message:
-						"Call execution is disabled (telephony deferred in this phase)."
+					message: "No calls ready to process"
 				},
 				error: null
 			}
 		}
 
+		const now = new Date()
+		const results: Array<{ queueId: number; callQueueId?: number }> = []
+
+		await db_ws.transaction(async (tx) => {
+			for (const entry of queueEntries) {
+				await tx
+					.update(campaignQueue)
+					.set({
+						status: "processing",
+						startedAt: now,
+						updatedAt: now
+					})
+					.where(eq(campaignQueue.id, entry.queueId))
+
+				const [queuedCall] = await tx
+					.insert(callQueue)
+					.values({
+						leadId: entry.leadId,
+						teamId,
+						campaignId,
+						voiceAgentId: campaignData.voiceAgentId,
+						priority: entry.priority ?? 0,
+						scheduledTime: entry.scheduledTime,
+						status: "pending",
+						userId
+					})
+					.returning({ id: callQueue.id })
+
+				await tx
+					.update(campaignQueue)
+					.set({
+						status: "completed",
+						completedAt: now,
+						updatedAt: now,
+						callResult: {
+							callId: queuedCall?.id
+								? String(queuedCall.id)
+								: undefined
+						}
+					})
+					.where(eq(campaignQueue.id, entry.queueId))
+
+				await tx
+					.update(campaignLeads)
+					.set({
+						status: "attempted",
+						lastAttemptAt: now,
+						attemptCount: sql`${campaignLeads.attemptCount} + 1`,
+						updatedAt: now
+					})
+					.where(eq(campaignLeads.id, entry.campaignLeadId))
+
+				results.push({
+					queueId: entry.queueId,
+					callQueueId: queuedCall?.id
+				})
+			}
+		})
+
 		return {
-			success: false,
-			error: "Call execution is not implemented yet.",
-			data: null
+			success: true,
+			data: {
+				processed: results.length,
+				results,
+				successful: results.length,
+				failed: 0,
+				retries: 0,
+				message: "Queued calls for processing"
+			},
+			error: null
 		}
 	} catch (error) {
 		console.error("Error processing queue batch:", error)
@@ -527,10 +688,7 @@ async function updateQueueEntryStatus(
 // Get campaign execution status
 export async function getCampaignExecutionStatus(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getExecutionContext()
 
 		// Get campaign basic info
 		const campaign = await db_ws
@@ -543,7 +701,7 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -562,28 +720,48 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 				count: sql<number>`COUNT(*)`.as("count")
 			})
 			.from(campaignQueue)
+			.innerJoin(
+				campaignLeads,
+				eq(campaignQueue.campaignLeadId, campaignLeads.id)
+			)
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId)
+					eq(campaignLeads.teamId, teamId)
 				)
 			)
 			.groupBy(campaignQueue.status)
 
-		// Get lead statistics
-		const leadStats = await db_ws
-			.select({
-				status: campaignLeads.status,
-				count: sql<number>`COUNT(*)`.as("count")
-			})
-			.from(campaignLeads)
-			.where(
-				and(
-					eq(campaignLeads.campaignId, campaignId),
-					eq(campaignLeads.userId, userId)
+		// Get lead and assignment statistics
+		const [leadStats, assignmentStats] = await Promise.all([
+			db_ws
+				.select({
+					status: leads.status,
+					count: sql<number>`COUNT(*)`.as("count")
+				})
+				.from(campaignLeads)
+				.leftJoin(leads, eq(campaignLeads.leadId, leads.id))
+				.where(
+					and(
+						eq(campaignLeads.campaignId, campaignId),
+						eq(campaignLeads.teamId, teamId)
+					)
 				)
-			)
-			.groupBy(campaignLeads.status)
+				.groupBy(leads.status),
+			db_ws
+				.select({
+					status: campaignLeads.status,
+					count: sql<number>`COUNT(*)`.as("count")
+				})
+				.from(campaignLeads)
+				.where(
+					and(
+						eq(campaignLeads.campaignId, campaignId),
+						eq(campaignLeads.teamId, teamId)
+					)
+				)
+				.groupBy(campaignLeads.status)
+		])
 
 		// Convert stats to objects for easier access
 		const queueStatsObj = queueStats.reduce(
@@ -606,8 +784,18 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 			{} as Record<string, number>
 		)
 
+		const assignmentStatsObj = assignmentStats.reduce(
+			(acc, stat) => {
+				if (stat.status) {
+					acc[stat.status] = stat.count
+				}
+				return acc
+			},
+			{} as Record<string, number>
+		)
+
 		// Calculate totals and progress
-		const totalLeads = Object.values(leadStatsObj).reduce(
+		const totalLeads = Object.values(assignmentStatsObj).reduce(
 			(sum, count) => sum + count,
 			0
 		)
@@ -634,13 +822,16 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 				},
 				leads: {
 					total: totalLeads,
-					pending: leadStatsObj.pending || 0,
-					attempted: leadStatsObj.attempted || 0,
+					pending: assignmentStatsObj.pending || 0,
+					attempted: assignmentStatsObj.attempted || 0,
+					completed: assignmentStatsObj.completed || 0,
+					failed: assignmentStatsObj.failed || 0,
+					excluded: assignmentStatsObj.excluded || 0,
+					new: leadStatsObj.new || 0,
 					contacted: leadStatsObj.contacted || 0,
 					qualified: leadStatsObj.qualified || 0,
 					converted: leadStatsObj.converted || 0,
-					failed: leadStatsObj.failed || 0,
-					excluded: leadStatsObj.excluded || 0
+					lost: leadStatsObj.lost || 0
 				},
 				progress: Math.round(progress * 100) / 100
 			},
@@ -659,10 +850,7 @@ export async function getCampaignExecutionStatus(campaignId: number) {
 // Trigger next batch processing (can be called manually or via cron/webhook)
 export async function triggerCampaignProcessing(campaignId?: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getExecutionContext()
 
 		let campaignsToProcess: number[] = []
 
@@ -676,7 +864,7 @@ export async function triggerCampaignProcessing(campaignId?: number) {
 				.from(campaigns)
 				.where(
 					and(
-						eq(campaigns.userId, userId),
+						eq(campaigns.teamId, teamId),
 						eq(campaigns.status, "running")
 					)
 				)
@@ -715,10 +903,7 @@ export async function triggerCampaignProcessing(campaignId?: number) {
 // Schedule campaign to start at a specific time
 export async function scheduleCampaign(campaignId: number, startTime: Date) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getExecutionContext()
 
 		// Validate campaign ownership
 		const campaign = await db_ws
@@ -730,7 +915,7 @@ export async function scheduleCampaign(campaignId: number, startTime: Date) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -778,7 +963,9 @@ export async function scheduleCampaign(campaignId: number, startTime: Date) {
 				startDate: startTime,
 				updatedAt: new Date()
 			})
-			.where(eq(campaigns.id, campaignId))
+			.where(
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
+			)
 			.returning()
 
 		return {
@@ -803,7 +990,7 @@ export async function processScheduledCampaigns() {
 		const scheduledCampaigns = await db_ws
 			.select({
 				id: campaigns.id,
-				userId: campaigns.userId,
+				teamId: campaigns.teamId,
 				name: campaigns.name,
 				startDate: campaigns.startDate
 			})
@@ -822,7 +1009,7 @@ export async function processScheduledCampaigns() {
 				// Start the campaign using existing start function
 				const result = await startCampaignDirect(
 					campaign.id,
-					campaign.userId
+					campaign.teamId
 				)
 
 				results.push({
@@ -861,7 +1048,7 @@ export async function processScheduledCampaigns() {
 }
 
 // Direct campaign start without auth context (for scheduled processing)
-async function startCampaignDirect(campaignId: number, userId: string) {
+async function startCampaignDirect(campaignId: number, teamId: string) {
 	try {
 		// Validate campaign
 		const campaign = await db_ws
@@ -873,7 +1060,7 @@ async function startCampaignDirect(campaignId: number, userId: string) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
@@ -923,7 +1110,7 @@ async function startCampaignDirect(campaignId: number, userId: string) {
 			.where(
 				and(
 					eq(voiceAgents.id, campaignData.voiceAgentId),
-					eq(voiceAgents.userId, userId)
+					eq(voiceAgents.teamId, teamId)
 				)
 			)
 			.limit(1)
@@ -948,11 +1135,15 @@ async function startCampaignDirect(campaignId: number, userId: string) {
 		const queueCount = await db_ws
 			.select({ count: sql<number>`COUNT(*)` })
 			.from(campaignQueue)
+			.innerJoin(
+				campaignLeads,
+				eq(campaignQueue.campaignLeadId, campaignLeads.id)
+			)
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
-					eq(campaignQueue.status, "queued")
+					eq(campaignQueue.status, "queued"),
+					eq(campaignLeads.teamId, teamId)
 				)
 			)
 
@@ -971,8 +1162,12 @@ async function startCampaignDirect(campaignId: number, userId: string) {
 				status: "running",
 				updatedAt: new Date()
 			})
-			.where(eq(campaigns.id, campaignId))
+			.where(
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
+			)
 			.returning()
+
+		await ensureCampaignRun(campaignId)
 
 		return {
 			success: true,
