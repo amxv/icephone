@@ -91,10 +91,12 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 7 — Appointments (Cal.com)
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Implemented Cal.com-backed appointments. Added Cal.com API client helper, rewrote appointment actions to create/reschedule/cancel bookings via Cal.com with team-scoped DB storage, and updated lead appointment scheduling to use the new Cal.com pipeline. Calendar now reads team appointments from DB with Cal.com booking IDs stored on each record.
 - Files changed:
-- Tests/commands run:
+  - Added: `src/lib/calcom.ts`
+  - Updated: `src/actions/appointmentActions.ts`, `src/actions/lead-communication.ts`
+- Tests/commands run: None.
 - Commit:
 - Notes/blockers:
 

@@ -1,6 +1,7 @@
 "use server"
 
 import { currentUser, requireTeam } from "@/lib/auth/session"
+import { createAppointment } from "@/actions/appointmentActions"
 import { db_ws } from "@/db"
 import {
 	callQueue,
@@ -208,16 +209,13 @@ export async function sendTextMessage(input: SendTextMessageInput) {
 // Schedule appointment with a lead
 export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate lead exists and belongs to user
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, input.leadId), eq(leads.userId, user.id)))
+			.where(and(eq(leads.id, input.leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!lead.length) {
@@ -239,20 +237,26 @@ export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 			}
 		}
 
-		// Create appointment record
-		const [appointmentRecord] = await db_ws
-			.insert(appointments)
-			.values({
-				leadId: input.leadId,
-				title: input.title,
-				description: input.description || null,
-				startTime: input.startTime,
-				endTime: input.endTime,
-				location: input.location || null,
-				completed: false,
-				userId: user.id
-			})
-			.returning()
+		const leadRecord = lead[0]
+
+		const appointmentResult = await createAppointment({
+			title: input.title,
+			startDate: input.startTime.toISOString(),
+			endDate: input.endTime.toISOString(),
+			description: input.description,
+			location: input.location,
+			leadId: input.leadId,
+			attendee: {
+				name: leadRecord.name || user.name || user.email || "Guest",
+				email: leadRecord.email || user.email,
+				phoneNumber: leadRecord.phone || undefined,
+				timeZone: "UTC"
+			}
+		})
+
+		if ("error" in appointmentResult) {
+			return { success: false, error: appointmentResult.error }
+		}
 
 		// Log the communication attempt
 		await db_ws.insert(communicationLogs).values({
@@ -265,7 +269,7 @@ export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 				content: input.description,
 				deliveryTime: input.startTime.toISOString()
 			},
-			relatedRecordId: appointmentRecord.id,
+			relatedRecordId: appointmentResult.id,
 			relatedRecordType: "appointment",
 			userId: user.id
 		})
@@ -275,7 +279,7 @@ export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 
 		return {
 			success: true,
-			data: appointmentRecord,
+			data: appointmentResult,
 			message: "Appointment scheduled successfully"
 		}
 	} catch (error) {
