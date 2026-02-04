@@ -135,7 +135,7 @@ interface VoiceAgent {
 
 interface RecentCall {
 	id: string
-	agentId: number
+	agentId: number | null
 	phoneNumber: string | null
 	status: string
 	startTime: Date

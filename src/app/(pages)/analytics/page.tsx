@@ -109,7 +109,7 @@ export default async function AnalyticsPage({
 	// Transform recentCalls to match expected interface
 	const recentCalls = recentCallsResult.map((call) => ({
 		id: call.sessionId || call.id.toString(),
-		agentId: call.id, // Use the session id as a proxy for agentId
+		agentId: call.agentId,
 		phoneNumber: call.phoneNumber,
 		status: call.status || "unknown",
 		startTime: call.startTime,
@@ -117,7 +117,7 @@ export default async function AnalyticsPage({
 		sentiment: call.sentiment,
 		agent: call.agentName
 			? {
-					id: call.id,
+					id: call.agentId ?? call.id,
 					name: call.agentName
 				}
 			: undefined

@@ -338,3 +338,10 @@ Examples:
 - [x] Re-run quality gates after cleanup
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-48: admin placeholder cleanup`
+
+### Phase 49 — Analytics Recent Calls Data Integrity
+- [x] Include actual `agentId` in `getRecentCalls` payload instead of inferring from session row id
+- [x] Fix analytics page mapping to use real agent identifiers in recent call items
+- [x] Align analytics dashboard recent-call typing with nullable agent IDs
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-49: analytics recent-call ids`

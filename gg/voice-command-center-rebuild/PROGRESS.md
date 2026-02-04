@@ -603,3 +603,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-48: admin placeholder cleanup`
 - Notes/blockers:
   - A/B testing can be reintroduced in a future phase once backed by persistence + analytics comparison logic.
+
+---
+
+## Phase 49 — Analytics Recent Calls Data Integrity
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Fixed an analytics data-mapping bug where recent-call agent IDs were incorrectly derived from call/session row IDs. `getRecentCalls` now returns real `voiceSessions.agentId`, analytics page mapping now uses that identifier, and dashboard typing was aligned to handle nullable agent IDs safely.
+- Files changed:
+  - Updated: `src/actions/call-analytics.ts`, `src/app/(pages)/analytics/page.tsx`, `src/app/(pages)/analytics/components/AnalyticsDashboard.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-49: analytics recent-call ids`
+- Notes/blockers:
+  - None.

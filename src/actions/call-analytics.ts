@@ -808,6 +808,7 @@ export async function getRecentCalls(rawLimit = 20) {
 		.select({
 			id: voiceSessions.id,
 			sessionId: voiceSessions.sessionId,
+			agentId: voiceSessions.agentId,
 			agentName: voiceAgents.name,
 			leadName: leads.name,
 			phoneNumber: voiceSessions.phoneNumber,
