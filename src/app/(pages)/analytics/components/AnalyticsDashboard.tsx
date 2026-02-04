@@ -73,6 +73,9 @@ interface CallAnalytics {
 		promiseToPay: number
 		didNotPickUp: number
 	}
+	recordingCount: number
+	recordingCoverageRate: number
+	recordingsByProvider: Record<string, number>
 	sentimentBreakdown: {
 		positive: number
 		negative: number
@@ -324,6 +327,14 @@ export default function AnalyticsDashboard({
 				"Did Not Pick Up",
 				initialAnalytics.collectionSignals.didNotPickUp.toString()
 			],
+			[
+				"Recording Coverage",
+				`${initialAnalytics.recordingCoverageRate.toString()}%`
+			],
+			[
+				"Calls With Recording",
+				initialAnalytics.recordingCount.toString()
+			],
 			[""],
 			["Disposition", "Count"],
 			...dispositionData.map((entry) => [
@@ -385,7 +396,9 @@ export default function AnalyticsDashboard({
 		.filter((item) => item.value > 0)
 		.sort((a, b) => b.value - a.value)
 
-	const dispositionData = Object.entries(initialAnalytics.dispositionBreakdown)
+	const dispositionData = Object.entries(
+		initialAnalytics.dispositionBreakdown
+	)
 		.map(([key, value]) => ({
 			key,
 			name: formatOutcomeLabel(key),
@@ -475,7 +488,7 @@ export default function AnalyticsDashboard({
 			</div>
 
 			{/* Enhanced Metrics Cards with Trends */}
-			<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+			<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 					<CardHeader className="pb-2">
 						<CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -622,6 +635,40 @@ export default function AnalyticsDashboard({
 						<p className="text-xs text-muted-foreground">
 							{voiceAgents.length} total agents
 						</p>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+							<Activity className="h-4 w-4" />
+							Recording Coverage
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="text-2xl font-bold">
+							{Math.round(initialAnalytics.recordingCoverageRate)}
+							%
+						</div>
+						<p className="text-xs text-muted-foreground">
+							{initialAnalytics.recordingCount} calls with
+							recording
+						</p>
+						<div className="mt-2 flex flex-wrap gap-1">
+							{Object.entries(
+								initialAnalytics.recordingsByProvider
+							)
+								.slice(0, 3)
+								.map(([provider, count]) => (
+									<Badge
+										key={provider}
+										variant="outline"
+										className="text-[10px] uppercase"
+									>
+										{provider}: {count}
+									</Badge>
+								))}
+						</div>
 					</CardContent>
 				</Card>
 			</div>

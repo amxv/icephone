@@ -410,11 +410,13 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 33 — Recording Infrastructure (Backend + UI Readiness)
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added telephony recording persistence plumbing and surfaced recording readiness in product analytics/call detail views. Introduced recording upsert helper for provider callbacks, enriched call reads with latest recording provider/status metadata, and expanded analytics with recording coverage + provider distribution.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Added: `src/lib/telephony/recordings.ts`
+  - Updated: `src/actions/calls.ts`, `src/actions/call-analytics.ts`, `src/components/calls-table.tsx`, `src/components/calls-page-client.tsx`, `src/app/(pages)/analytics/components/AnalyticsDashboard.tsx`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-33: recording readiness`
 - Notes/blockers:
   - Add recording metadata persistence and UI exposure for future telephony rollouts.
 

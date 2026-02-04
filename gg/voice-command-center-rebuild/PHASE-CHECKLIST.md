@@ -229,11 +229,11 @@ Examples:
 - [x] Commit: `phase-32: telephony foundation`
 
 ### Phase 33 — Recording Infrastructure (Backend + UI Readiness)
-- [ ] Add recording persistence model and APIs (recording metadata + provider links + storage pointers)
-- [ ] Add recording lifecycle plumbing from telephony execution/webhooks into call records
-- [ ] Expose recording data in UI call details/analytics surfaces
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-33: recording readiness`
+- [x] Add recording persistence model and APIs (recording metadata + provider links + storage pointers)
+- [x] Add recording lifecycle plumbing from telephony execution/webhooks into call records
+- [x] Expose recording data in UI call details/analytics surfaces
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-33: recording readiness`
 
 ### Phase 34 — Telephony Webhook Ingestion + Security
 - [ ] Implement provider webhook endpoints for Twilio/Vonage/Telnyx

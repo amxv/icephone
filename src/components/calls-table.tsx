@@ -90,7 +90,10 @@ export const callSchema = z.object({
 	agentName: z.string().nullable(),
 	sessionId: z.string().nullable(),
 	cost: z.string().nullable(),
-	sentiment: z.string().nullable()
+	sentiment: z.string().nullable(),
+	recordingStatus: z.string().nullable().optional(),
+	recordingProvider: z.string().nullable().optional(),
+	metadata: z.record(z.unknown()).optional()
 })
 
 // Infer the type from our schema

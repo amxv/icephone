@@ -1,7 +1,13 @@
 "use server"
 
 import { db_ws as db } from "@/db"
-import { voiceSessions, voiceAgents, calls, leads } from "@/db/schema"
+import {
+	callRecordings,
+	calls,
+	leads,
+	voiceAgents,
+	voiceSessions
+} from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
 import { teamScope } from "@/lib/team-scope"
@@ -40,6 +46,9 @@ interface CallAnalytics {
 		promiseToPay: number
 		didNotPickUp: number
 	}
+	recordingCount: number
+	recordingCoverageRate: number
+	recordingsByProvider: Record<string, number>
 	sentimentBreakdown: {
 		positive: number
 		negative: number
@@ -171,7 +180,9 @@ export async function getCallAnalytics(
 		sentimentStats,
 		agentStats,
 		dailyVoiceStats,
-		dailyLegacyStats
+		dailyLegacyStats,
+		recordingCoverageStats,
+		recordingProviderStats
 	] = await Promise.all([
 		db
 			.select({
@@ -392,7 +403,35 @@ export async function getCallAnalytics(
 				)
 			)
 			.groupBy(sql`DATE(${calls.startTime})`)
-			.orderBy(sql`DATE(${calls.startTime})`)
+			.orderBy(sql`DATE(${calls.startTime})`),
+		db
+			.select({
+				recordingCount: count(calls.id)
+			})
+			.from(calls)
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate),
+					sql`${calls.recordingUrl} IS NOT NULL`
+				)
+			),
+		db
+			.select({
+				provider: callRecordings.provider,
+				count: sql<number>`COUNT(DISTINCT ${callRecordings.callId})`
+			})
+			.from(callRecordings)
+			.innerJoin(calls, eq(callRecordings.callId, calls.id))
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate)
+				)
+			)
+			.groupBy(callRecordings.provider)
 	])
 
 	const voiceStats = voiceSessionStats[0]
@@ -459,6 +498,16 @@ export async function getCallAnalytics(
 		promiseToPay: dispositionBreakdown.promise_to_pay || 0,
 		didNotPickUp: dispositionBreakdown.did_not_pick_up || 0
 	}
+
+	const recordingCount = recordingCoverageStats[0]?.recordingCount || 0
+	const recordingsByProvider = recordingProviderStats.reduce<
+		Record<string, number>
+	>((acc, row) => {
+		if (row.provider) {
+			acc[row.provider] = row.count
+		}
+		return acc
+	}, {})
 
 	const directionBreakdown = {
 		incoming: 0,
@@ -585,6 +634,12 @@ export async function getCallAnalytics(
 		dispositionBreakdown,
 		directionBreakdown,
 		collectionSignals,
+		recordingCount,
+		recordingCoverageRate:
+			combinedStats.totalCalls > 0
+				? Math.round((recordingCount / combinedStats.totalCalls) * 100)
+				: 0,
+		recordingsByProvider,
 		sentimentBreakdown,
 		topPerformingAgents,
 		dailyCallVolume,

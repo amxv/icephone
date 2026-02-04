@@ -199,6 +199,22 @@ function CallDetails({ call }: { call: CallItem }) {
 							<ClockIcon className="h-3.5 w-3.5 mr-1" />
 							{formatDuration(call.duration)}
 						</Badge>
+						{call.recordingStatus && (
+							<Badge
+								variant="outline"
+								className="bg-indigo-50 text-indigo-800 hover:bg-indigo-50 border-indigo-200"
+							>
+								Recording: {call.recordingStatus}
+							</Badge>
+						)}
+						{call.recordingProvider && (
+							<Badge
+								variant="outline"
+								className="bg-slate-50 text-slate-700 hover:bg-slate-50 border-slate-200 uppercase"
+							>
+								{call.recordingProvider}
+							</Badge>
+						)}
 					</div>
 				</div>
 

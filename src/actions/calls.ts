@@ -1,7 +1,13 @@
 "use server"
 
 import { db_ws } from "@/db"
-import { calls, callEvents, leads, voiceAgents } from "@/db/schema"
+import {
+	callEvents,
+	callRecordings,
+	calls,
+	leads,
+	voiceAgents
+} from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
 import { syncCallOutcomeToCRMs } from "@/lib/crm/integration-service"
@@ -140,9 +146,7 @@ function createAutoCallNote(input: {
 		typeof input.duration === "number"
 			? `Duration: ${Math.max(0, Math.round(input.duration))}s`
 			: null,
-		input.summary
-			? `Summary: ${input.summary.trim().slice(0, 280)}`
-			: null
+		input.summary ? `Summary: ${input.summary.trim().slice(0, 280)}` : null
 	].filter(Boolean)
 
 	const recommendation =
@@ -229,7 +233,21 @@ export async function getCalls(rawFilter: unknown = {}) {
 				agentName: voiceAgents.name,
 				sessionId: calls.sessionId,
 				cost: calls.cost,
-				sentiment: calls.sentiment
+				sentiment: calls.sentiment,
+				recordingStatus: sql<string | null>`(
+					SELECT ${callRecordings.status}
+					FROM ${callRecordings}
+					WHERE ${callRecordings.callId} = ${calls.id}
+					ORDER BY ${callRecordings.createdAt} DESC
+					LIMIT 1
+				)`,
+				recordingProvider: sql<string | null>`(
+					SELECT ${callRecordings.provider}
+					FROM ${callRecordings}
+					WHERE ${callRecordings.callId} = ${calls.id}
+					ORDER BY ${callRecordings.createdAt} DESC
+					LIMIT 1
+				)`
 			})
 			.from(calls)
 			.leftJoin(leads, eq(calls.leadId, leads.id))
@@ -275,7 +293,22 @@ export async function getCallById(callId: string) {
 				agentName: voiceAgents.name,
 				sessionId: calls.sessionId,
 				cost: calls.cost,
-				sentiment: calls.sentiment
+				sentiment: calls.sentiment,
+				metadata: calls.metadata,
+				recordingStatus: sql<string | null>`(
+					SELECT ${callRecordings.status}
+					FROM ${callRecordings}
+					WHERE ${callRecordings.callId} = ${calls.id}
+					ORDER BY ${callRecordings.createdAt} DESC
+					LIMIT 1
+				)`,
+				recordingProvider: sql<string | null>`(
+					SELECT ${callRecordings.provider}
+					FROM ${callRecordings}
+					WHERE ${callRecordings.callId} = ${calls.id}
+					ORDER BY ${callRecordings.createdAt} DESC
+					LIMIT 1
+				)`
 			})
 			.from(calls)
 			.leftJoin(leads, eq(calls.leadId, leads.id))
@@ -401,7 +434,10 @@ export async function updateCallOutcome(callId: number, rawData: unknown) {
 					callId: updatedCall.id,
 					callTimestamp: updatedCall.startTime || new Date(),
 					durationSeconds: updatedCall.duration,
-					status: (updatedCall.status as string | null) || data.status || null,
+					status:
+						(updatedCall.status as string | null) ||
+						data.status ||
+						null,
 					disposition,
 					summary:
 						(updatedCall.summary as string | null) ||
@@ -419,7 +455,8 @@ export async function updateCallOutcome(callId: number, rawData: unknown) {
 
 			if (syncResults.length > 0) {
 				const syncedMetadata: Record<string, unknown> = {
-					...((updatedCall.metadata as Record<string, unknown>) || {}),
+					...((updatedCall.metadata as Record<string, unknown>) ||
+						{}),
 					crmSync: {
 						attemptedAt: new Date().toISOString(),
 						results: syncResults
