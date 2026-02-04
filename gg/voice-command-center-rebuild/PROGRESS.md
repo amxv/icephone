@@ -678,3 +678,16 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-54: large-file refactor batch 1`
 - Notes/blockers:
   - Remaining oversized `src/**` files are tracked explicitly in `LARGE-FILE-REFACTOR-TRACKER.md` and continue in Phase 55 batches.
+
+---
+
+## Phase 55 — Frontend Gap Closure (Integrations + Queue Ops + Campaign Controls)
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Closed the backend/frontend gaps identified in the audit by wiring missing product surfaces and operational controls. Added full integrations management in settings (Cal.com + CRM + telephony provider onboarding for Twilio/Telnyx/Vonage), wired telephony dispatch to team-scoped provider credentials/settings (not env-only), added queue ops controls (process now, retry selected, cancel selected, bulk selection), unblocked campaign voice-configuration saving when `voiceAgentId` prop is absent, and added campaign control editing for call timing/retry/goals after creation.
+- Files changed:
+  - Added: `src/actions/integrations.ts`, `src/actions/telephony-integrations.ts`, `src/actions/call-queue-ops.ts`
+  - Updated: `src/app/(pages)/settings/page.tsx`, `src/components/call-queue-page-client.tsx`, `src/components/campaign-controls.tsx`, `src/components/campaign-voice-configuration.tsx`, `src/app/api/call-queue/process/route.ts`, `src/actions/campaigns/core.ts`, `src/actions/crm-integrations.ts`, `src/lib/crm/integration-service.ts`, `src/lib/telephony/types.ts`, `src/lib/telephony/providers/twilio.ts`, `src/lib/telephony/providers/telnyx.ts`, `src/lib/telephony/providers/vonage.ts`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `06dfe6a` (`phase-55: close frontend gaps for integrations and queue ops`)
+- Notes/blockers:
+  - Follow-up large-file reduction work moves to Phase 56.

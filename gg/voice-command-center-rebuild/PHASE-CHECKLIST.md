@@ -391,7 +391,17 @@ Examples:
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-54: large-file refactor batch 1`
 
-### Phase 55 — Large-File Refactor Program (Batch 2+)
+### Phase 55 — Frontend Gap Closure (Integrations + Queue Ops + Campaign Controls)
+- [x] Fix campaign voice-configuration save blocking when parent `voiceAgentId` prop is absent
+- [x] Add campaign scheduling/process-now controls and post-create campaign settings edit surface
+- [x] Add settings integrations UI for Cal.com + CRM + telephony provider onboarding (Twilio/Telnyx/Vonage)
+- [x] Wire telephony providers to team-scoped integration credentials/settings (not env-only)
+- [x] Add call queue operational controls (process-now, retry selected, cancel selected, bulk selection)
+- [x] Run `bun run typecheck` and `bun run lint`
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-55: close frontend gaps for integrations and queue ops`
+
+### Phase 56 — Large-File Refactor Program (Batch 2+)
 - [ ] Continue reducing all remaining `src/**` files over 500 LOC to under threshold
 - [ ] Preserve behavior and API contracts while extracting modules/helpers
 - [ ] Keep tracker (`LARGE-FILE-REFACTOR-TRACKER.md`) updated per file
