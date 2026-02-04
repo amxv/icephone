@@ -1914,6 +1914,9 @@ export const communicationLogs = pgTable(
 				templateId?: number
 				voiceAgentId?: number
 				phoneNumber?: string
+				outboundPhoneNumberId?: number
+				outboundPhoneNumber?: string
+				outboundProvider?: "mock" | "twilio" | "telnyx" | "vonage"
 				errorMessage?: string
 				deliveryTime?: string
 				openTime?: string

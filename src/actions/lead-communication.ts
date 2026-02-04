@@ -10,7 +10,8 @@ import {
 	communicationLogs,
 	voiceAgents,
 	leads,
-	calls
+	calls,
+	teamPhoneNumbers
 } from "@/db/schema"
 import { eq, and, desc, sql } from "drizzle-orm"
 import { teamScope } from "@/lib/team-scope"
@@ -24,6 +25,7 @@ interface ScheduleCallInput {
 	scheduledTime?: Date
 	priority?: number
 	phoneNumber?: string // Override lead's phone if needed
+	outboundPhoneNumberId?: number // Selected team outbound caller ID
 }
 
 interface SendTextMessageInput {
@@ -93,6 +95,39 @@ export async function scheduleCall(input: ScheduleCallInput) {
 			}
 		}
 
+		let outboundPhoneNumber: {
+			id: number
+			phoneNumber: string
+			provider: "mock" | "twilio" | "telnyx" | "vonage"
+		} | null = null
+
+		if (input.outboundPhoneNumberId) {
+			const selected = await db_ws
+				.select({
+					id: teamPhoneNumbers.id,
+					phoneNumber: teamPhoneNumbers.phoneNumber,
+					provider: teamPhoneNumbers.provider
+				})
+				.from(teamPhoneNumbers)
+				.where(
+					and(
+						eq(teamPhoneNumbers.id, input.outboundPhoneNumberId),
+						eq(teamPhoneNumbers.teamId, teamId),
+						eq(teamPhoneNumbers.status, "active")
+					)
+				)
+				.limit(1)
+
+			if (!selected.length) {
+				return {
+					success: false,
+					error: "Selected outbound phone number is not active or unavailable"
+				}
+			}
+
+			outboundPhoneNumber = selected[0]
+		}
+
 		// Create call queue entry
 		const [callQueueEntry] = await db_ws
 			.insert(callQueue)
@@ -104,6 +139,14 @@ export async function scheduleCall(input: ScheduleCallInput) {
 				scheduledTime: input.scheduledTime || null,
 				priority: input.priority || 0,
 				phoneNumber: input.phoneNumber || null,
+				metadata: {
+					callConfiguration: {
+						outboundPhoneNumberId: outboundPhoneNumber?.id || null,
+						outboundPhoneNumber:
+							outboundPhoneNumber?.phoneNumber || null,
+						outboundProvider: outboundPhoneNumber?.provider || null
+					}
+				},
 				status: "pending",
 				userId: user.id
 			})
@@ -117,7 +160,10 @@ export async function scheduleCall(input: ScheduleCallInput) {
 			status: "pending",
 			details: {
 				voiceAgentId: input.voiceAgentId,
-				phoneNumber: input.phoneNumber
+				phoneNumber: input.phoneNumber,
+				outboundPhoneNumberId: outboundPhoneNumber?.id,
+				outboundPhoneNumber: outboundPhoneNumber?.phoneNumber,
+				outboundProvider: outboundPhoneNumber?.provider
 			},
 			relatedRecordId: callQueueEntry.id,
 			relatedRecordType: "call_queue",

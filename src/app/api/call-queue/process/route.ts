@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db_ws } from "@/db"
-import { callQueue, calls, leads, telephonyCalls } from "@/db/schema"
+import {
+	callQueue,
+	calls,
+	leads,
+	teamPhoneNumbers,
+	telephonyCalls
+} from "@/db/schema"
 import {
 	resolveTeamOutboundPhoneNumber,
 	resolveTeamTelephonyProvider
@@ -306,6 +312,7 @@ async function processTeamCallQueueDirect(
 			phoneNumber: sql<
 				string | null
 			>`COALESCE(${callQueue.phoneNumber}, ${leads.phone})`,
+			metadata: callQueue.metadata,
 			userId: callQueue.userId
 		})
 		.from(callQueue)
@@ -360,9 +367,68 @@ async function processTeamCallQueueDirect(
 	const providersUsed = new Set<string>()
 	const providerCache = new Map<string, string>()
 	const outboundNumberCache = new Map<string, string | null>()
+	const explicitOutboundNumberCache = new Map<
+		number,
+		{
+			provider: "mock" | "twilio" | "telnyx" | "vonage"
+			phoneNumber: string
+		} | null
+	>()
 
 	for (const entry of queueEntries) {
 		try {
+			const metadata =
+				(entry.metadata as
+					| {
+							callConfiguration?: {
+								outboundPhoneNumberId?: unknown
+							}
+					  }
+					| null
+					| undefined) || null
+			const explicitOutboundPhoneNumberId =
+				typeof metadata?.callConfiguration?.outboundPhoneNumberId ===
+				"number"
+					? metadata.callConfiguration.outboundPhoneNumberId
+					: null
+			let explicitOutbound: {
+				provider: "mock" | "twilio" | "telnyx" | "vonage"
+				phoneNumber: string
+			} | null = null
+			if (explicitOutboundPhoneNumberId) {
+				if (
+					!explicitOutboundNumberCache.has(
+						explicitOutboundPhoneNumberId
+					)
+				) {
+					const selected = await db_ws
+						.select({
+							provider: teamPhoneNumbers.provider,
+							phoneNumber: teamPhoneNumbers.phoneNumber
+						})
+						.from(teamPhoneNumbers)
+						.where(
+							and(
+								eq(
+									teamPhoneNumbers.id,
+									explicitOutboundPhoneNumberId
+								),
+								eq(teamPhoneNumbers.teamId, teamId),
+								eq(teamPhoneNumbers.status, "active")
+							)
+						)
+						.limit(1)
+					explicitOutboundNumberCache.set(
+						explicitOutboundPhoneNumberId,
+						selected[0] || null
+					)
+				}
+				explicitOutbound =
+					explicitOutboundNumberCache.get(
+						explicitOutboundPhoneNumberId
+					) || null
+			}
+
 			const assignedAgentId = entry.agentId || entry.voiceAgentId || null
 			const providerCacheKey = `${assignedAgentId || "default"}`
 			let resolvedProvider = providerCache.get(providerCacheKey)
@@ -371,14 +437,18 @@ async function processTeamCallQueueDirect(
 					teamId,
 					agentId: assignedAgentId,
 					preferredProvider:
-						configuredExecutionProvider === "twilio" ||
+						explicitOutbound?.provider ||
+						(configuredExecutionProvider === "twilio" ||
 						configuredExecutionProvider === "telnyx" ||
 						configuredExecutionProvider === "vonage" ||
 						configuredExecutionProvider === "mock"
 							? configuredExecutionProvider
-							: null
+							: null)
 				})
-				resolvedProvider = configuredExecutionProvider || teamProvider
+				resolvedProvider =
+					explicitOutbound?.provider ||
+					configuredExecutionProvider ||
+					teamProvider
 				providerCache.set(providerCacheKey, resolvedProvider)
 			}
 
@@ -390,13 +460,19 @@ async function processTeamCallQueueDirect(
 			let fromPhoneNumber = outboundNumberCache.get(
 				outboundNumberCacheKey
 			)
-			if (fromPhoneNumber === undefined) {
+			if (
+				fromPhoneNumber === undefined &&
+				!explicitOutbound?.phoneNumber
+			) {
 				fromPhoneNumber = await resolveTeamOutboundPhoneNumber({
 					teamId,
 					provider: executionProvider.name,
 					agentId: assignedAgentId
 				})
 				outboundNumberCache.set(outboundNumberCacheKey, fromPhoneNumber)
+			}
+			if (explicitOutbound?.phoneNumber) {
+				fromPhoneNumber = explicitOutbound.phoneNumber
 			}
 
 			const execution = await executionProvider.execute({

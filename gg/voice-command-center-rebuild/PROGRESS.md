@@ -495,3 +495,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-39: auto provider routing`
 - Notes/blockers:
   - This phase routes call dispatch by available team numbers; provider inventory/procurement sync APIs remain a separate follow-up.
+
+---
+
+## Phase 40 — Scheduled Caller ID Selection
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Extended the call scheduler flow so users can explicitly choose an outbound caller ID from active team numbers. Persisted the selected outbound number/provider in queue metadata and communication logs, then updated queue processing to honor explicit number selection before provider/agent fallback routing. This closes the gap between phone-number management and real scheduling workflows.
+- Files changed:
+  - Updated: `src/actions/lead-communication.ts`, `src/components/communication/call-dialog.tsx`, `src/app/api/call-queue/process/route.ts`, `src/db/schema.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-40: scheduled caller id selection`
+- Notes/blockers:
+  - Queue metadata now stores caller-ID intent; provider-side number provisioning/import remains a separate future phase.

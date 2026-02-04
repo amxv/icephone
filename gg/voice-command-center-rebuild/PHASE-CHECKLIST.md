@@ -276,3 +276,10 @@ Examples:
 - [x] Keep agent-assigned/default-number fallback ordering deterministic
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-39: auto provider routing`
+
+### Phase 40 — Scheduled Caller ID Selection
+- [x] Add caller ID selection in call scheduling UI using active team phone numbers
+- [x] Persist selected outbound number/provider metadata in queue + communication logs
+- [x] Respect explicit queued caller ID during queue processing before fallback routing
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-40: scheduled caller id selection`
