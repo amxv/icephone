@@ -85,7 +85,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
   - Added: `src/lib/storage/*`, `src/lib/utils/retry.ts`, `src/lib/openai/*`
   - Updated: `src/actions/knowledge-base.ts`, `src/actions/knowledge-base-files.ts`, `src/actions/knowledge-base-worker.ts`, `src/components/knowledge-base/KnowledgeBaseDocumentsList.tsx`, `src/components/knowledge-base/KnowledgeBaseSourcesList.tsx`, `src/components/knowledge-base/KnowledgeBaseStats.tsx`, `next.config.ts`, `package.json`, `src/types.ts`
 - Tests/commands run: None.
-- Commit:
+- Commit: `8485af7` (phase-6: knowledge base)
 - Notes/blockers:
 
 ---
