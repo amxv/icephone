@@ -1,6 +1,6 @@
 "use client"
 
-import { getLeads } from "@/actions/leads"
+import { listLeads } from "@/actions/leads"
 import { AddLeadDialog } from "@/components/add-lead-dialog"
 import { LeadsTable } from "@/components/leads-table"
 import type { LeadItem } from "@/components/leads-table"
@@ -192,7 +192,7 @@ function LeadsContent() {
 		async function fetchData() {
 			setLoading(true)
 			try {
-				const result = await getLeads()
+				const result = await listLeads()
 
 				if (result.success && result.data) {
 					// Transform data for the leads table

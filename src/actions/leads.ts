@@ -1,33 +1,79 @@
 "use server"
 
 import { db_ws } from "@/db"
-import { appointments, calls, leads, textMessages } from "@/db/schema"
-import { auth, currentUser } from "@/lib/auth/session"
-import { type SQL, and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
-import type { PgSelect } from "drizzle-orm/pg-core"
+import {
+	appointments,
+	calls,
+	leadNotes,
+	leadStatusEnum,
+	leads,
+	textMessages
+} from "@/db/schema"
+import { logAuditEvent } from "@/lib/audit-log"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope, withTeamId } from "@/lib/team-scope"
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm"
+import { z } from "zod"
 
-// Define types for filtering
-type LeadFilter = {
-	search?: string
-	status?: string[]
-	minScore?: number
-	maxScore?: number
-	orderBy?: string
-	orderDir?: "asc" | "desc"
+const leadStatusValues = leadStatusEnum.enumValues as [string, ...string[]]
+const leadSortFields = ["createdAt", "updatedAt", "score", "name", "status"] as const
+
+const leadFilterSchema = z
+	.object({
+		search: z.string().trim().min(1).optional(),
+		status: z.array(z.enum(leadStatusValues)).optional(),
+		minScore: z.coerce.number().min(0).max(100).optional(),
+		maxScore: z.coerce.number().min(0).max(100).optional(),
+		orderBy: z.enum(leadSortFields).optional(),
+		orderDir: z.enum(["asc", "desc"]).optional()
+	})
+	.default({})
+
+const createLeadSchema = z.object({
+	name: z.string().trim().min(2),
+	email: z.union([z.string().email(), z.literal(""), z.null()]).optional(),
+	phone: z.union([z.string(), z.null()]).optional(),
+	score: z.coerce.number().min(0).max(100).optional(),
+	status: z.enum(leadStatusValues).optional(),
+	source: z.union([z.string(), z.null()]).optional(),
+	notes: z.union([z.string(), z.null()]).optional()
+})
+
+const updateLeadSchema = z
+	.object({
+		name: z.string().trim().min(2).optional(),
+		email: z.union([z.string().email(), z.literal(""), z.null()]).optional(),
+		phone: z.union([z.string(), z.null()]).optional(),
+		score: z.coerce.number().min(0).max(100).optional(),
+		status: z.enum(leadStatusValues).optional(),
+		source: z.union([z.string(), z.null()]).optional(),
+		notes: z.union([z.string(), z.null()]).optional(),
+		assignedUserId: z.string().optional().nullable()
+	})
+	.strict()
+
+const leadIdSchema = z.number().int().positive()
+
+const leadNoteSchema = z.object({
+	leadId: leadIdSchema,
+	body: z.string().trim().min(1)
+})
+
+function toOptionalString(value: string | null | undefined) {
+	if (value === undefined) return undefined
+	if (value === null) return null
+	const trimmed = value.trim()
+	return trimmed.length ? trimmed : null
 }
 
 // Get all leads with optional filtering
-export async function getLeads(filter: LeadFilter = {}) {
+export async function listLeads(rawFilter: unknown = {}) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const filter = leadFilterSchema.parse(rawFilter)
+		const { teamId } = await requireTeam()
 
-		// Collect where conditions
-		const whereConditions: SQL[] = [eq(leads.userId, userId)]
+		const whereConditions = [teamScope(leads, teamId)]
 
-		// Apply search filter
 		if (filter.search) {
 			const searchPattern = `%${filter.search}%`
 			whereConditions.push(
@@ -35,14 +81,10 @@ export async function getLeads(filter: LeadFilter = {}) {
 			)
 		}
 
-		// Filter by status
 		if (filter.status && filter.status.length > 0) {
-			whereConditions.push(
-				sql`${leads.status} IN (${sql.join(filter.status)})`
-			)
+			whereConditions.push(inArray(leads.status, filter.status))
 		}
 
-		// Filter by score range
 		if (filter.minScore !== undefined) {
 			whereConditions.push(gte(leads.score, filter.minScore))
 		}
@@ -51,58 +93,22 @@ export async function getLeads(filter: LeadFilter = {}) {
 			whereConditions.push(lte(leads.score, filter.maxScore))
 		}
 
-		// Create a single 'and' condition from all conditions
-		const condition = and(...whereConditions)
+		const orderDir = filter.orderDir === "asc" ? asc : desc
+		const orderColumn = filter.orderBy
+			? {
+					createdAt: leads.createdAt,
+					updatedAt: leads.updatedAt,
+					score: leads.score,
+					name: leads.name,
+					status: leads.status
+				}[filter.orderBy]
+			: leads.updatedAt
 
-		// Execute the query, handle sorting separately
-		let leadsData = await db_ws.select().from(leads).where(condition)
-
-		// Apply sorting in memory since we have all data
-		if (filter.orderBy) {
-			const orderColumn =
-				filter.orderBy as keyof typeof leads.$inferSelect
-			const orderDirection = filter.orderDir || "desc"
-
-			leadsData = leadsData.sort((a, b) => {
-				const valueA = a[orderColumn]
-				const valueB = b[orderColumn]
-
-				// Handle dates
-				if (
-					orderColumn === "createdAt" ||
-					orderColumn === "updatedAt"
-				) {
-					const dateA = new Date(valueA as string).getTime()
-					const dateB = new Date(valueB as string).getTime()
-					return orderDirection === "asc"
-						? dateA - dateB
-						: dateB - dateA
-				}
-
-				// Handle strings
-				if (typeof valueA === "string" && typeof valueB === "string") {
-					return orderDirection === "asc"
-						? valueA.localeCompare(valueB)
-						: valueB.localeCompare(valueA)
-				}
-
-				// Handle numbers
-				if (typeof valueA === "number" && typeof valueB === "number") {
-					return orderDirection === "asc"
-						? valueA - valueB
-						: valueB - valueA
-				}
-
-				return 0
-			})
-		} else {
-			// Default sort by updatedAt desc
-			leadsData = leadsData.sort((a, b) => {
-				const dateA = new Date(a.updatedAt).getTime()
-				const dateB = new Date(b.updatedAt).getTime()
-				return dateB - dateA
-			})
-		}
+		const leadsData = await db_ws
+			.select()
+			.from(leads)
+			.where(and(...whereConditions))
+			.orderBy(orderDir(orderColumn))
 
 		return { data: leadsData, success: true, error: null }
 	} catch (error) {
@@ -112,54 +118,43 @@ export async function getLeads(filter: LeadFilter = {}) {
 }
 
 // Get a single lead by ID
-export async function getLeadById(leadId: number) {
+export async function getLead(leadId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const parsedLeadId = leadIdSchema.parse(leadId)
+		const { teamId } = await requireTeam()
 
-		// Get the lead
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
+			.where(and(eq(leads.id, parsedLeadId), teamScope(leads, teamId)))
 			.limit(1)
 
-		if (!lead || lead.length === 0) {
+		if (!lead.length) {
 			return { success: false, error: "Lead not found" }
 		}
 
-		// Get related appointments
-		const leadAppointments = await db_ws
-			.select()
-			.from(appointments)
-			.where(
-				and(
-					eq(appointments.leadId, leadId),
-					eq(appointments.userId, userId)
-				)
-			)
-			.orderBy(desc(appointments.startTime))
-
-		// Get related calls
-		const leadCalls = await db_ws
-			.select()
-			.from(calls)
-			.where(and(eq(calls.leadId, leadId), eq(calls.userId, userId)))
-			.orderBy(desc(calls.startTime))
-
-		// Get related text messages
-		const leadTextMessages = await db_ws
-			.select()
-			.from(textMessages)
-			.where(
-				and(
-					eq(textMessages.leadId, leadId),
-					eq(textMessages.userId, userId)
-				)
-			)
-			.orderBy(desc(textMessages.sentAt))
+		const [leadAppointments, leadCalls, leadTextMessages] = await Promise.all([
+			db_ws
+				.select()
+				.from(appointments)
+				.where(
+					and(
+						eq(appointments.leadId, parsedLeadId),
+						teamScope(appointments, teamId)
+					)
+					)
+				.orderBy(desc(appointments.startTime)),
+			db_ws
+				.select()
+				.from(calls)
+				.where(and(eq(calls.leadId, parsedLeadId), teamScope(calls, teamId)))
+				.orderBy(desc(calls.startTime)),
+			db_ws
+				.select()
+				.from(textMessages)
+				.where(eq(textMessages.leadId, parsedLeadId))
+				.orderBy(desc(textMessages.sentAt))
+		])
 
 		return {
 			success: true,
@@ -177,27 +172,47 @@ export async function getLeadById(leadId: number) {
 }
 
 // Create a new lead
-export async function createLead(
-	data: Omit<
-		typeof leads.$inferInsert,
-		"id" | "createdAt" | "updatedAt" | "userId"
-	>
-) {
+export async function createLead(rawData: unknown) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const data = createLeadSchema.parse(rawData)
+		const { teamId, user } = await requireTeam()
 
 		const result = await db_ws
 			.insert(leads)
-			.values({
-				...data,
-				userId
-			})
+			.values(
+				withTeamId(
+					{
+						name: data.name.trim(),
+						email: toOptionalString(data.email),
+						phone: toOptionalString(data.phone),
+						score: data.score ?? 0,
+						status: data.status ?? "new",
+						source: toOptionalString(data.source),
+						notes: toOptionalString(data.notes),
+						createdByUserId: user.id,
+						userId: user.id,
+						createdAt: new Date(),
+						updatedAt: new Date()
+					},
+					teamId
+				)
+			)
 			.returning()
 
-		return { data: result[0], success: true, error: null }
+		const createdLead = result[0]
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "lead_created",
+			entityType: "lead",
+			entityId: createdLead?.id,
+			metadata: {
+				name: createdLead?.name,
+				status: createdLead?.status
+			}
+		})
+
+		return { data: createdLead, success: true, error: null }
 	} catch (error) {
 		console.error("Error creating lead:", error)
 		return { error: "Failed to create lead", success: false, data: null }
@@ -205,28 +220,49 @@ export async function createLead(
 }
 
 // Update an existing lead
-export async function updateLead(
-	id: number,
-	data: Partial<
-		Omit<typeof leads.$inferInsert, "id" | "createdAt" | "userId">
-	>
-) {
+export async function updateLead(id: number, rawData: unknown) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
+		const parsedId = leadIdSchema.parse(id)
+		const data = updateLeadSchema.parse(rawData)
+		const { teamId, user } = await requireTeam()
+
+		const updateData: Record<string, unknown> = {
+			updatedAt: new Date()
+		}
+
+		if (data.name !== undefined) updateData.name = data.name.trim()
+		if (data.email !== undefined)
+			updateData.email = toOptionalString(data.email)
+		if (data.phone !== undefined)
+			updateData.phone = toOptionalString(data.phone)
+		if (data.score !== undefined) updateData.score = data.score
+		if (data.status !== undefined) updateData.status = data.status
+		if (data.source !== undefined)
+			updateData.source = toOptionalString(data.source)
+		if (data.notes !== undefined)
+			updateData.notes = toOptionalString(data.notes)
+		if (data.assignedUserId !== undefined)
+			updateData.assignedUserId = data.assignedUserId
+
+		const updatedFields = Object.keys(updateData).filter(
+			(field) => field !== "updatedAt"
+		)
+
+		if (updatedFields.length === 0) {
+			return {
+				error: "No updates provided",
+				success: false,
+				data: null
+			}
 		}
 
 		const result = await db_ws
 			.update(leads)
-			.set({
-				...data,
-				updatedAt: new Date()
-			})
-			.where(and(eq(leads.id, id), eq(leads.userId, userId)))
+			.set(updateData)
+			.where(and(eq(leads.id, parsedId), teamScope(leads, teamId)))
 			.returning()
 
-		if (!result || result.length === 0) {
+		if (!result.length) {
 			return {
 				error: "Lead not found or update failed",
 				success: false,
@@ -234,27 +270,124 @@ export async function updateLead(
 			}
 		}
 
-		return { data: result[0], success: true, error: null }
+		const updatedLead = result[0]
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "lead_updated",
+			entityType: "lead",
+			entityId: updatedLead.id,
+			metadata: {
+				updatedFields
+			}
+		})
+
+		return { data: updatedLead, success: true, error: null }
 	} catch (error) {
 		console.error("Error updating lead:", error)
 		return { error: "Failed to update lead", success: false, data: null }
 	}
 }
 
-// Delete a lead
-export async function deleteLead(id: number) {
+export async function updateLeadStatus(leadId: number, status: string) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
+		const parsedLeadId = leadIdSchema.parse(leadId)
+		const parsedStatus = z.enum(leadStatusValues).parse(status)
+		const { teamId, user } = await requireTeam()
+
+		const result = await db_ws
+			.update(leads)
+			.set({
+				status: parsedStatus,
+				updatedAt: new Date()
+			})
+			.where(and(eq(leads.id, parsedLeadId), teamScope(leads, teamId)))
+			.returning()
+
+		if (!result.length) {
+			return {
+				error: "Lead not found or update failed",
+				success: false,
+				data: null
+			}
+		}
+
+		const updatedLead = result[0]
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "lead_status_updated",
+			entityType: "lead",
+			entityId: updatedLead.id,
+			metadata: {
+				status: parsedStatus
+			}
+		})
+
+		return { data: updatedLead, success: true, error: null }
+	} catch (error) {
+		console.error("Error updating lead status:", error)
+		return { error: "Failed to update lead status", success: false, data: null }
+	}
+}
+
+export async function createLeadNote(rawData: unknown) {
+	try {
+		const data = leadNoteSchema.parse(rawData)
+		const { teamId, user } = await requireTeam()
+
+		const existingLead = await db_ws
+			.select({ id: leads.id })
+			.from(leads)
+			.where(and(eq(leads.id, data.leadId), teamScope(leads, teamId)))
+			.limit(1)
+
+		if (!existingLead.length) {
+			return { error: "Lead not found", success: false, data: null }
 		}
 
 		const result = await db_ws
-			.delete(leads)
-			.where(and(eq(leads.id, id), eq(leads.userId, userId)))
+			.insert(leadNotes)
+			.values({
+				teamId,
+				leadId: data.leadId,
+				body: data.body,
+				createdByUserId: user.id,
+				createdAt: new Date()
+			})
 			.returning()
 
-		if (!result || result.length === 0) {
+		const note = result[0]
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "lead_note_created",
+			entityType: "lead_note",
+			entityId: note?.id,
+			metadata: {
+				leadId: data.leadId
+			}
+		})
+
+		return { data: note, success: true, error: null }
+	} catch (error) {
+		console.error("Error creating lead note:", error)
+		return { error: "Failed to create lead note", success: false, data: null }
+	}
+}
+
+// Delete a lead
+export async function deleteLead(id: number) {
+	try {
+		const parsedId = leadIdSchema.parse(id)
+		const { teamId, user } = await requireTeam()
+
+		const result = await db_ws
+			.delete(leads)
+			.where(and(eq(leads.id, parsedId), teamScope(leads, teamId)))
+			.returning()
+
+		if (!result.length) {
 			return {
 				error: "Lead not found or delete failed",
 				success: false,
@@ -262,9 +395,25 @@ export async function deleteLead(id: number) {
 			}
 		}
 
-		return { data: result[0], success: true, error: null }
+		const deletedLead = result[0]
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "lead_deleted",
+			entityType: "lead",
+			entityId: deletedLead.id,
+			metadata: {
+				name: deletedLead.name
+			}
+		})
+
+		return { data: deletedLead, success: true, error: null }
 	} catch (error) {
 		console.error("Error deleting lead:", error)
 		return { error: "Failed to delete lead", success: false, data: null }
 	}
 }
+
+// Backwards-compatible exports
+export const getLeads = listLeads
+export const getLeadById = getLead

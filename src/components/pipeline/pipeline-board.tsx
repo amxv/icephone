@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 
-import { getLeads, updateLead } from "@/actions/leads"
+import { listLeads, updateLeadStatus } from "@/actions/leads"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -70,7 +70,7 @@ export function PipelineBoard() {
 	const fetchLeads = useCallback(async () => {
 		setIsLoading(true)
 		try {
-			const response = await getLeads()
+			const response = await listLeads()
 			if (response.success && response.data) {
 				setLeads(response.data as Lead[])
 			} else {
@@ -193,7 +193,7 @@ export function PipelineBoard() {
 
 			// Update the lead status in the database
 			try {
-				const result = await updateLead(leadId, { status: newStatus })
+				const result = await updateLeadStatus(leadId, newStatus)
 				if (!result.success) {
 					toast.error(result.error || "Failed to update lead status")
 					// Revert the optimistic update on failure

@@ -44,11 +44,12 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 3 — Leads + Pipeline
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Rewrote lead actions to be team-scoped with Better Auth sessions, added Zod validation and audit logging, and implemented lead notes + status updates. Wired Leads page, Lead detail, and Pipeline board to new action names while keeping UI contracts unchanged.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Updated: `src/actions/leads.ts`, `src/app/(pages)/leads/page.tsx`, `src/app/(pages)/leads/[id]/page.tsx`, `src/components/pipeline/pipeline-board.tsx`.
+- Tests/commands run: None.
+- Commit: `phase-3: leads + pipeline`
 - Notes/blockers:
 
 ---

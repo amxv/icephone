@@ -1,6 +1,6 @@
 "use client"
 
-import { getLeadById, updateLead } from "@/actions/leads"
+import { getLead, updateLead } from "@/actions/leads"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -479,7 +479,7 @@ export default function LeadDetailPage() {
 					return
 				}
 
-				const result = await getLeadById(leadId)
+				const result = await getLead(leadId)
 
 				if (result.success && result.data) {
 					setLeadData(result.data as unknown as LeadDetailData)
@@ -535,7 +535,7 @@ export default function LeadDetailPage() {
 		if (!leadData) return
 
 		try {
-			const result = await getLeadById(leadData.lead.id)
+			const result = await getLead(leadData.lead.id)
 			if (result.success && result.data) {
 				setLeadData(result.data as unknown as LeadDetailData)
 				// Trigger communication timeline refresh
