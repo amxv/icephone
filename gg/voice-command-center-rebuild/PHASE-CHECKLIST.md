@@ -174,15 +174,15 @@ Examples:
 - [x] Implement call data + notes + disposition sync back to CRM records
 - [x] Validate support/outbound/loan-collections command-center workflows with CRM sync paths
 - [x] Update `PROGRESS.md`
-- [ ] Commit: `phase-24: crm integrations`
+- [x] Commit: `phase-24: crm integrations`
 
 ### Phase 25 — Telephony + Recording Research
-- [ ] Research telephony provider options and integration patterns for future call execution
-- [ ] Research OpenAI Realtime capabilities/limits for recordings/voice artifacts
-- [ ] Produce findings in markdown (`gg/voice-command-center-rebuild/telephony-recording-research.md`)
-- [ ] Add recommended backend architecture path for rollout
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-25: telephony research`
+- [x] Research telephony provider options and integration patterns for future call execution
+- [x] Research OpenAI Realtime capabilities/limits for recordings/voice artifacts
+- [x] Produce findings in markdown (`gg/voice-command-center-rebuild/telephony-recording-research.md`)
+- [x] Add recommended backend architecture path for rollout
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-25: telephony research`
 
 ### Phase 26 — Sidebar Feature Gap Pass (CRM Product Completeness)
 - [ ] Review Leads, Pipelines, Campaigns, Calls, Appointments, Knowledge Base, Analytics for product gaps

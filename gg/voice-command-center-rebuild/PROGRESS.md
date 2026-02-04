@@ -302,7 +302,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
   - Added: `src/lib/crm/types.ts`, `src/lib/crm/integration-service.ts`, `src/lib/crm/providers/http.ts`, `src/lib/crm/providers/shared.ts`, `src/lib/crm/providers/index.ts`, `src/lib/crm/providers/hubspot.ts`, `src/lib/crm/providers/salesforce.ts`, `src/lib/crm/providers/gohighlevel.ts`, `src/lib/crm/providers/pipedrive.ts`, `src/actions/crm-integrations.ts`
   - Updated: `src/db/schema.ts`, `src/components/add-leads-modal.tsx`, `src/actions/calls.ts`
 - Tests/commands run: `bun run typecheck`, `bun run lint`
-- Commit:
+- Commit: `330e797` (`phase-24: crm integrations`)
 - Notes/blockers:
   - Implement team-scoped integration credentials + connector clients for HubSpot, Salesforce, GoHighLevel, Pipedrive.
   - Include lead import into campaign switcher and call outcome/notes/disposition sync back to CRM records.
@@ -311,14 +311,14 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 25 — Telephony + Recording Research
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Completed a provider + architecture research pass for telephony rollout and recording strategy. Compared Twilio, Telnyx, Vonage, and Plivo for call control, streaming, and recording APIs. Documented OpenAI Realtime call/session and sideband constraints, including current recording artifact implications, and proposed a production architecture for provider abstraction, media bridging, recording pipeline, compliance, and staged rollout.
 - Files changed:
-- Tests/commands run:
+  - Added: `gg/voice-command-center-rebuild/telephony-recording-research.md`
+- Tests/commands run: Web research via `webctx` (`search`, `read-link`) and architecture documentation authoring.
 - Commit:
 - Notes/blockers:
-  - Write findings to `gg/voice-command-center-rebuild/telephony-recording-research.md`.
-  - Include OpenAI Realtime recording/voice artifact limits and recommended storage architecture for future telephony providers.
+  - None.
 
 ---
 
