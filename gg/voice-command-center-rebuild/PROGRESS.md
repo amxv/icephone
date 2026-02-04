@@ -103,9 +103,10 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 8 — Analytics + Admin
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Team-scoped analytics and admin reporting. Rebuilt dashboard and call analytics actions with Zod validation + audit logging, and ensured voice session metrics are scoped via voice agents. Admin stats/database overview now use team-scoped counts (including voice sessions and knowledge files), activity feed sourced from audit logs, and added audit log retrieval helper.
 - Files changed:
-- Tests/commands run:
+  - Updated: `src/actions/dashboard-analytics.ts`, `src/actions/call-analytics.ts`, `src/actions/admin.ts`
+- Tests/commands run: None.
 - Commit:
 - Notes/blockers:

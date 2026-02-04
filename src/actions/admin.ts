@@ -1,21 +1,24 @@
 "use server"
 
-import { currentUser } from "@/lib/auth/session"
-import { db } from "@/db/db"
+import { db_ws as db } from "@/db"
 import {
 	leads,
 	voiceAgents,
 	calls,
+	voiceSessions,
 	appointments,
 	campaigns,
 	textMessages,
-	knowledgeBaseDocuments,
-	adminActivityLogs
+	knowledgeFiles,
+	auditLogs,
+	teamMembers,
+	users
 } from "@/db/schema"
-import { count, desc, sql, eq, and, gte } from "drizzle-orm"
-
-const OWNER_USER_ID =
-	process.env.OWNER_USER_ID || "user_2qLYyeRu1ub7x0CWajTJOe01a6r"
+import { logAuditEvent } from "@/lib/audit-log"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
+import { count, desc, eq, and, gte, lte, ne } from "drizzle-orm"
+import { z } from "zod"
 
 interface ActivityMetadata {
 	duration?: number
@@ -38,214 +41,272 @@ interface ActivityItem {
 	createdAt: Date
 }
 
+const emptySchema = z.object({}).default({})
+const adminActivitySchema = z
+	.object({
+		limit: z.number().int().min(1).max(50).default(10)
+	})
+	.default({})
+const auditLogFilterSchema = z
+	.object({
+		limit: z.number().int().min(1).max(100).default(50),
+		offset: z.number().int().min(0).default(0),
+		action: z.string().trim().min(1).optional(),
+		entityType: z.string().trim().min(1).optional(),
+		actorUserId: z.string().trim().min(1).optional(),
+		startDate: z.coerce.date().optional(),
+		endDate: z.coerce.date().optional()
+	})
+	.default({})
+
 async function requireAdmin() {
-	const user = await currentUser()
-	if (!user || user.id !== OWNER_USER_ID) {
+	const { teamId, user } = await requireTeam()
+	const ownerUserId = process.env.OWNER_USER_ID
+
+	if (ownerUserId && user.id !== ownerUserId) {
 		throw new Error("Admin access required")
 	}
-	return user
+
+	const [membership] = await db
+		.select({ role: teamMembers.role })
+		.from(teamMembers)
+		.where(
+			and(
+				eq(teamMembers.teamId, teamId),
+				eq(teamMembers.userId, user.id)
+			)
+		)
+		.limit(1)
+
+	if (!membership || membership.role !== "owner") {
+		throw new Error("Admin access required")
+	}
+
+	return { teamId, user }
 }
 
-export async function getAdminStats() {
-	await requireAdmin()
+export async function getAdminStats(rawInput: Record<string, never> = {}) {
+	emptySchema.parse(rawInput)
+	const { teamId, user } = await requireAdmin()
 
 	try {
-		// Get current month start
 		const currentMonthStart = new Date()
 		currentMonthStart.setDate(1)
 		currentMonthStart.setHours(0, 0, 0, 0)
 
-		// Get total counts across all users
 		const [
 			totalUsersResult,
+			thisMonthUsersResult,
 			totalVoiceAgentsResult,
 			activeVoiceAgentsResult,
 			totalCallsResult,
 			thisMonthCallsResult,
-			thisMonthUsersResult,
+			totalVoiceSessionsResult,
+			thisMonthVoiceSessionsResult,
 			totalLeadsResult,
 			thisMonthLeadsResult
 		] = await Promise.all([
-			// Total unique users
-			db
-				.select({ count: sql<number>`count(distinct user_id)` })
-				.from(leads),
-
-			// Voice agents
 			db
 				.select({ count: count() })
-				.from(voiceAgents),
+				.from(teamMembers)
+				.where(eq(teamMembers.teamId, teamId)),
+
+			db
+				.select({ count: count() })
+				.from(teamMembers)
+				.where(
+					and(
+						eq(teamMembers.teamId, teamId),
+						gte(teamMembers.createdAt, currentMonthStart)
+					)
+				),
+
 			db
 				.select({ count: count() })
 				.from(voiceAgents)
-				.where(eq(voiceAgents.status, "active")),
+				.where(teamScope(voiceAgents, teamId)),
 
-			// Calls
 			db
 				.select({ count: count() })
-				.from(calls),
+				.from(voiceAgents)
+				.where(
+					and(
+						teamScope(voiceAgents, teamId),
+						eq(voiceAgents.status, "active")
+					)
+				),
+
 			db
 				.select({ count: count() })
 				.from(calls)
-				.where(gte(calls.createdAt, currentMonthStart)),
+				.where(teamScope(calls, teamId)),
 
-			// Users this month (based on leads created)
-			db
-				.select({ count: sql<number>`count(distinct user_id)` })
-				.from(leads)
-				.where(gte(leads.createdAt, currentMonthStart)),
-
-			// Leads
 			db
 				.select({ count: count() })
-				.from(leads),
+				.from(calls)
+				.where(
+					and(
+						teamScope(calls, teamId),
+						gte(calls.startTime, currentMonthStart)
+					)
+				),
+
+			db
+				.select({ count: count(voiceSessions.id) })
+				.from(voiceSessions)
+				.innerJoin(
+					voiceAgents,
+					eq(voiceSessions.agentId, voiceAgents.id)
+				)
+				.where(teamScope(voiceAgents, teamId)),
+
+			db
+				.select({ count: count(voiceSessions.id) })
+				.from(voiceSessions)
+				.innerJoin(
+					voiceAgents,
+					eq(voiceSessions.agentId, voiceAgents.id)
+				)
+				.where(
+					and(
+						teamScope(voiceAgents, teamId),
+						gte(voiceSessions.startTime, currentMonthStart)
+					)
+				),
+
 			db
 				.select({ count: count() })
 				.from(leads)
-				.where(gte(leads.createdAt, currentMonthStart))
+				.where(teamScope(leads, teamId)),
+
+			db
+				.select({ count: count() })
+				.from(leads)
+				.where(
+					and(teamScope(leads, teamId), gte(leads.createdAt, currentMonthStart))
+				)
 		])
 
 		const totalUsers = totalUsersResult[0]?.count || 0
+		const newUsersThisMonth = thisMonthUsersResult[0]?.count || 0
 		const totalVoiceAgents = totalVoiceAgentsResult[0]?.count || 0
 		const activeVoiceAgents = activeVoiceAgentsResult[0]?.count || 0
-		const totalCalls = totalCallsResult[0]?.count || 0
-		const thisMonthCalls = thisMonthCallsResult[0]?.count || 0
-		const thisMonthUsers = thisMonthUsersResult[0]?.count || 0
+		const totalCalls =
+			(totalCallsResult[0]?.count || 0) +
+			(totalVoiceSessionsResult[0]?.count || 0)
+		const callsThisMonth =
+			(thisMonthCallsResult[0]?.count || 0) +
+			(thisMonthVoiceSessionsResult[0]?.count || 0)
 		const totalLeads = totalLeadsResult[0]?.count || 0
-		const thisMonthLeads = thisMonthLeadsResult[0]?.count || 0
+		const leadsThisMonth = thisMonthLeadsResult[0]?.count || 0
 
-		return {
+		const stats = {
 			totalUsers,
-			newUsersThisMonth: thisMonthUsers,
+			newUsersThisMonth,
 			totalVoiceAgents,
 			activeVoiceAgents,
 			totalCalls,
-			callsThisMonth: thisMonthCalls,
+			callsThisMonth,
 			totalLeads,
-			leadsThisMonth: thisMonthLeads
+			leadsThisMonth
 		}
+
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "admin.stats.read",
+			entityType: "admin",
+			entityId: null,
+			metadata: { periodStart: currentMonthStart.toISOString() }
+		})
+
+		return stats
 	} catch (error) {
 		console.error("Error fetching admin stats:", error)
 		throw new Error("Failed to fetch admin statistics")
 	}
 }
 
-export async function getRecentActivity() {
-	await requireAdmin()
+function normalizeActivityType(action: string) {
+	return action.replace(/\./g, "_")
+}
+
+function formatActivityDescription(action: string, metadata?: ActivityMetadata) {
+	if (metadata?.title) {
+		return metadata.title
+	}
+
+	const cleaned = action.replace(/[._]/g, " ").trim()
+	if (!cleaned) {
+		return "Activity update"
+	}
+
+	return cleaned
+		.split(" ")
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(" ")
+}
+
+export async function getRecentActivity(
+	rawInput: { limit?: number } = {}
+) {
+	const { teamId, user } = await requireAdmin()
+	const { limit } = adminActivitySchema.parse(rawInput)
 
 	try {
-		// Get recent activity from multiple sources
-		const [recentCalls, recentLeads, recentAgents, recentAppointments] =
-			await Promise.all([
-				// Recent calls
-				db
-					.select({
-						id: calls.id,
-						type: sql<string>`'call_completed'`,
-						description: sql<string>`'Voice call completed'`,
-						userId: calls.userId,
-						metadata: sql<ActivityMetadata>`json_build_object(
-					'duration', ${calls.duration},
-					'leadId', ${calls.leadId},
-					'status', ${calls.status}
-				)`,
-						createdAt: calls.createdAt
-					})
-					.from(calls)
-					.orderBy(desc(calls.createdAt))
-					.limit(5),
-
-				// Recent leads
-				db
-					.select({
-						id: leads.id,
-						type: sql<string>`'lead_created'`,
-						description: sql<string>`'New lead created'`,
-						userId: leads.userId,
-						metadata: sql<ActivityMetadata>`json_build_object(
-					'leadName', ${leads.name},
-					'status', ${leads.status},
-					'score', ${leads.score}
-				)`,
-						createdAt: leads.createdAt
-					})
-					.from(leads)
-					.orderBy(desc(leads.createdAt))
-					.limit(5),
-
-				// Recent voice agents
-				db
-					.select({
-						id: voiceAgents.id,
-						type: sql<string>`'agent_created'`,
-						description: sql<string>`'Voice agent created'`,
-						userId: voiceAgents.userId,
-						metadata: sql<ActivityMetadata>`json_build_object(
-					'agentName', ${voiceAgents.name},
-					'agentStatus', ${voiceAgents.status}
-				)`,
-						createdAt: voiceAgents.createdAt
-					})
-					.from(voiceAgents)
-					.orderBy(desc(voiceAgents.createdAt))
-					.limit(3),
-
-				// Recent appointments
-				db
-					.select({
-						id: appointments.id,
-						type: sql<string>`'appointment_scheduled'`,
-						description: sql<string>`'Appointment scheduled'`,
-						userId: appointments.userId,
-						metadata: sql<ActivityMetadata>`json_build_object(
-					'title', ${appointments.title},
-					'startTime', ${appointments.startTime}
-				)`,
-						createdAt: appointments.createdAt
-					})
-					.from(appointments)
-					.orderBy(desc(appointments.createdAt))
-					.limit(3)
-			])
-
-		// Combine and sort all activities with unique keys
-		const allActivities = [
-			...recentCalls.map((activity) => ({
-				...activity,
-				uniqueKey: `call_${activity.id}`
-			})),
-			...recentLeads.map((activity) => ({
-				...activity,
-				uniqueKey: `lead_${activity.id}`
-			})),
-			...recentAgents.map((activity) => ({
-				...activity,
-				uniqueKey: `agent_${activity.id}`
-			})),
-			...recentAppointments.map((activity) => ({
-				...activity,
-				uniqueKey: `appointment_${activity.id}`
-			}))
-		]
-			.sort(
-				(a, b) =>
-					new Date(b.createdAt).getTime() -
-					new Date(a.createdAt).getTime()
+		const activityLogs = await db
+			.select({
+				id: auditLogs.id,
+				action: auditLogs.action,
+				entityType: auditLogs.entityType,
+				metadata: auditLogs.metadata,
+				createdAt: auditLogs.createdAt,
+				actorUserId: auditLogs.actorUserId,
+				actorName: users.name,
+				actorEmail: users.email,
+				actorImage: users.image
+			})
+			.from(auditLogs)
+			.leftJoin(users, eq(auditLogs.actorUserId, users.id))
+			.where(
+				and(
+					eq(auditLogs.teamId, teamId),
+					ne(auditLogs.entityType, "analytics"),
+					ne(auditLogs.entityType, "admin")
+				)
 			)
-			.slice(0, 10) // Take top 10 most recent
+			.orderBy(desc(auditLogs.createdAt))
+			.limit(limit)
 
-		// Get user information for each activity (simplified - in real app you'd batch this)
-		const activitiesWithUsers = allActivities.map((activity) => ({
-			...activity,
-			user: {
-				name: `User ${activity.userId.slice(-4)}`, // Simplified - you could fetch real user names from auth DB
-				email: `user-${activity.userId.slice(-4)}@example.com`,
-				avatar: null
-			},
-			timestamp: formatTimeAgo(activity.createdAt)
-		}))
+		const activities = activityLogs.map((log) => {
+			const metadata = (log.metadata || {}) as ActivityMetadata
+			return {
+				id: log.id,
+				type: normalizeActivityType(log.action),
+				description: formatActivityDescription(log.action, metadata),
+				userId: log.actorUserId || "unknown",
+				metadata,
+				createdAt: log.createdAt,
+				uniqueKey: `audit_${log.id}`,
+				user: {
+					name: log.actorName || "Unknown User",
+					email: log.actorEmail || "unknown@example.com",
+					avatar: log.actorImage || null
+				},
+				timestamp: formatTimeAgo(log.createdAt)
+			}
+		})
 
-		return activitiesWithUsers
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "admin.activity.read",
+			entityType: "admin",
+			entityId: null,
+			metadata: { limit }
+		})
+
+		return activities
 	} catch (error) {
 		console.error("Error fetching recent activity:", error)
 		throw new Error("Failed to fetch recent activity")
@@ -274,40 +335,174 @@ function formatTimeAgo(date: Date): string {
 	return `${days} day${days > 1 ? "s" : ""} ago`
 }
 
-export async function getDatabaseOverview() {
-	await requireAdmin()
+export async function getDatabaseOverview(rawInput: Record<string, never> = {}) {
+	emptySchema.parse(rawInput)
+	const { teamId, user } = await requireAdmin()
 
 	try {
-		// Get counts for all major tables
 		const [
 			leadsCount,
 			callsCount,
+			voiceSessionsCount,
 			appointmentsCount,
 			campaignsCount,
 			voiceAgentsCount,
 			textMessagesCount,
 			knowledgeDocsCount
 		] = await Promise.all([
-			db.select({ count: count() }).from(leads),
-			db.select({ count: count() }).from(calls),
-			db.select({ count: count() }).from(appointments),
-			db.select({ count: count() }).from(campaigns),
-			db.select({ count: count() }).from(voiceAgents),
-			db.select({ count: count() }).from(textMessages),
-			db.select({ count: count() }).from(knowledgeBaseDocuments)
+			db.select({ count: count() })
+				.from(leads)
+				.where(teamScope(leads, teamId)),
+			db.select({ count: count() })
+				.from(calls)
+				.where(teamScope(calls, teamId)),
+			db.select({ count: count(voiceSessions.id) })
+				.from(voiceSessions)
+				.innerJoin(
+					voiceAgents,
+					eq(voiceSessions.agentId, voiceAgents.id)
+				)
+				.where(teamScope(voiceAgents, teamId)),
+			db.select({ count: count() })
+				.from(appointments)
+				.where(teamScope(appointments, teamId)),
+			db.select({ count: count() })
+				.from(campaigns)
+				.where(teamScope(campaigns, teamId)),
+			db.select({ count: count() })
+				.from(voiceAgents)
+				.where(teamScope(voiceAgents, teamId)),
+			db.select({ count: count() })
+				.from(textMessages)
+				.innerJoin(leads, eq(textMessages.leadId, leads.id))
+				.where(teamScope(leads, teamId)),
+			db.select({ count: count() })
+				.from(knowledgeFiles)
+				.where(teamScope(knowledgeFiles, teamId))
 		])
 
-		return {
+		const overview = {
 			leads: leadsCount[0]?.count || 0,
-			calls: callsCount[0]?.count || 0,
+			calls:
+				(callsCount[0]?.count || 0) +
+				(voiceSessionsCount[0]?.count || 0),
 			appointments: appointmentsCount[0]?.count || 0,
 			campaigns: campaignsCount[0]?.count || 0,
 			voiceAgents: voiceAgentsCount[0]?.count || 0,
 			textMessages: textMessagesCount[0]?.count || 0,
 			knowledgeDocuments: knowledgeDocsCount[0]?.count || 0
 		}
+
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "admin.database_overview.read",
+			entityType: "admin",
+			entityId: null,
+			metadata: {}
+		})
+
+		return overview
 	} catch (error) {
 		console.error("Error fetching database overview:", error)
 		throw new Error("Failed to fetch database overview")
+	}
+}
+
+export async function getAuditLogs(rawInput: {
+	limit?: number
+	offset?: number
+	action?: string
+	entityType?: string
+	actorUserId?: string
+	startDate?: Date
+	endDate?: Date
+} = {}) {
+	const { teamId, user } = await requireAdmin()
+	const filters = auditLogFilterSchema.parse(rawInput)
+
+	try {
+		const conditions = [eq(auditLogs.teamId, teamId)]
+
+		if (filters.action) {
+			conditions.push(eq(auditLogs.action, filters.action))
+		}
+		if (filters.entityType) {
+			conditions.push(eq(auditLogs.entityType, filters.entityType))
+		}
+		if (filters.actorUserId) {
+			conditions.push(eq(auditLogs.actorUserId, filters.actorUserId))
+		}
+		if (filters.startDate) {
+			conditions.push(gte(auditLogs.createdAt, filters.startDate))
+		}
+		if (filters.endDate) {
+			conditions.push(lte(auditLogs.createdAt, filters.endDate))
+		}
+
+		const whereClause =
+			conditions.length === 1 ? conditions[0] : and(...conditions)
+
+		const [totalResult, rows] = await Promise.all([
+			db.select({ count: count() }).from(auditLogs).where(whereClause),
+			db
+				.select({
+					id: auditLogs.id,
+					action: auditLogs.action,
+					entityType: auditLogs.entityType,
+					entityId: auditLogs.entityId,
+					metadata: auditLogs.metadata,
+					createdAt: auditLogs.createdAt,
+					actorUserId: auditLogs.actorUserId,
+					actorName: users.name,
+					actorEmail: users.email,
+					actorImage: users.image
+				})
+				.from(auditLogs)
+				.leftJoin(users, eq(auditLogs.actorUserId, users.id))
+				.where(whereClause)
+				.orderBy(desc(auditLogs.createdAt))
+				.limit(filters.limit)
+				.offset(filters.offset)
+		])
+
+		const total = totalResult[0]?.count || 0
+
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "admin.audit_logs.read",
+			entityType: "admin",
+			entityId: null,
+			metadata: {
+				limit: filters.limit,
+				offset: filters.offset,
+				action: filters.action ?? null,
+				entityType: filters.entityType ?? null
+			}
+		})
+
+		return {
+			total,
+			limit: filters.limit,
+			offset: filters.offset,
+			logs: rows.map((row) => ({
+				id: row.id,
+				action: row.action,
+				entityType: row.entityType,
+				entityId: row.entityId,
+				metadata: row.metadata || {},
+				createdAt: row.createdAt,
+				actor: {
+					id: row.actorUserId,
+					name: row.actorName || "Unknown User",
+					email: row.actorEmail || "unknown@example.com",
+					avatar: row.actorImage || null
+				}
+			}))
+		}
+	} catch (error) {
+		console.error("Error fetching audit logs:", error)
+		throw new Error("Failed to fetch audit logs")
 	}
 }

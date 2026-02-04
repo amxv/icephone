@@ -1,8 +1,10 @@
 "use server"
 
-import { currentUser } from "@/lib/auth/session"
 import { db_ws as db } from "@/db"
 import { voiceSessions, voiceAgents, calls, leads } from "@/db/schema"
+import { logAuditEvent } from "@/lib/audit-log"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
 import { eq, and, desc, sql, gte, lte, count, avg, sum } from "drizzle-orm"
 import {
 	startOfDay,
@@ -13,6 +15,7 @@ import {
 	endOfMonth,
 	subDays
 } from "date-fns"
+import { z } from "zod"
 
 // Type definitions for analytics
 interface CallAnalytics {
@@ -64,12 +67,41 @@ interface CallPerformanceMetrics {
 	conversionRate: number
 }
 
+const callTimeRangeSchema = z
+	.enum(["today", "week", "month", "quarter"])
+	.default("week")
+const costTimeRangeSchema = z
+	.enum(["today", "week", "month", "quarter"])
+	.default("month")
+const trendsTimeRangeSchema = z
+	.enum(["month", "quarter", "year"])
+	.default("quarter")
+const agentIdSchema = z.number().int().positive()
+const sessionIdSchema = z.string().trim().min(1)
+const limitSchema = z.number().int().min(1).max(100).default(20)
+
+async function logAnalyticsEvent(
+	teamId: string,
+	actorUserId: string,
+	action: string,
+	metadata?: Record<string, unknown>
+) {
+	await logAuditEvent({
+		teamId,
+		actorUserId,
+		action,
+		entityType: "analytics",
+		entityId: null,
+		metadata: metadata ?? {}
+	})
+}
+
 // Get comprehensive call analytics for user
 export async function getCallAnalytics(
-	timeRange: "today" | "week" | "month" | "quarter" = "week"
+	rawTimeRange: "today" | "week" | "month" | "quarter" = "week"
 ): Promise<CallAnalytics> {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
+	const timeRange = callTimeRangeSchema.parse(rawTimeRange)
 
 	// Calculate date range
 	const now = new Date()
@@ -114,9 +146,10 @@ export async function getCallAnalytics(
 			)
 		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -138,7 +171,7 @@ export async function getCallAnalytics(
 		.from(calls)
 		.where(
 			and(
-				eq(calls.userId, user.id),
+				teamScope(calls, teamId),
 				gte(calls.startTime, startDate),
 				lte(calls.startTime, endDate)
 			)
@@ -171,9 +204,10 @@ export async function getCallAnalytics(
 			count: count(voiceSessions.id)
 		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -210,7 +244,7 @@ export async function getCallAnalytics(
 		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -239,9 +273,10 @@ export async function getCallAnalytics(
 			cost: sum(voiceSessions.cost)
 		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -259,7 +294,7 @@ export async function getCallAnalytics(
 		.from(calls)
 		.where(
 			and(
-				eq(calls.userId, user.id),
+				teamScope(calls, teamId),
 				gte(calls.startTime, startDate),
 				lte(calls.startTime, endDate)
 			)
@@ -305,6 +340,10 @@ export async function getCallAnalytics(
 		}))
 		.sort((a, b) => a.date.localeCompare(b.date))
 
+	await logAnalyticsEvent(teamId, user.id, "analytics.calls.summary.read", {
+		timeRange
+	})
+
 	return {
 		totalCalls: combinedStats.totalCalls,
 		totalDuration: combinedStats.totalDuration,
@@ -329,17 +368,20 @@ export async function getCallAnalytics(
 
 // Get detailed performance metrics for a specific voice agent
 export async function getAgentPerformanceMetrics(
-	agentId: number
+	rawAgentId: number
 ): Promise<CallPerformanceMetrics> {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
+	const agentId = agentIdSchema.parse(rawAgentId)
 
 	// Get agent details
 	const agent = await db
 		.select()
 		.from(voiceAgents)
 		.where(
-			and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, user.id))
+			and(
+				eq(voiceAgents.id, agentId),
+				teamScope(voiceAgents, teamId)
+			)
 		)
 		.limit(1)
 
@@ -362,13 +404,10 @@ export async function getAgentPerformanceMetrics(
 			totalCost: sum(voiceSessions.cost),
 			averageCost: avg(voiceSessions.cost)
 		})
-		.from(voiceSessions)
-		.where(
-			and(
-				eq(voiceSessions.agentId, agentId),
-				eq(voiceSessions.userId, user.id)
-			)
-		)
+	.from(voiceSessions)
+	.where(
+		eq(voiceSessions.agentId, agentId)
+	)
 
 	const stats = callStats[0]
 
@@ -378,13 +417,10 @@ export async function getAgentPerformanceMetrics(
 			sentiment: voiceSessions.sentiment,
 			count: count(voiceSessions.id)
 		})
-		.from(voiceSessions)
-		.where(
-			and(
-				eq(voiceSessions.agentId, agentId),
-				eq(voiceSessions.userId, user.id)
-			)
-		)
+	.from(voiceSessions)
+	.where(
+		eq(voiceSessions.agentId, agentId)
+	)
 		.groupBy(voiceSessions.sentiment)
 
 	const sentimentDistribution = {
@@ -409,18 +445,15 @@ export async function getAgentPerformanceMetrics(
 				sql`CASE WHEN ${leads.status} = 'converted' THEN 1 END`
 			)
 		})
-		.from(voiceSessions)
-		.leftJoin(leads, eq(voiceSessions.leadId, leads.id))
-		.where(
-			and(
-				eq(voiceSessions.agentId, agentId),
-				eq(voiceSessions.userId, user.id)
-			)
-		)
+	.from(voiceSessions)
+	.leftJoin(leads, eq(voiceSessions.leadId, leads.id))
+	.where(
+		eq(voiceSessions.agentId, agentId)
+	)
 
 	const leadData = leadStats[0]
 
-	return {
+	const result = {
 		agentId,
 		agentName: agent[0].name,
 		totalCalls: stats.totalCalls,
@@ -440,12 +473,18 @@ export async function getAgentPerformanceMetrics(
 					)
 				: 0
 	}
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.agent.metrics.read", {
+		agentId
+	})
+
+	return result
 }
 
 // Get recent call history with enhanced details
-export async function getRecentCalls(limit = 20) {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+export async function getRecentCalls(rawLimit = 20) {
+	const { teamId, user } = await requireTeam()
+	const limit = limitSchema.parse(rawLimit)
 
 	const recentCalls = await db
 		.select({
@@ -464,27 +503,42 @@ export async function getRecentCalls(limit = 20) {
 			cost: voiceSessions.cost
 		})
 		.from(voiceSessions)
-		.leftJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
-		.leftJoin(leads, eq(voiceSessions.leadId, leads.id))
-		.where(eq(voiceSessions.userId, user.id))
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+		.leftJoin(
+			leads,
+			and(eq(voiceSessions.leadId, leads.id), teamScope(leads, teamId))
+		)
+		.where(
+			teamScope(voiceAgents, teamId)
+		)
 		.orderBy(desc(voiceSessions.startTime))
 		.limit(limit)
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.calls.recent.read", {
+		limit
+	})
 
 	return recentCalls
 }
 
 // Get call quality scoring based on various metrics
-export async function getCallQualityScore(sessionId: string) {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+export async function getCallQualityScore(rawSessionId: string) {
+	const { teamId, user } = await requireTeam()
+	const sessionId = sessionIdSchema.parse(rawSessionId)
 
 	const session = await db
-		.select()
+		.select({
+			duration: voiceSessions.duration,
+			status: voiceSessions.status,
+			sentiment: voiceSessions.sentiment,
+			leadId: voiceSessions.leadId
+		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
 				eq(voiceSessions.sessionId, sessionId),
-				eq(voiceSessions.userId, user.id)
+				teamScope(voiceAgents, teamId)
 			)
 		)
 		.limit(1)
@@ -598,7 +652,7 @@ export async function getCallQualityScore(sessionId: string) {
 	// Normalize score to 0-100 range
 	qualityScore = Math.min(100, qualityScore)
 
-	return {
+	const result = {
 		sessionId,
 		qualityScore,
 		qualityGrade:
@@ -611,12 +665,17 @@ export async function getCallQualityScore(sessionId: string) {
 						: "Poor",
 		factors
 	}
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.calls.quality.read", {
+		sessionId
+	})
+
+	return result
 }
 
 // Real-time call status update (for live dashboard)
 export async function getActiveCallsStatus() {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
 
 	const activeCalls = await db
 		.select({
@@ -631,11 +690,13 @@ export async function getActiveCallsStatus() {
 		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				eq(voiceSessions.status, "active")
 			)
 		)
 		.orderBy(desc(voiceSessions.startTime))
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.calls.active.read")
 
 	return activeCalls.map((call) => ({
 		...call,
@@ -645,10 +706,10 @@ export async function getActiveCallsStatus() {
 
 // Get comprehensive performance trends and predictions
 export async function getPerformanceTrends(
-	timeRange: "month" | "quarter" | "year" = "quarter"
+	rawTimeRange: "month" | "quarter" | "year" = "quarter"
 ) {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
+	const timeRange = trendsTimeRangeSchema.parse(rawTimeRange)
 
 	const now = new Date()
 	let startDate: Date
@@ -688,9 +749,10 @@ export async function getPerformanceTrends(
 			`
 		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -743,7 +805,7 @@ export async function getPerformanceTrends(
 		}
 	})
 
-	return {
+	const result = {
 		timeRange,
 		weeklyTrends: trends,
 		overallTrend: {
@@ -769,14 +831,20 @@ export async function getPerformanceTrends(
 					: 0
 		}
 	}
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.performance.trends.read", {
+		timeRange
+	})
+
+	return result
 }
 
 // Get cost breakdown and budget analytics
 export async function getCostAnalytics(
-	timeRange: "today" | "week" | "month" | "quarter" = "month"
+	rawTimeRange: "today" | "week" | "month" | "quarter" = "month"
 ) {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
+	const timeRange = costTimeRangeSchema.parse(rawTimeRange)
 
 	const now = new Date()
 	let startDate: Date
@@ -815,7 +883,7 @@ export async function getCostAnalytics(
 		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -832,9 +900,10 @@ export async function getCostAnalytics(
 			averageCostPerCall: avg(voiceSessions.cost)
 		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -855,7 +924,7 @@ export async function getCostAnalytics(
 		0
 	)
 
-	return {
+	const result = {
 		timeRange,
 		summary: {
 			totalCost,
@@ -883,4 +952,10 @@ export async function getCostAnalytics(
 			averageCostPerCall: Number(direction.averageCostPerCall) || 0
 		}))
 	}
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.costs.read", {
+		timeRange
+	})
+
+	return result
 }
