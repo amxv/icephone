@@ -367,3 +367,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `7087bd4` (`phase-29: validation sync`)
 - Notes/blockers:
   - None.
+
+---
+
+## Phase 30 — Advanced Settings Gap Closure (Knowledge Base Scope)
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Removed another incomplete implementation from advanced voice-agent settings by replacing the disabled “coming soon” knowledge-base section with a working source-scoping UI. Agents configured through advanced settings can now load team KB sources and persist `knowledge_base.sourceIds`, matching the active realtime KB tooling behavior.
+- Files changed:
+  - Updated: `src/components/voice-agent-settings.tsx`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit:
+- Notes/blockers:
+  - None.

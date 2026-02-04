@@ -1,5 +1,6 @@
 "use client"
 
+import { getKnowledgeBaseSources } from "@/actions/knowledge-base"
 import { updateVoiceAgent } from "@/actions/voice-agents"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
 	Select,
 	SelectContent,
@@ -40,7 +42,7 @@ import {
 	Shield,
 	Volume2
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 interface VoiceAgentSettingsProps {
@@ -56,9 +58,51 @@ export function VoiceAgentSettings({
 }: VoiceAgentSettingsProps) {
 	const [open, setOpen] = useState(false)
 	const [isSubmitting, setIsSubmitting] = useState(false)
+	const [isLoadingKnowledgeSources, setIsLoadingKnowledgeSources] =
+		useState(false)
+	const [knowledgeSources, setKnowledgeSources] = useState<
+		Array<{ id: number; name: string; type: string }>
+	>([])
 	const [config, setConfig] = useState<VoiceAgentConfiguration>(
 		agent.configuration || {}
 	)
+
+	useEffect(() => {
+		if (!open) return
+
+		let isMounted = true
+		setIsLoadingKnowledgeSources(true)
+		void getKnowledgeBaseSources()
+			.then((result) => {
+				if (!isMounted) return
+				if (!result.success || !result.data) {
+					setKnowledgeSources([])
+					return
+				}
+				setKnowledgeSources(
+					result.data.map((source) => ({
+						id: source.id,
+						name: source.name,
+						type: source.type
+					}))
+				)
+			})
+			.catch((error) => {
+				console.error("Failed to load knowledge sources:", error)
+				if (isMounted) {
+					setKnowledgeSources([])
+				}
+			})
+			.finally(() => {
+				if (isMounted) {
+					setIsLoadingKnowledgeSources(false)
+				}
+			})
+
+		return () => {
+			isMounted = false
+		}
+	}, [open])
 
 	const updateConfig = (path: string, value: unknown) => {
 		setConfig((prev) => {
@@ -115,6 +159,30 @@ export function VoiceAgentSettings({
 		} finally {
 			setIsSubmitting(false)
 		}
+	}
+
+	const selectedKnowledgeSourceIds = Array.isArray(
+		getConfigValue("knowledge_base.sourceIds", [])
+	)
+		? (getConfigValue("knowledge_base.sourceIds", []) as unknown[])
+				.filter(
+					(value): value is number =>
+						typeof value === "number" &&
+						Number.isInteger(value) &&
+						value > 0
+				)
+				.map((value) => Number(value))
+		: []
+
+	const updateKnowledgeSourceSelection = (
+		sourceId: number,
+		isChecked: boolean
+	) => {
+		const nextIds = isChecked
+			? Array.from(new Set([...selectedKnowledgeSourceIds, sourceId]))
+			: selectedKnowledgeSourceIds.filter((id) => id !== sourceId)
+
+		updateConfig("knowledge_base.sourceIds", nextIds)
 	}
 
 	return (
@@ -1083,34 +1151,76 @@ export function VoiceAgentSettings({
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
-								<div className="space-y-3">
-									<Label>Knowledge Base Files</Label>
-									<Textarea
-										placeholder="file1.pdf, file2.txt (coming soon)"
-										value={(
-											getConfigValue(
-												"knowledge_base.files",
-												[]
-											) as string[]
-										).join(", ")}
-										onChange={(e) =>
-											updateConfig(
-												"knowledge_base.files",
-												e.target.value
-													.split(",")
-													.map((f: string) =>
-														f.trim()
-													)
-													.filter(Boolean)
-											)
-										}
-										className="rounded-2xl bg-card/30"
-										rows={2}
-										disabled
-									/>
+								<div className="space-y-2">
+									<Label>Knowledge Source Scope</Label>
 									<p className="text-sm text-muted-foreground">
-										Knowledge base integration coming soon
+										Choose which knowledge sources this
+										agent can use. Leave empty to allow all
+										sources.
 									</p>
+								</div>
+
+								<div className="rounded-2xl border border-border/70 p-4 space-y-3">
+									<label className="flex items-center gap-2 text-sm">
+										<Checkbox
+											checked={
+												selectedKnowledgeSourceIds.length ===
+												0
+											}
+											onCheckedChange={(checked) => {
+												if (checked) {
+													updateConfig(
+														"knowledge_base.sourceIds",
+														[]
+													)
+												}
+											}}
+										/>
+										<span>
+											Use all available knowledge sources
+										</span>
+									</label>
+
+									{isLoadingKnowledgeSources ? (
+										<p className="text-sm text-muted-foreground">
+											Loading sources...
+										</p>
+									) : knowledgeSources.length === 0 ? (
+										<p className="text-sm text-muted-foreground">
+											No sources found. Add sources in the
+											Knowledge Base section.
+										</p>
+									) : (
+										<div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+											{knowledgeSources.map((source) => (
+												<label
+													key={source.id}
+													className="flex items-start gap-2 text-sm"
+												>
+													<Checkbox
+														checked={selectedKnowledgeSourceIds.includes(
+															source.id
+														)}
+														onCheckedChange={(
+															checked
+														) =>
+															updateKnowledgeSourceSelection(
+																source.id,
+																checked === true
+															)
+														}
+													/>
+													<span>
+														{source.name}
+														<span className="block text-xs text-muted-foreground">
+															#{source.id} •{" "}
+															{source.type}
+														</span>
+													</span>
+												</label>
+											))}
+										</div>
+									)}
 								</div>
 							</CardContent>
 						</Card>

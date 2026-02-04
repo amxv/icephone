@@ -207,3 +207,9 @@ Examples:
 - [x] Run `bun run typecheck` and `bun run lint`
 - [x] Update planning docs after Phase 28
 - [x] Commit: `phase-29: validation sync`
+
+### Phase 30 — Advanced Settings Gap Closure (Knowledge Base Scope)
+- [x] Replace disabled “knowledge base coming soon” section in advanced agent settings with working source-scoping UI
+- [x] Load team KB sources and persist `knowledge_base.sourceIds` from advanced settings
+- [x] Update `PROGRESS.md`
+- [ ] Commit: `phase-30: advanced kb settings`
