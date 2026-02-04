@@ -3,6 +3,7 @@
 import { db_ws } from "@/db"
 import {
 	appointments,
+	calls,
 	callQueue,
 	campaignLeads,
 	campaigns,
@@ -144,16 +145,9 @@ export async function getCampaigns(rawFilter: unknown = {}) {
 			whereConditions.push(lte(campaigns.endDate, filter.endDate))
 		}
 
-		const campaignsData = await db_ws
+		const leadMetrics = db_ws
 			.select({
-				id: campaigns.id,
-				name: campaigns.name,
-				description: campaigns.description,
-				status: campaigns.status,
-				startDate: campaigns.startDate,
-				endDate: campaigns.endDate,
-				createdAt: campaigns.createdAt,
-				updatedAt: campaigns.updatedAt,
+				campaignId: campaignLeads.campaignId,
 				leadsCount:
 					sql<number>`COUNT(DISTINCT ${campaignLeads.leadId})`.as(
 						"leadsCount"
@@ -165,15 +159,59 @@ export async function getCampaigns(rawFilter: unknown = {}) {
 				leadsContacted:
 					sql<number>`COUNT(DISTINCT CASE WHEN ${leads.status} IN ('contacted','qualified','converted') THEN ${campaignLeads.leadId} END)`.as(
 						"leadsContacted"
+					)
+			})
+			.from(campaignLeads)
+			.leftJoin(leads, eq(campaignLeads.leadId, leads.id))
+			.where(teamScope(campaignLeads, teamId))
+			.groupBy(campaignLeads.campaignId)
+			.as("lead_metrics")
+
+		const callMetrics = db_ws
+			.select({
+				campaignId: calls.campaignId,
+				callsCompleted:
+					sql<number>`COUNT(CASE WHEN ${calls.status} IN ('completed', 'answered') THEN 1 END)`.as(
+						"callsCompleted"
 					),
+				avgCallDuration:
+					sql<number>`COALESCE(ROUND(AVG(CASE WHEN ${calls.duration} > 0 THEN ${calls.duration} END)), 0)::int`.as(
+						"avgCallDuration"
+					)
+			})
+			.from(calls)
+			.where(
+				and(teamScope(calls, teamId), sql`${calls.campaignId} IS NOT NULL`)
+			)
+			.groupBy(calls.campaignId)
+			.as("call_metrics")
+
+		const campaignsData = await db_ws
+			.select({
+				id: campaigns.id,
+				name: campaigns.name,
+				description: campaigns.description,
+				status: campaigns.status,
+				startDate: campaigns.startDate,
+				endDate: campaigns.endDate,
+				createdAt: campaigns.createdAt,
+				updatedAt: campaigns.updatedAt,
+				leadsCount: sql<number>`COALESCE(${leadMetrics.leadsCount}, 0)`,
+				leadsConverted:
+					sql<number>`COALESCE(${leadMetrics.leadsConverted}, 0)`,
+				leadsContacted:
+					sql<number>`COALESCE(${leadMetrics.leadsContacted}, 0)`,
+				callsCompleted:
+					sql<number>`COALESCE(${callMetrics.callsCompleted}, 0)`,
+				avgCallDuration:
+					sql<number>`COALESCE(${callMetrics.avgCallDuration}, 0)`,
 				voiceAgentName: voiceAgents.name
 			})
 			.from(campaigns)
-			.leftJoin(campaignLeads, eq(campaignLeads.campaignId, campaigns.id))
-			.leftJoin(leads, eq(campaignLeads.leadId, leads.id))
+			.leftJoin(leadMetrics, eq(leadMetrics.campaignId, campaigns.id))
+			.leftJoin(callMetrics, eq(callMetrics.campaignId, campaigns.id))
 			.leftJoin(voiceAgents, eq(campaigns.voiceAgentId, voiceAgents.id))
 			.where(and(...whereConditions))
-			.groupBy(campaigns.id, voiceAgents.name)
 			.orderBy(desc(campaigns.updatedAt))
 
 		return { success: true, data: campaignsData, error: null }

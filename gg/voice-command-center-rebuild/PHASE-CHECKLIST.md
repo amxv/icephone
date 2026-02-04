@@ -283,3 +283,10 @@ Examples:
 - [x] Respect explicit queued caller ID during queue processing before fallback routing
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-40: scheduled caller id selection`
+
+### Phase 41 — Campaign Metrics Data Accuracy
+- [x] Remove mock campaign list metrics and source values from backend data
+- [x] Add campaign-level call completion + average duration aggregation in `getCampaigns`
+- [x] Populate campaigns UI rows with real leads-contacted/calls-completed/duration/voice-agent values
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-41: campaign metrics accuracy`

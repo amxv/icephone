@@ -507,3 +507,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-40: scheduled caller id selection`
 - Notes/blockers:
   - Queue metadata now stores caller-ID intent; provider-side number provisioning/import remains a separate future phase.
+
+---
+
+## Phase 41 — Campaign Metrics Data Accuracy
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Replaced mock values in campaigns list cards/table with real aggregated campaign metrics from the backend. `getCampaigns` now joins lead metrics and call metrics subqueries to return `leadsContacted`, `callsCompleted`, and `avgCallDuration`, and the campaigns page maps those real values directly (including voice-agent name) instead of placeholder calculations.
+- Files changed:
+  - Updated: `src/actions/campaigns/core.ts`, `src/components/campaigns-page-client.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-41: campaign metrics accuracy`
+- Notes/blockers:
+  - Metrics currently rely on persisted `calls` records; provider-webhook-driven status updates remain the source of truth for near-real-time freshness.

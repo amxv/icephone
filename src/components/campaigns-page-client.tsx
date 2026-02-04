@@ -190,16 +190,16 @@ export function CampaignsPageClient() {
 					status: campaign.status || null,
 					leadsCount: campaign.leadsCount,
 					leadsConverted: campaign.leadsConverted,
-					leadsContacted: Math.floor(campaign.leadsCount * 0.7), // Mock calculation
-					callsCompleted: Math.floor(campaign.leadsCount * 0.6), // Mock calculation
+					leadsContacted: campaign.leadsContacted || 0,
+					callsCompleted: campaign.callsCompleted || 0,
 					conversionRate:
 						campaign.leadsCount > 0
 							? (campaign.leadsConverted / campaign.leadsCount) *
 								100
 							: 0,
-					avgCallDuration: 180, // Mock 3 minutes average
+					avgCallDuration: campaign.avgCallDuration || 0,
 					updatedAt: campaign.updatedAt.toISOString(), // Convert Date to string
-					voiceAgentName: null // Will be enhanced later
+					voiceAgentName: campaign.voiceAgentName || null
 				}))
 				setCampaignsData(transformedData as EnhancedCampaignItem[])
 			} else {
