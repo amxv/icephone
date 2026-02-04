@@ -108,5 +108,5 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `src/actions/dashboard-analytics.ts`, `src/actions/call-analytics.ts`, `src/actions/admin.ts`
 - Tests/commands run: None.
-- Commit:
+- Commit: `7b91731` (phase-8: analytics + admin)
 - Notes/blockers:
