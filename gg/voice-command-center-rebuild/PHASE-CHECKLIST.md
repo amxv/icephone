@@ -381,3 +381,18 @@ Examples:
 - [x] Attempt `bun run build` (document Node runtime blocker if environment is < 20.9)
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-53: nextjs 16 upgrade`
+
+### Phase 54 — Large-File Refactor Program (Batch 1)
+- [x] Discover and list all files over 500 LOC across the repository
+- [x] Create tracker document for oversized-file refactor progress
+- [x] Refactor selected oversized files into smaller modules without behavior changes:
+  `src/types.ts`, `src/lib/crm/integration-service.ts`, `src/hooks/use-realtime-voice-session.ts`
+- [x] Re-run `bun run typecheck` and `bun run lint`
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-54: large-file refactor batch 1`
+
+### Phase 55 — Large-File Refactor Program (Batch 2+)
+- [ ] Continue reducing all remaining `src/**` files over 500 LOC to under threshold
+- [ ] Preserve behavior and API contracts while extracting modules/helpers
+- [ ] Keep tracker (`LARGE-FILE-REFACTOR-TRACKER.md`) updated per file
+- [ ] Re-run quality gates after each batch

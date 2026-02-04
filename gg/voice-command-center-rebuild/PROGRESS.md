@@ -665,3 +665,16 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Notes/blockers:
   - Official docs referenced: `https://nextjs.org/docs/app/guides/upgrading/version-16`, `https://nextjs.org/blog/next-16`, `https://nextjs.org/docs/app/guides/upgrading/codemods`.
   - Build validation is blocked until the execution environment Node runtime is upgraded to at least `20.9.0`.
+
+---
+
+## Phase 54 — Large-File Refactor Program (Batch 1)
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Performed a full oversized-file discovery pass and started modularization for the large-file reduction initiative. Added a dedicated tracker document and completed first-batch refactors that break up previously >500 LOC files while preserving import contracts and behavior.
+- Files changed:
+  - Added: `gg/voice-command-center-rebuild/LARGE-FILE-REFACTOR-TRACKER.md`, `src/types/knowledge-base.ts`, `src/types/crm-core.ts`, `src/types/rag.ts`, `src/types/voice-agents.ts`, `src/lib/crm/imported-leads.ts`, `src/hooks/realtime-voice-session/tools.ts`
+  - Updated: `src/types.ts`, `src/lib/crm/integration-service.ts`, `src/hooks/use-realtime-voice-session.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-54: large-file refactor batch 1`
+- Notes/blockers:
+  - Remaining oversized `src/**` files are tracked explicitly in `LARGE-FILE-REFACTOR-TRACKER.md` and continue in Phase 55 batches.
