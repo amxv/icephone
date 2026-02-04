@@ -55,11 +55,13 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 4 — Voice Agents + Calls
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added OpenAI Realtime session API endpoint and web call test UI. Voice agents and calls actions are now team-scoped with audit logging; calls list/detail use the new calls table only. Added a realtime WebRTC hook to start/stop sessions and persist call outcomes. Calls can now be created without a lead (schema tweak).
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Added: `src/app/api/voice/session/route.ts`, `src/hooks/use-realtime-voice-session.ts`, `src/components/voice-agent-test-call.tsx`.
+  - Updated: `src/actions/voice-agents.ts`, `src/actions/calls.ts`, `src/components/voice-agents-page-client.tsx`, `src/db/schema.ts`.
+- Tests/commands run: None.
+- Commit: `phase-4: realtime voice agents + calls`
 - Notes/blockers:
 
 ---

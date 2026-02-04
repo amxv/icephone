@@ -445,9 +445,7 @@ export const calls = pgTable(
 	"calls",
 	{
 		id: serial("id").primaryKey(),
-		leadId: integer("lead_id")
-			.notNull()
-			.references(() => leads.id),
+		leadId: integer("lead_id").references(() => leads.id),
 		teamId: varchar("team_id", { length: 21 })
 			.notNull()
 			.references(() => teams.id, { onDelete: "cascade" }),

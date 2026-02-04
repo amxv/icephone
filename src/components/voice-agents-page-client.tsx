@@ -2,6 +2,7 @@
 
 import { SimpleAgentCreator } from "@/components/simple-agent-creator"
 import { EssentialSettings } from "@/components/essential-settings"
+import { VoiceAgentTestCall } from "@/components/voice-agent-test-call"
 import { updateVoiceAgentStatus } from "@/actions/voice-agents"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -367,6 +368,10 @@ function VoiceAgentCard({
 									Settings
 								</Button>
 							}
+						/>
+						<VoiceAgentTestCall
+							agentId={agent.id}
+							agentName={agent.name}
 						/>
 					</div>
 				</div>

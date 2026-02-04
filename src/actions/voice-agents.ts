@@ -4,14 +4,17 @@ import { getAgentRole } from "@/actions/agent-roles"
 import { getVoicePreset } from "@/actions/voice-presets"
 import { db_ws } from "@/db"
 import { voiceAgents } from "@/db/schema"
+import { logAuditEvent } from "@/lib/audit-log"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope, withTeamId } from "@/lib/team-scope"
 import type {
 	VoiceAgent,
 	VoiceAgentStatus,
 	VoiceAgentUpdateRequest,
 	VoiceSettings
 } from "@/types"
-import { auth } from "@/lib/auth/session"
 import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm"
+import { z } from "zod"
 
 // Define types for filtering
 export type VoiceAgentFilter = {
@@ -20,6 +23,19 @@ export type VoiceAgentFilter = {
 	orderBy?: "id" | "name" | "status" | "createdAt" | "updatedAt"
 	orderDir?: "asc" | "desc"
 }
+
+const voiceAgentFilterSchema = z
+	.object({
+		search: z.string().trim().min(1).optional(),
+		status: z
+			.array(z.enum(["active", "inactive", "training", "error"]))
+			.optional(),
+		orderBy: z
+			.enum(["id", "name", "status", "createdAt", "updatedAt"])
+			.optional(),
+		orderDir: z.enum(["asc", "desc"]).optional()
+	})
+	.default({})
 
 const DEFAULT_VOICE: VoiceSettings = {
 	provider: "elevenlabs",
@@ -41,6 +57,7 @@ type VoiceAgentRow = {
 	createdAt: Date
 	updatedAt: Date
 	userId: string
+	teamId: string
 }
 
 function normalizeVoiceAgent(agent: VoiceAgentRow): VoiceAgent {
@@ -57,20 +74,16 @@ function normalizeVoiceAgent(agent: VoiceAgentRow): VoiceAgent {
 }
 
 // Get all voice agents with optional filtering
-export async function getVoiceAgents(
-	filter: VoiceAgentFilter = {}
-): Promise<{
+export async function getVoiceAgents(rawFilter: VoiceAgentFilter = {}): Promise<{
 	data: VoiceAgent[] | null
 	success: boolean
 	error: string | null
 }> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const filter = voiceAgentFilterSchema.parse(rawFilter)
+		const { teamId } = await requireTeam()
 
-		const conditions = [eq(voiceAgents.userId, userId)]
+		const conditions = [teamScope(voiceAgents, teamId)]
 
 		if (filter.search) {
 			const searchCondition = or(
@@ -114,7 +127,8 @@ export async function getVoiceAgents(
 				voicePresetId: voiceAgents.voicePresetId,
 				createdAt: voiceAgents.createdAt,
 				updatedAt: voiceAgents.updatedAt,
-				userId: voiceAgents.userId
+				userId: voiceAgents.userId,
+				teamId: voiceAgents.teamId
 			})
 			.from(voiceAgents)
 			.where(and(...conditions))
@@ -148,10 +162,7 @@ export async function createVoiceAgentWithRole(data: {
 	industryContext?: string
 }) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, user } = await requireTeam()
 
 		const [agentRole, voicePreset] = await Promise.all([
 			getAgentRole(data.agentRoleId),
@@ -186,23 +197,47 @@ export async function createVoiceAgentWithRole(data: {
 
 		const result = await db_ws
 			.insert(voiceAgents)
-			.values({
-				name: data.name,
-				description: data.description || null,
-				prompt,
-				voice: voiceConfig,
-				language: data.language,
-				status: data.status || "inactive",
-				configuration: agentRole.defaultConfiguration || {},
-				firstMessage,
-				agentRoleId: data.agentRoleId,
-				voicePresetId: data.voicePresetId,
-				userId
-			})
+			.values(
+				withTeamId(
+					{
+						name: data.name,
+						description: data.description || null,
+						prompt,
+						voice: voiceConfig,
+						language: data.language,
+						status: data.status || "inactive",
+						configuration: agentRole.defaultConfiguration || {},
+						firstMessage,
+						agentRoleId: data.agentRoleId,
+						voicePresetId: data.voicePresetId,
+						createdByUserId: user.id,
+						userId: user.id,
+						createdAt: new Date(),
+						updatedAt: new Date()
+					},
+					teamId
+				)
+			)
 			.returning()
 
+		const createdAgent = result[0] ? normalizeVoiceAgent(result[0]) : null
+
+		if (createdAgent) {
+			await logAuditEvent({
+				teamId,
+				actorUserId: user.id,
+				action: "voice_agent_created",
+				entityType: "voice_agent",
+				entityId: createdAgent.id,
+				metadata: {
+					name: createdAgent.name,
+					roleId: createdAgent.agentRoleId
+				}
+			})
+		}
+
 		return {
-			data: result[0] ? normalizeVoiceAgent(result[0]) : null,
+			data: createdAgent,
 			success: true,
 			error: null
 		}
@@ -222,10 +257,7 @@ export async function updateVoiceAgent(
 	data: VoiceAgentUpdateRequest
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, user } = await requireTeam()
 
 		const result = await db_ws
 			.update(voiceAgents)
@@ -233,7 +265,7 @@ export async function updateVoiceAgent(
 				...data,
 				updatedAt: new Date()
 			})
-			.where(and(eq(voiceAgents.id, id), eq(voiceAgents.userId, userId)))
+			.where(and(eq(voiceAgents.id, id), teamScope(voiceAgents, teamId)))
 			.returning()
 
 		if (!result || result.length === 0) {
@@ -244,8 +276,20 @@ export async function updateVoiceAgent(
 			}
 		}
 
+		const updatedAgent = normalizeVoiceAgent(result[0])
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "voice_agent_updated",
+			entityType: "voice_agent",
+			entityId: updatedAgent.id,
+			metadata: {
+				updatedFields: Object.keys(data)
+			}
+		})
+
 		return {
-			data: normalizeVoiceAgent(result[0]),
+			data: updatedAgent,
 			success: true,
 			error: null
 		}
@@ -265,10 +309,7 @@ export async function updateVoiceAgentStatus(
 	status: VoiceAgentStatus
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, user } = await requireTeam()
 
 		const result = await db_ws
 			.update(voiceAgents)
@@ -276,7 +317,7 @@ export async function updateVoiceAgentStatus(
 				status,
 				updatedAt: new Date()
 			})
-			.where(and(eq(voiceAgents.id, id), eq(voiceAgents.userId, userId)))
+			.where(and(eq(voiceAgents.id, id), teamScope(voiceAgents, teamId)))
 			.returning()
 
 		if (!result || result.length === 0) {
@@ -287,8 +328,20 @@ export async function updateVoiceAgentStatus(
 			}
 		}
 
+		const updatedAgent = normalizeVoiceAgent(result[0])
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "voice_agent_status_updated",
+			entityType: "voice_agent",
+			entityId: updatedAgent.id,
+			metadata: {
+				status
+			}
+		})
+
 		return {
-			data: normalizeVoiceAgent(result[0]),
+			data: updatedAgent,
 			success: true,
 			error: null
 		}
