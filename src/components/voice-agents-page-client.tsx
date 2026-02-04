@@ -2,6 +2,7 @@
 
 import { SimpleAgentCreator } from "@/components/simple-agent-creator"
 import { EssentialSettings } from "@/components/essential-settings"
+import { VoiceAgentCustomizationDialog } from "@/components/voice-agent-customization-dialog"
 import { VoiceAgentTestCall } from "@/components/voice-agent-test-call"
 import { updateVoiceAgentStatus } from "@/actions/voice-agents"
 import { Badge } from "@/components/ui/badge"
@@ -98,6 +99,12 @@ function getVoiceDisplayName(
 	voice: { provider?: string; voice_id?: string } | null | undefined
 ) {
 	if (!voice || !voice.voice_id) return "Standard Voice"
+
+	if (voice.provider === "openai") {
+		const label =
+			voice.voice_id.charAt(0).toUpperCase() + voice.voice_id.slice(1)
+		return `${label} (OpenAI)`
+	}
 
 	// Map common ElevenLabs voice IDs to business-friendly names
 	const voiceMap: Record<string, string> = {
@@ -351,7 +358,21 @@ function VoiceAgentCard({
 					</div>
 
 					{/* Action Buttons */}
-					<div className="flex gap-2 pt-2">
+					<div className="flex flex-wrap gap-2 pt-2">
+						<VoiceAgentCustomizationDialog
+							agent={agent}
+							onUpdated={onAgentUpdated}
+							trigger={
+								<Button
+									variant="outline"
+									size="sm"
+									className="flex-1 rounded-2xl"
+								>
+									<SettingsIcon className="h-4 w-4 mr-2" />
+									Customize
+								</Button>
+							}
+						/>
 						<EssentialSettings
 							agent={agent}
 							onSettingsUpdated={onAgentUpdated}

@@ -38,8 +38,8 @@ const voiceAgentFilterSchema = z
 	.default({})
 
 const DEFAULT_VOICE: VoiceSettings = {
-	provider: "elevenlabs",
-	voice_id: "default"
+	provider: "openai",
+	voice_id: "alloy"
 }
 
 type VoiceAgentRow = {

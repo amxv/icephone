@@ -15,7 +15,7 @@ const sessionRequestSchema = z.object({
 
 const OPENAI_REALTIME_URL = "https://api.openai.com/v1/realtime/client_secrets"
 
-const DEFAULT_REALTIME_MODEL = "gpt-realtime"
+const DEFAULT_REALTIME_MODEL = "gpt-realtime-mini-2025-12-15"
 const DEFAULT_REALTIME_VOICE = "alloy"
 
 export async function POST(request: Request) {
@@ -30,7 +30,8 @@ export async function POST(request: Request) {
 				id: voiceAgents.id,
 				name: voiceAgents.name,
 				prompt: voiceAgents.prompt,
-				firstMessage: voiceAgents.firstMessage
+				firstMessage: voiceAgents.firstMessage,
+				voice: voiceAgents.voice
 			})
 			.from(voiceAgents)
 			.where(
@@ -66,6 +67,12 @@ export async function POST(request: Request) {
 		}
 
 		const agentRecord = agent[0]
+		const voiceSelection =
+			agentRecord.voice?.provider === "openai" &&
+			agentRecord.voice.voice_id
+				? agentRecord.voice.voice_id
+				: process.env.OPENAI_REALTIME_VOICE ||
+					DEFAULT_REALTIME_VOICE
 		const instructionsParts = [
 			`You are ${agentRecord.name}, a helpful AI voice agent.`,
 			agentRecord.prompt || "",
@@ -100,9 +107,7 @@ export async function POST(request: Request) {
 				},
 				session: {
 					type: "realtime",
-					model:
-						process.env.OPENAI_REALTIME_MODEL ||
-						DEFAULT_REALTIME_MODEL,
+					model: DEFAULT_REALTIME_MODEL,
 					instructions,
 					output_modalities: ["audio", "text"],
 					tools: openAIRealtimeTools,
@@ -114,9 +119,7 @@ export async function POST(request: Request) {
 							}
 						},
 						output: {
-							voice:
-								process.env.OPENAI_REALTIME_VOICE ||
-								DEFAULT_REALTIME_VOICE
+							voice: voiceSelection
 						}
 					}
 				}

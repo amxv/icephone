@@ -747,7 +747,7 @@ export const voiceAgents = pgTable(
 		// Legacy technical fields (deprecated in favor of presets)
 		prompt: text("prompt"), // System prompt for the agent (now auto-generated from role)
 		voice: jsonb("voice").$type<{
-			provider: "elevenlabs" | "playht" | "cartesia"
+			provider: "elevenlabs" | "playht" | "cartesia" | "openai"
 			voice_id: string
 			model?: string
 			settings?: Record<string, unknown>

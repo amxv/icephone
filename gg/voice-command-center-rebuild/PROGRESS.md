@@ -175,14 +175,14 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 14 — Voice Agent Customization (Voice + Instructions)
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added OpenAI voice/instruction customization UI for voice agents, expanded voice provider types to include OpenAI, and enforced the Realtime model `gpt-realtime-mini-2025-12-15` with agent-specific voice selection in the session API.
 - Files changed:
+  - Added: `src/components/voice-agent-customization-dialog.tsx`
+  - Updated: `src/app/api/voice/session/route.ts`, `src/components/voice-agents-page-client.tsx`, `src/actions/voice-agents.ts`, `src/db/schema.ts`, `src/types.ts`
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
-  - Enforce model `gpt-realtime-mini-2025-12-15`.
-  - Add voice selection + custom instruction text.
 
 ---
 
