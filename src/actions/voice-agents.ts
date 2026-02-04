@@ -10,7 +10,7 @@ import type {
 	VoiceAgentUpdateRequest,
 	VoiceSettings
 } from "@/types"
-import { auth } from "@clerk/nextjs/server"
+import { auth } from "@/lib/auth/session"
 import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm"
 
 // Define types for filtering

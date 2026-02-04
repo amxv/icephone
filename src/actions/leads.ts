@@ -2,7 +2,7 @@
 
 import { db_ws } from "@/db"
 import { appointments, calls, leads, textMessages } from "@/db/schema"
-import { auth, currentUser } from "@clerk/nextjs/server"
+import { auth, currentUser } from "@/lib/auth/session"
 import { type SQL, and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
 import type { PgSelect } from "drizzle-orm/pg-core"
 

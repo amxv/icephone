@@ -1,6 +1,6 @@
-import { currentUser } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import { AdminSidebar } from "@/components/admin/AdminSidebar"
+import { currentUser } from "@/lib/auth/session"
 
 export default async function AdminLayout({
 	children
@@ -23,8 +23,8 @@ export default async function AdminLayout({
 
 	// Extract only the plain data we need for the client component
 	const userData = {
-		fullName: user.fullName,
-		emailAddress: user.emailAddresses[0]?.emailAddress
+		name: user.name ?? null,
+		email: user.email
 	}
 
 	return (

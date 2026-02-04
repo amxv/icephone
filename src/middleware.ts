@@ -1,16 +1,33 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
+import { NextResponse, type NextRequest } from "next/server"
+import { auth } from "@/lib/auth"
 
-const isPublicRoute = createRouteMatcher([
-	"/sign-in(.*)",
-	"/api/test-rag(.*)",
-	"/api/call-queue(.*)"
-])
+const PUBLIC_ROUTES = [
+	/^\/sign-in(\/.*)?$/,
+	/^\/sign-up(\/.*)?$/,
+	/^\/api\/auth(\/.*)?$/,
+	/^\/api\/test-rag(\/.*)?$/,
+	/^\/api\/call-queue(\/.*)?$/
+]
 
-export default clerkMiddleware(async (auth, req) => {
-	if (!isPublicRoute(req)) {
-		await auth.protect()
+const isPublicRoute = (pathname: string) =>
+	PUBLIC_ROUTES.some((pattern) => pattern.test(pathname))
+
+export default async function middleware(request: NextRequest) {
+	if (isPublicRoute(request.nextUrl.pathname)) {
+		return NextResponse.next()
 	}
-})
+
+	const session = await auth.api.getSession({
+		headers: request.headers
+	})
+
+	if (!session?.user || session.user.isActive === false) {
+		const redirectUrl = new URL("/sign-in", request.url)
+		return NextResponse.redirect(redirectUrl)
+	}
+
+	return NextResponse.next()
+}
 
 export const config = {
 	matcher: [

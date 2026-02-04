@@ -9,7 +9,7 @@ import type {
 	KnowledgeBaseSourceCreateRequest,
 	VectorQueryResult
 } from "@/types"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { and, eq } from "drizzle-orm"
 import { sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"

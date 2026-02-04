@@ -1,6 +1,6 @@
 "use server"
 
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { db } from "@/db/db"
 import {
 	leads,
@@ -238,7 +238,7 @@ export async function getRecentActivity() {
 		const activitiesWithUsers = allActivities.map((activity) => ({
 			...activity,
 			user: {
-				name: `User ${activity.userId.slice(-4)}`, // Simplified - you could fetch real user names from Clerk
+				name: `User ${activity.userId.slice(-4)}`, // Simplified - you could fetch real user names from auth DB
 				email: `user-${activity.userId.slice(-4)}@example.com`,
 				avatar: null
 			},

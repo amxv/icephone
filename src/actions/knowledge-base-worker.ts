@@ -1,7 +1,7 @@
 "use server"
 
 import type { KnowledgeBaseSourceType } from "@/types"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 
 export interface WorkerIngestionRequest {
 	sourceId: number

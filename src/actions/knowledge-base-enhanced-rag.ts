@@ -3,7 +3,7 @@
 import { db_ws as db } from "@/db"
 import { knowledgeBaseDocuments, knowledgeBaseSources } from "@/db/schema"
 import type { VectorQueryResult } from "@/types"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { and, asc, desc, eq, sql } from "drizzle-orm"
 
 // Import EmbeddingService for real Voyage API integration

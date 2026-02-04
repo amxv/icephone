@@ -68,6 +68,120 @@ export const taskTypeEnum = pgEnum("task_type", [
 	"other"
 ])
 
+// Define team member role enum
+export const teamMemberRoleEnum = pgEnum("team_member_role", [
+	"owner",
+	"member"
+])
+
+// Auth + Tenancy tables (Better Auth)
+export const teams = pgTable(
+	"teams",
+	{
+		id: varchar("id", { length: 21 }).primaryKey(),
+		name: varchar("name", { length: 255 }).notNull(),
+		slug: varchar("slug", { length: 255 }).notNull().unique(),
+		createdByUserId: varchar("created_by_user_id", { length: 21 }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("teams_slug_idx").on(table.slug),
+		index("teams_created_by_idx").on(table.createdByUserId)
+	]
+)
+
+export const users = pgTable(
+	"users",
+	{
+		id: varchar("id", { length: 21 }).primaryKey(),
+		name: varchar("name", { length: 255 }),
+		email: text("email").notNull().unique(),
+		emailVerified: boolean("email_verified").notNull().default(false),
+		image: text("image"),
+		isActive: boolean("is_active").notNull().default(true),
+		defaultTeamId: varchar("default_team_id", { length: 21 }).references(
+			() => teams.id
+		),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow()
+	},
+	(table) => [
+		index("users_email_idx").on(table.email),
+		index("users_default_team_idx").on(table.defaultTeamId)
+	]
+)
+
+export const teamMembers = pgTable(
+	"team_members",
+	{
+		id: varchar("id", { length: 21 }).primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		userId: varchar("user_id", { length: 21 })
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		role: teamMemberRoleEnum("role").default("member").notNull(),
+		createdAt: timestamp("created_at").notNull().defaultNow()
+	},
+	(table) => [
+		index("team_members_team_id_idx").on(table.teamId),
+		index("team_members_user_id_idx").on(table.userId)
+	]
+)
+
+export const sessions = pgTable(
+	"sessions",
+	{
+		id: varchar("id", { length: 36 }).primaryKey(),
+		userId: varchar("user_id", { length: 21 })
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		token: text("token").notNull().unique(),
+		expiresAt: timestamp("expires_at").notNull(),
+		ipAddress: text("ip_address"),
+		userAgent: text("user_agent"),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow()
+	},
+	(table) => [
+		index("sessions_user_id_idx").on(table.userId),
+		index("sessions_expires_at_idx").on(table.expiresAt)
+	]
+)
+
+export const accounts = pgTable(
+	"accounts",
+	{
+		id: varchar("id", { length: 36 }).primaryKey(),
+		userId: varchar("user_id", { length: 21 })
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		accountId: text("account_id").notNull(),
+		providerId: text("provider_id").notNull(),
+		accessToken: text("access_token"),
+		refreshToken: text("refresh_token"),
+		accessTokenExpiresAt: timestamp("access_token_expires_at"),
+		refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+		scope: text("scope"),
+		idToken: text("id_token"),
+		password: text("password"),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow()
+	},
+	(table) => [index("accounts_user_id_idx").on(table.userId)]
+)
+
+export const verifications = pgTable("verifications", {
+	id: varchar("id", { length: 36 }).primaryKey(),
+	identifier: text("identifier").notNull(),
+	value: text("value").notNull(),
+	expiresAt: timestamp("expires_at").notNull(),
+	createdAt: timestamp("created_at").notNull().defaultNow(),
+	updatedAt: timestamp("updated_at")
+})
+
 // Define campaign status enum
 export const campaignStatusEnum = pgEnum("campaign_status", [
 	"draft",
@@ -124,7 +238,7 @@ export const leads = pgTable(
 		notes: text("notes"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("lead_name_idx").on(table.name),
@@ -150,7 +264,7 @@ export const appointments = pgTable(
 		notes: text("notes"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("appointment_lead_id_idx").on(table.leadId),
@@ -208,7 +322,7 @@ export const campaigns = pgTable(
 			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("campaign_name_idx").on(table.name),
@@ -236,7 +350,7 @@ export const calls = pgTable(
 		status: varchar("status", { length: 50 }), // answered, voicemail, missed, etc.
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("call_lead_id_idx").on(table.leadId),
@@ -261,7 +375,7 @@ export const textMessages = pgTable(
 		readAt: timestamp("read_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("text_lead_id_idx").on(table.leadId),
@@ -576,7 +690,7 @@ export const voiceAgents = pgTable(
 		firstMessage: text("first_message"), // First message the agent says
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("voice_agent_name_idx").on(table.name),
@@ -619,7 +733,7 @@ export const voiceAgentFunctions = pgTable(
 		excludeSessionId: boolean("exclude_session_id").default(false),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("voice_function_agent_id_idx").on(table.agentId),
@@ -658,7 +772,7 @@ export const voiceSessions = pgTable(
 		cost: decimal("cost", { precision: 10, scale: 4 }).default("0.0000"), // Session cost
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("voice_session_session_id_idx").on(table.sessionId),
@@ -688,7 +802,7 @@ export const voiceRecordings = pgTable(
 		), // pending, processing, completed, failed
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("voice_recording_session_id_idx").on(table.sessionId),
@@ -715,7 +829,7 @@ export const knowledgeBaseSources = pgTable(
 		lastIndexedAt: timestamp("last_indexed_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("kb_source_name_idx").on(table.name),
@@ -776,7 +890,7 @@ export const knowledgeBaseDocuments = pgTable(
 		metadata: jsonb("metadata").default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("kb_document_source_id_idx").on(table.sourceId),
@@ -848,7 +962,7 @@ export const adminActivityLogs = pgTable(
 	"admin_activity_logs",
 	{
 		id: serial("id").primaryKey(),
-		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Clerk user ID of admin
+		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Authenticated user ID of admin
 		actionType: varchar("action_type", { length: 100 }).notNull(), // e.g., 'CREATE', 'UPDATE', 'DELETE', 'VIEW', 'EXPORT'
 		targetTable: varchar("target_table", { length: 100 }), // Which table was affected
 		targetId: varchar("target_id", { length: 255 }), // ID of the affected record
@@ -882,7 +996,7 @@ export const adminSessions = pgTable(
 	"admin_sessions",
 	{
 		id: serial("id").primaryKey(),
-		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Clerk user ID
+		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Authenticated user ID
 		sessionId: varchar("session_id", { length: 255 }).notNull().unique(),
 		ipAddress: varchar("ip_address", { length: 45 }),
 		userAgent: text("user_agent"),
@@ -1124,7 +1238,7 @@ export const campaignLeads = pgTable(
 		excludeReason: text("exclude_reason"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("campaign_leads_campaign_id_idx").on(table.campaignId),
@@ -1180,7 +1294,7 @@ export const callQueue = pgTable(
 			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("call_queue_lead_id_idx").on(table.leadId),
@@ -1223,7 +1337,7 @@ export const communicationLogs = pgTable(
 		notes: text("notes"), // User-added notes about this communication
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("communication_logs_lead_id_idx").on(table.leadId),
@@ -1281,7 +1395,7 @@ export const campaignQueue = pgTable(
 			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("campaign_queue_campaign_id_idx").on(table.campaignId),

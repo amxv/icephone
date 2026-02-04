@@ -12,7 +12,7 @@ import type {
 	ProcessingOptions,
 	QueryType
 } from "@/types"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters"
 import { generateText } from "ai"
 import PDFParser from "pdf2json"

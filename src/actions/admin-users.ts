@@ -1,27 +1,17 @@
 "use server"
 
-import { currentUser, clerkClient } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { count, desc, eq, gte, sql, and, lte } from "drizzle-orm"
-import type { User } from "@clerk/nextjs/server"
 import { db_ws as db } from "@/db"
 import {
 	leads,
 	calls,
 	voiceAgents,
 	appointments,
-	campaigns
+	campaigns,
+	users,
+	sessions
 } from "@/db/schema"
-
-// Add type for Clerk user from API
-type ClerkUserType = {
-	id: string
-	emailAddresses: { emailAddress: string }[]
-	firstName: string | null
-	lastName: string | null
-	imageUrl: string
-	createdAt: number
-	lastSignInAt: number | null
-}
 
 // Admin authentication helper
 async function requireAdmin() {
@@ -51,7 +41,7 @@ interface PlatformUser {
 	appointmentsCount: number
 	campaignsCount: number
 	lastActivityAt: Date | null
-	isActive: boolean // Based on recent activity
+	isActive: boolean // Based on admin status toggle
 }
 
 interface UserActivity {
@@ -67,6 +57,69 @@ interface UserActivity {
 	metadata?: Record<string, unknown>
 }
 
+function splitName(name: string | null) {
+	if (!name) return { firstName: null, lastName: null }
+	const parts = name.trim().split(/\s+/)
+	if (parts.length === 1) {
+		return { firstName: parts[0], lastName: null }
+	}
+	return {
+		firstName: parts[0],
+		lastName: parts.slice(1).join(" ")
+	}
+}
+
+async function getLastSignInMap() {
+	const signIns = await db
+		.select({
+			userId: sessions.userId,
+			lastSignInAt: sql<Date>`max(${sessions.updatedAt})`
+		})
+		.from(sessions)
+		.groupBy(sessions.userId)
+
+	return new Map(
+		signIns.map((row) => [row.userId, row.lastSignInAt || null])
+	)
+}
+
+async function getLastActivityAt(userId: string) {
+	const [lastLead, lastCall, lastAgent, lastAppointment, lastCampaign] =
+		await Promise.all([
+			db
+				.select({ last: sql<Date>`max(${leads.updatedAt})` })
+				.from(leads)
+				.where(eq(leads.userId, userId)),
+			db
+				.select({ last: sql<Date>`max(${calls.createdAt})` })
+				.from(calls)
+				.where(eq(calls.userId, userId)),
+			db
+				.select({ last: sql<Date>`max(${voiceAgents.updatedAt})` })
+				.from(voiceAgents)
+				.where(eq(voiceAgents.userId, userId)),
+			db
+				.select({ last: sql<Date>`max(${appointments.updatedAt})` })
+				.from(appointments)
+				.where(eq(appointments.userId, userId)),
+			db
+				.select({ last: sql<Date>`max(${campaigns.updatedAt})` })
+				.from(campaigns)
+				.where(eq(campaigns.userId, userId))
+		])
+
+	const candidates = [
+		lastLead?.[0]?.last,
+		lastCall?.[0]?.last,
+		lastAgent?.[0]?.last,
+		lastAppointment?.[0]?.last,
+		lastCampaign?.[0]?.last
+	].filter(Boolean) as Date[]
+
+	if (!candidates.length) return null
+	return new Date(Math.max(...candidates.map((date) => date.getTime())))
+}
+
 /**
  * Get all platform users with comprehensive activity data
  */
@@ -74,116 +127,78 @@ export async function getAllUsers(): Promise<PlatformUser[]> {
 	await requireAdmin()
 
 	try {
-		// Get all users from Clerk
-		const clerk = await clerkClient()
-		const clerkUsers = await clerk.users.getUserList({
-			limit: 500, // Adjust as needed
-			orderBy: "-created_at"
-		})
+		const [dbUsers, lastSignInMap] = await Promise.all([
+			db
+				.select({
+					id: users.id,
+					name: users.name,
+					email: users.email,
+					image: users.image,
+					createdAt: users.createdAt,
+					isActive: users.isActive
+				})
+				.from(users)
+				.orderBy(desc(users.createdAt))
+				.limit(500),
+			getLastSignInMap()
+		])
 
-		// Get user activity stats from our database
-		const userActivityPromises = clerkUsers.data.map(
-			async (clerkUser: ClerkUserType) => {
-				const [
-					leadsStats,
-					callsStats,
-					agentsStats,
-					appointmentsStats,
-					campaignsStats,
-					lastActivity
-				] = await Promise.all([
-					// Leads count
-					db
-						.select({ count: count() })
-						.from(leads)
-						.where(eq(leads.userId, clerkUser.id)),
+		const userActivityPromises = dbUsers.map(async (dbUser) => {
+			const [
+				leadsStats,
+				callsStats,
+				agentsStats,
+				appointmentsStats,
+				campaignsStats,
+				lastActivityAt
+			] = await Promise.all([
+				db
+					.select({ count: count() })
+					.from(leads)
+					.where(eq(leads.userId, dbUser.id)),
+				db
+					.select({ count: count() })
+					.from(calls)
+					.where(eq(calls.userId, dbUser.id)),
+				db
+					.select({ count: count() })
+					.from(voiceAgents)
+					.where(eq(voiceAgents.userId, dbUser.id)),
+				db
+					.select({ count: count() })
+					.from(appointments)
+					.where(eq(appointments.userId, dbUser.id)),
+				db
+					.select({ count: count() })
+					.from(campaigns)
+					.where(eq(campaigns.userId, dbUser.id)),
+				getLastActivityAt(dbUser.id)
+			])
 
-					// Calls count
-					db
-						.select({ count: count() })
-						.from(calls)
-						.where(eq(calls.userId, clerkUser.id)),
+			const { firstName, lastName } = splitName(dbUser.name)
+			const lastSignInAt = lastSignInMap.get(dbUser.id)
 
-					// Voice agents count
-					db
-						.select({ count: count() })
-						.from(voiceAgents)
-						.where(eq(voiceAgents.userId, clerkUser.id)),
-
-					// Appointments count
-					db
-						.select({ count: count() })
-						.from(appointments)
-						.where(eq(appointments.userId, clerkUser.id)),
-
-					// Campaigns count
-					db
-						.select({ count: count() })
-						.from(campaigns)
-						.where(eq(campaigns.userId, clerkUser.id)),
-
-					// Get most recent activity across all tables
-					db
-						.select({
-							lastActivity: sql<Date>`MAX(greatest(
-					COALESCE(${leads.updatedAt}, '1970-01-01'::timestamp),
-					COALESCE(${calls.createdAt}, '1970-01-01'::timestamp),
-					COALESCE(${voiceAgents.updatedAt}, '1970-01-01'::timestamp),
-					COALESCE(${appointments.updatedAt}, '1970-01-01'::timestamp),
-					COALESCE(${campaigns.updatedAt}, '1970-01-01'::timestamp)
-				))`
-						})
-						.from(leads)
-						.leftJoin(calls, eq(calls.userId, clerkUser.id))
-						.leftJoin(
-							voiceAgents,
-							eq(voiceAgents.userId, clerkUser.id)
-						)
-						.leftJoin(
-							appointments,
-							eq(appointments.userId, clerkUser.id)
-						)
-						.leftJoin(campaigns, eq(campaigns.userId, clerkUser.id))
-						.where(eq(leads.userId, clerkUser.id))
-				])
-
-				const leadsCount = leadsStats[0]?.count || 0
-				const callsCount = callsStats[0]?.count || 0
-				const voiceAgentsCount = agentsStats[0]?.count || 0
-				const appointmentsCount = appointmentsStats[0]?.count || 0
-				const campaignsCount = campaignsStats[0]?.count || 0
-				const lastActivityAt = lastActivity[0]?.lastActivity || null
-
-				// Consider user active if they have activity in last 30 days
-				const thirtyDaysAgo = new Date()
-				thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-				const isActive = lastActivityAt
-					? lastActivityAt > thirtyDaysAgo
-					: false
-
-				return {
-					id: clerkUser.id,
-					email: clerkUser.emailAddresses[0]?.emailAddress || null,
-					firstName: clerkUser.firstName,
-					lastName: clerkUser.lastName,
-					imageUrl: clerkUser.imageUrl,
-					createdAt: clerkUser.createdAt,
-					lastSignInAt: clerkUser.lastSignInAt,
-					leadsCount,
-					callsCount,
-					voiceAgentsCount,
-					appointmentsCount,
-					campaignsCount,
-					lastActivityAt,
-					isActive
-				}
+			return {
+				id: dbUser.id,
+				email: dbUser.email,
+				firstName,
+				lastName,
+				imageUrl: dbUser.image || null,
+				createdAt: dbUser.createdAt.getTime(),
+				lastSignInAt: lastSignInAt ? lastSignInAt.getTime() : null,
+				leadsCount: leadsStats[0]?.count || 0,
+				callsCount: callsStats[0]?.count || 0,
+				voiceAgentsCount: agentsStats[0]?.count || 0,
+				appointmentsCount: appointmentsStats[0]?.count || 0,
+				campaignsCount: campaignsStats[0]?.count || 0,
+				lastActivityAt,
+				isActive: dbUser.isActive ?? true
 			}
-		)
+		})
 
 		const usersWithActivity = await Promise.all(userActivityPromises)
 
-		// Sort by most recent activity
-		return usersWithActivity.sort((a: PlatformUser, b: PlatformUser) => {
+		return usersWithActivity.sort((a, b) => {
 			if (!a.lastActivityAt && !b.lastActivityAt) return 0
 			if (!a.lastActivityAt) return 1
 			if (!b.lastActivityAt) return -1
@@ -206,9 +221,27 @@ export async function getUserDetails(userId: string): Promise<
 	await requireAdmin()
 
 	try {
-		// Get user from Clerk
-		const clerk = await clerkClient()
-		const clerkUser = await clerk.users.getUser(userId)
+		const dbUser = await db
+			.select({
+				id: users.id,
+				name: users.name,
+				email: users.email,
+				image: users.image,
+				createdAt: users.createdAt,
+				isActive: users.isActive
+			})
+			.from(users)
+			.where(eq(users.id, userId))
+			.limit(1)
+
+		if (!dbUser.length) {
+			throw new Error("User not found")
+		}
+
+		const userRecord = dbUser[0]
+		const { firstName, lastName } = splitName(userRecord.name)
+		const [lastSignInMap] = await Promise.all([getLastSignInMap()])
+		const lastSignInAt = lastSignInMap.get(userId)
 
 		// Get comprehensive activity stats
 		const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -367,23 +400,22 @@ export async function getUserDetails(userId: string): Promise<
 
 		const lastActivityAt =
 			recentActivity.length > 0 ? recentActivity[0].timestamp : null
-		const isActive = lastActivityAt ? lastActivityAt > thirtyDaysAgo : false
 
 		return {
-			id: clerkUser.id,
-			email: clerkUser.emailAddresses[0]?.emailAddress || null,
-			firstName: clerkUser.firstName,
-			lastName: clerkUser.lastName,
-			imageUrl: clerkUser.imageUrl,
-			createdAt: clerkUser.createdAt,
-			lastSignInAt: clerkUser.lastSignInAt,
+			id: userRecord.id,
+			email: userRecord.email,
+			firstName,
+			lastName,
+			imageUrl: userRecord.image || null,
+			createdAt: userRecord.createdAt.getTime(),
+			lastSignInAt: lastSignInAt ? lastSignInAt.getTime() : null,
 			leadsCount: leadsStats[0]?.count || 0,
 			callsCount: callsStats[0]?.count || 0,
 			voiceAgentsCount: agentsStats[0]?.count || 0,
 			appointmentsCount: appointmentsStats[0]?.count || 0,
 			campaignsCount: campaignsStats[0]?.count || 0,
 			lastActivityAt,
-			isActive,
+			isActive: userRecord.isActive ?? true,
 			recentActivity
 		}
 	} catch (error) {
@@ -393,7 +425,7 @@ export async function getUserDetails(userId: string): Promise<
 }
 
 /**
- * Update user status in Clerk (ban/unban user)
+ * Update user status (active/banned)
  */
 export async function updateUserStatus(
 	userId: string,
@@ -402,12 +434,10 @@ export async function updateUserStatus(
 	await requireAdmin()
 
 	try {
-		const clerk = await clerkClient()
-		if (status === "banned") {
-			await clerk.users.banUser(userId)
-		} else {
-			await clerk.users.unbanUser(userId)
-		}
+		await db
+			.update(users)
+			.set({ isActive: status === "active", updatedAt: new Date() })
+			.where(eq(users.id, userId))
 	} catch (error) {
 		console.error("Error updating user status:", error)
 		throw new Error("Failed to update user status")
@@ -562,7 +592,6 @@ export async function getUserActivity(
 			}))
 		]
 
-		// Sort by timestamp (most recent first)
 		return activities.sort(
 			(a, b) => b.timestamp.getTime() - a.timestamp.getTime()
 		)
@@ -579,29 +608,23 @@ export async function getUserStats() {
 	await requireAdmin()
 
 	try {
-		// Get total unique users from our database
 		const totalUsersResult = await db
-			.select({ count: sql<number>`count(distinct user_id)` })
-			.from(leads)
-
-		// Get active users (those with activity in last 30 days)
-		const thirtyDaysAgo = new Date()
-		thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+			.select({ count: count() })
+			.from(users)
 
 		const activeUsersResult = await db
-			.select({ count: sql<number>`count(distinct user_id)` })
-			.from(leads)
-			.where(gte(leads.updatedAt, thirtyDaysAgo))
+			.select({ count: count() })
+			.from(users)
+			.where(eq(users.isActive, true))
 
-		// Get new users this month
 		const currentMonthStart = new Date()
 		currentMonthStart.setDate(1)
 		currentMonthStart.setHours(0, 0, 0, 0)
 
 		const newUsersResult = await db
-			.select({ count: sql<number>`count(distinct user_id)` })
-			.from(leads)
-			.where(gte(leads.createdAt, currentMonthStart))
+			.select({ count: count() })
+			.from(users)
+			.where(gte(users.createdAt, currentMonthStart))
 
 		return {
 			totalUsers: totalUsersResult[0]?.count || 0,

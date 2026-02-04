@@ -2,7 +2,7 @@
 
 import { db_ws } from "@/db"
 import { calls, leads, voiceSessions, voiceAgents } from "@/db/schema"
-import { auth } from "@clerk/nextjs/server"
+import { auth } from "@/lib/auth/session"
 import { type SQL, and, desc, eq, gte, lte, sql, or } from "drizzle-orm"
 
 // Define types for filtering

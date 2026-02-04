@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { redirect } from "next/navigation"
 import {
 	getCallAnalytics,

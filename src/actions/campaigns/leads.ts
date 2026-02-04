@@ -1,6 +1,6 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
+import { auth } from "@/lib/auth/session"
 import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { db_ws } from "@/db"

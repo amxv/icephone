@@ -6,10 +6,11 @@ import {
 	voiceSessions,
 	agentRoles,
 	voicePresets,
-	adminSettings
+	adminSettings,
+	users
 } from "@/db/schema"
 import type { VoiceAgent, VoiceAgentStatus } from "@/types"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
 
 // Admin authentication helper
@@ -95,6 +96,47 @@ interface AdminVoiceAgentWithDetails extends DatabaseVoiceAgent {
 	} | null
 	sessionsCount: number
 	lastSessionDate: Date | null
+}
+
+type UserSummary = {
+	id: string
+	email: string | null
+	name: string | null
+}
+
+function splitName(name: string | null) {
+	if (!name) return { firstName: null, lastName: null }
+	const parts = name.trim().split(/\s+/)
+	if (parts.length === 1) return { firstName: parts[0], lastName: null }
+	return { firstName: parts[0], lastName: parts.slice(1).join(" ") }
+}
+
+async function getUserMap(userIds: string[]) {
+	if (!userIds.length) return new Map<string, UserSummary>()
+	const rows = await db
+		.select({
+			id: users.id,
+			email: users.email,
+			name: users.name
+		})
+		.from(users)
+		.where(inArray(users.id, userIds))
+
+	return new Map(rows.map((row) => [row.id, row]))
+}
+
+function buildUserPayload(
+	userId: string,
+	userMap: Map<string, UserSummary>
+) {
+	const user = userMap.get(userId)
+	const { firstName, lastName } = splitName(user?.name ?? null)
+	return {
+		id: userId,
+		email: user?.email ?? null,
+		firstName,
+		lastName
+	}
 }
 
 // Status distribution type
@@ -238,6 +280,10 @@ export async function getAllVoiceAgents(): Promise<
 			])
 		)
 
+		const userMap = await getUserMap(
+			Array.from(new Set(agentsData.map((agent) => agent.userId)))
+		)
+
 		// Transform and combine data
 		const transformedData: AdminVoiceAgentWithDetails[] = agentsData.map(
 			(agent: AgentQueryResult) => ({
@@ -253,12 +299,7 @@ export async function getAllVoiceAgents(): Promise<
 				createdAt: agent.createdAt,
 				updatedAt: agent.updatedAt,
 				userId: agent.userId,
-				user: {
-					id: agent.userId,
-					email: null, // We'll need to get this from Clerk if needed
-					firstName: null,
-					lastName: null
-				},
+				user: buildUserPayload(agent.userId, userMap),
 				agentRole:
 					agent.agentRoleId_ &&
 					agent.agentRoleDisplayName &&
@@ -363,6 +404,8 @@ export async function getVoiceAgentsByUser(
 			])
 		)
 
+		const userMap = await getUserMap([userId])
+
 		// Transform and combine data
 		const transformedData: AdminVoiceAgentWithDetails[] = agentsData.map(
 			(agent: AgentQueryResult) => ({
@@ -378,12 +421,7 @@ export async function getVoiceAgentsByUser(
 				createdAt: agent.createdAt,
 				updatedAt: agent.updatedAt,
 				userId: agent.userId,
-				user: {
-					id: agent.userId,
-					email: null, // We'll need to get this from Clerk if needed
-					firstName: null,
-					lastName: null
-				},
+				user: buildUserPayload(agent.userId, userMap),
 				agentRole:
 					agent.agentRoleId_ &&
 					agent.agentRoleDisplayName &&
@@ -625,6 +663,10 @@ export async function searchVoiceAgents(
 			])
 		)
 
+		const userMap = await getUserMap(
+			Array.from(new Set(agentsData.map((agent) => agent.userId)))
+		)
+
 		// Transform and combine data
 		const transformedData: AdminVoiceAgentWithDetails[] = agentsData.map(
 			(agent: AgentQueryResult) => ({
@@ -640,12 +682,7 @@ export async function searchVoiceAgents(
 				createdAt: agent.createdAt,
 				updatedAt: agent.updatedAt,
 				userId: agent.userId,
-				user: {
-					id: agent.userId,
-					email: null, // We'll need to get this from Clerk if needed
-					firstName: null,
-					lastName: null
-				},
+				user: buildUserPayload(agent.userId, userMap),
 				agentRole:
 					agent.agentRoleId_ &&
 					agent.agentRoleDisplayName &&

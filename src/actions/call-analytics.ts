@@ -1,6 +1,6 @@
 "use server"
 
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { db_ws as db } from "@/db"
 import { voiceSessions, voiceAgents, calls, leads } from "@/db/schema"
 import { eq, and, desc, sql, gte, lte, count, avg, sum } from "drizzle-orm"

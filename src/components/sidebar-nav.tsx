@@ -2,7 +2,8 @@
 
 // import { Logo, LogoIcon } from "@/components/app-sidebar"
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar"
-import { SignedIn, UserButton } from "@clerk/nextjs"
+import { UserMenu } from "@/components/auth/user-menu"
+import { useAuthUser } from "@/lib/auth/use-auth-user"
 import { motion } from "framer-motion"
 import {
 	BarChart,
@@ -22,6 +23,7 @@ import { Logo as ZueLogo } from "./logo"
 
 export function SidebarNav() {
 	const [open, setOpen] = useState(false)
+	const { user } = useAuthUser()
 
 	const links = [
 		{
@@ -112,7 +114,7 @@ export function SidebarNav() {
 					</div>
 				</div>
 				<div className="flex items-center mb-2">
-					<SignedIn>
+					{user && (
 						<div className="flex items-center justify-center gap-28">
 							<ZueLogo lightMode={true} width={45} height={37} />
 							{open && (
@@ -125,17 +127,11 @@ export function SidebarNav() {
 										ease: "easeInOut"
 									}}
 								>
-									<UserButton
-										appearance={{
-											elements: {
-												userButtonAvatarBox: "h-7 w-7"
-											}
-										}}
-									/>
+									<UserMenu />
 								</motion.div>
 							)}
 						</div>
-					</SignedIn>
+					)}
 				</div>
 			</SidebarBody>
 		</Sidebar>

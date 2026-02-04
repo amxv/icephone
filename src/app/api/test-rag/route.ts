@@ -1,5 +1,5 @@
 import { generateRAGResponse, performRAGQuery } from "@/actions/knowledge-base"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { type NextRequest, NextResponse } from "next/server"
 
 // Type definitions for the test results

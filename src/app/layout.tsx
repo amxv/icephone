@@ -1,11 +1,3 @@
-import {
-	ClerkProvider,
-	SignInButton,
-	SignUpButton,
-	SignedIn,
-	SignedOut,
-	UserButton
-} from "@clerk/nextjs"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Toaster } from "sonner"
@@ -33,22 +25,20 @@ export default function RootLayout({
 	children: React.ReactNode
 }>) {
 	return (
-		<ClerkProvider>
-			<html lang="en">
-				<body
-					className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background dark:bg-neutral-800`}
-				>
-					<SettingsProvider>
-						{children}
-						<Toaster
-							position="top-right"
-							closeButton
-							richColors
-							duration={1000}
-						/>
-					</SettingsProvider>
-				</body>
-			</html>
-		</ClerkProvider>
+		<html lang="en">
+			<body
+				className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background dark:bg-neutral-800`}
+			>
+				<SettingsProvider>
+					{children}
+					<Toaster
+						position="top-right"
+						closeButton
+						richColors
+						duration={1000}
+					/>
+				</SettingsProvider>
+			</body>
+		</html>
 	)
 }

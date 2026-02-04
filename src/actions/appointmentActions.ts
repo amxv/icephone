@@ -1,6 +1,6 @@
 "use server"
 
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { and, eq } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
@@ -11,16 +11,13 @@ import type { TEventColor } from "@/lib/calendar/types"
 
 // Helper to simulate user data for IEvent, as we don't store full user objects with events
 // In a real app, you might fetch minimal user details if needed or adjust IEvent
-const getCurrentClerkUserAsIUser = async (): Promise<IUser | null> => {
+const getCurrentUserAsIUser = async (): Promise<IUser | null> => {
 	const user = await currentUser()
 	if (!user) return null
 	return {
 		id: user.id,
-		name:
-			user.firstName && user.lastName
-				? `${user.firstName} ${user.lastName}`
-				: user.username || "Unnamed User",
-		picturePath: user.imageUrl
+		name: user.name || user.email || "Unnamed User",
+		picturePath: user.image || null
 	}
 }
 
@@ -43,7 +40,7 @@ const transformToIEvent = (
 }
 
 export async function getAppointments(): Promise<IEvent[]> {
-	const user = await getCurrentClerkUserAsIUser()
+	const user = await getCurrentUserAsIUser()
 	if (!user) {
 		console.error("User not authenticated")
 		return []
@@ -78,7 +75,7 @@ interface AppointmentInput {
 export async function createAppointment(
 	data: AppointmentInput
 ): Promise<IEvent | { error: string }> {
-	const user = await getCurrentClerkUserAsIUser()
+	const user = await getCurrentUserAsIUser()
 	if (!user) {
 		return { error: "User not authenticated" }
 	}
@@ -112,7 +109,7 @@ export async function updateAppointment(
 	id: number,
 	data: Partial<AppointmentInput>
 ): Promise<IEvent | { error: string }> {
-	const user = await getCurrentClerkUserAsIUser()
+	const user = await getCurrentUserAsIUser()
 	if (!user) {
 		return { error: "User not authenticated" }
 	}
@@ -150,7 +147,7 @@ export async function updateAppointment(
 export async function deleteAppointment(
 	id: number
 ): Promise<{ success: boolean; error?: string }> {
-	const user = await getCurrentClerkUserAsIUser()
+	const user = await getCurrentUserAsIUser()
 	if (!user) {
 		return { success: false, error: "User not authenticated" }
 	}

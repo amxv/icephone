@@ -18,12 +18,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 1 — Auth + Tenancy
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Replaced Clerk with Better Auth (server/client config, API handler, middleware guard) and added team bootstrap on sign-up/sign-in. Updated auth-related UI (sign-in/sign-up pages + forms), added user menu + auth hook, and rewired client components to new session flow. Added auth/tenancy tables (`users`, `teams`, `team_members`, `sessions`, `accounts`, `verifications`) plus `users.is_active` flag; admin actions now use DB users + sessions instead of Clerk. Updated admin/layout/auth checks to use Better Auth session helpers.
 - Files changed:
-- Tests/commands run:
+  - Added: `src/lib/auth.ts`, `src/lib/auth-client.ts`, `src/lib/auth/session.ts`, `src/lib/auth/use-auth-user.ts`, `src/actions/teams.ts`, `src/components/auth/*`, `src/app/api/auth/[...all]/route.ts`, `src/app/sign-up/[[...sign-up]]/page.tsx`.
+  - Updated: `src/middleware.ts`, `src/app/layout.tsx`, `src/app/sign-in/[[...sign-in]]/page.tsx`, `src/app/admin/layout.tsx`, `src/components/sidebar-nav.tsx`, `src/components/admin/AdminSidebar.tsx`, `src/components/dashboard-client.tsx`, `src/lib/calendar/components/calendar.tsx`, `src/lib/admin-check.ts`, `src/actions/admin-users.ts`, `src/actions/admin-voice-agents.ts`, auth-dependent actions to use `@/lib/auth/session`, `src/db/schema.ts`, `package.json`.
+- Tests/commands run: None.
 - Commit:
 - Notes/blockers:
+  - Added `users.is_active` for admin toggles and enforced in middleware/session; requires migration in Phase 2.
 
 ---
 

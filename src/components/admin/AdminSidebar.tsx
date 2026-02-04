@@ -3,9 +3,8 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { UserButton } from "@clerk/nextjs"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { UserMenu } from "@/components/auth/user-menu"
 import {
 	LayoutDashboard,
 	Users,
@@ -18,7 +17,6 @@ import {
 	Target,
 	Zap,
 	Home,
-	Shield,
 	Bell
 } from "lucide-react"
 
@@ -81,8 +79,8 @@ const sidebarItems = [
 
 interface AdminSidebarProps {
 	user: {
-		fullName: string | null
-		emailAddress: string | undefined
+		name: string | null
+		email: string | undefined
 	}
 }
 
@@ -176,7 +174,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
 						{/* User Info */}
 						<div className="flex-1">
 							<div className="text-sm font-medium">
-								{user.fullName || user.emailAddress}
+								{user.name || user.email}
 							</div>
 							<div className="text-xs text-muted-foreground">
 								Admin User
@@ -185,7 +183,7 @@ export function AdminSidebar({ user }: AdminSidebarProps) {
 					</div>
 
 					{/* User Button */}
-					<UserButton afterSignOutUrl="/" />
+					<UserMenu />
 				</div>
 			</div>
 		</div>
