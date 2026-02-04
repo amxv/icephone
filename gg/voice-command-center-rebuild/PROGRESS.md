@@ -223,10 +223,11 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 18 — Final QA + PR
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Ran final install/typecheck/format/lint validation pass on the completed rewrite branch and opened the pull request for review.
 - Files changed:
-- Tests/commands run: `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
-- Commit:
+- Updated: `gg/voice-command-center-rebuild/PROGRESS.md`
+- Tests/commands run: `bun install`, `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
+- Commit: `phase-18: final qa`
 - Notes/blockers:
-  - Open PR after completion; push after each commit.
+  - PR opened: `https://github.com/amxv/icephone/pull/1`
