@@ -1,5 +1,7 @@
 "use client"
 
+import { authClient } from "@/lib/auth-client"
+import { useAuthUser } from "@/lib/auth/use-auth-user"
 import { Button } from "@/components/ui/button"
 import {
 	Card,
@@ -16,9 +18,12 @@ import {
 	SelectValue
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSettings } from "@/contexts/settings-context"
-import { InfoIcon } from "lucide-react"
+import { BellIcon, InfoIcon, LogOutIcon, MailIcon, UserIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 
 // Settings page header component
 function PageHeader() {
@@ -34,7 +39,33 @@ function PageHeader() {
 }
 
 export default function SettingsPage() {
-	const { tableRowsPerPage, setTableRowsPerPage } = useSettings()
+	const router = useRouter()
+	const { user, isLoading: isUserLoading, isAuthenticated } = useAuthUser()
+	const [isSigningOut, setIsSigningOut] = useState(false)
+	const {
+		tableRowsPerPage,
+		setTableRowsPerPage,
+		tableDenseMode,
+		setTableDenseMode,
+		emailNotificationsEnabled,
+		setEmailNotificationsEnabled,
+		inAppNotificationsEnabled,
+		setInAppNotificationsEnabled,
+		weeklyDigestEnabled,
+		setWeeklyDigestEnabled
+	} = useSettings()
+
+	const handleSignOut = async () => {
+		setIsSigningOut(true)
+		try {
+			await authClient.signOut()
+			router.push("/sign-in")
+		} catch (error) {
+			console.error("Failed to sign out", error)
+		} finally {
+			setIsSigningOut(false)
+		}
+	}
 
 	return (
 		<div className="container h-[calc(100vh-5rem)]">
@@ -137,8 +168,7 @@ export default function SettingsPage() {
 												</div>
 											</div>
 
-											{/* Placeholder for future table settings */}
-											<div className="flex items-center justify-between gap-4 opacity-50">
+											<div className="flex items-center justify-between gap-4">
 												<div className="space-y-1">
 													<h3 className="text-sm font-medium leading-none">
 														Dense mode
@@ -148,9 +178,13 @@ export default function SettingsPage() {
 														higher data density
 													</p>
 												</div>
-												<div className="text-xs text-muted-foreground">
-													Coming soon
-												</div>
+												<Switch
+													checked={tableDenseMode}
+													onCheckedChange={
+														setTableDenseMode
+													}
+													aria-label="Enable dense table mode"
+												/>
 											</div>
 										</div>
 									</div>
@@ -161,9 +195,7 @@ export default function SettingsPage() {
 										</div>
 										<p className="text-xs text-muted-foreground">
 											These settings apply to all tables
-											throughout the application. More
-											table customization options coming
-											soon.
+											throughout the application.
 										</p>
 									</div>
 								</div>
@@ -173,17 +205,82 @@ export default function SettingsPage() {
 								value="account"
 								className="space-y-4 pt-4"
 							>
-								<div>
-									<CardTitle>Account Settings</CardTitle>
-									<CardDescription>
-										Manage your account settings and
-										preferences.
-									</CardDescription>
-									<div className="mt-4">
-										<p className="text-sm text-muted-foreground">
-											Account settings will be available
-											soon.
-										</p>
+								<div className="space-y-6">
+									<div className="flex items-center gap-2">
+										<div className="h-10 w-1 bg-gradient-to-b from-primary to-primary/60 rounded-full" />
+										<div>
+											<CardTitle className="text-xl">
+												Account Settings
+											</CardTitle>
+											<CardDescription className="text-sm text-muted-foreground mt-1">
+												Review your active account and
+												session controls.
+											</CardDescription>
+										</div>
+									</div>
+
+									<div className="bg-muted/40 p-6 rounded-xl border border-border/50 shadow-sm">
+										{isUserLoading ? (
+											<p className="text-sm text-muted-foreground">
+												Loading account information...
+											</p>
+										) : isAuthenticated && user ? (
+											<div className="space-y-4">
+												<div className="flex items-center justify-between gap-4">
+													<div className="space-y-1">
+														<div className="flex items-center gap-2 text-sm font-medium">
+															<UserIcon className="size-4 text-muted-foreground" />
+															Name
+														</div>
+														<p className="text-sm text-muted-foreground">
+															{user.name ||
+																"Not set"}
+														</p>
+													</div>
+												</div>
+												<Separator />
+												<div className="flex items-center justify-between gap-4">
+													<div className="space-y-1">
+														<div className="flex items-center gap-2 text-sm font-medium">
+															<MailIcon className="size-4 text-muted-foreground" />
+															Email
+														</div>
+														<p className="text-sm text-muted-foreground">
+															{user.email}
+														</p>
+													</div>
+												</div>
+												<Separator />
+												<div className="flex items-center justify-between gap-4">
+													<div className="space-y-1">
+														<h3 className="text-sm font-medium leading-none">
+															Current Session
+														</h3>
+														<p className="text-xs text-muted-foreground">
+															Sign out of this
+															session on this
+															device.
+														</p>
+													</div>
+													<Button
+														variant="outline"
+														className="rounded-xl"
+														onClick={handleSignOut}
+														disabled={isSigningOut}
+													>
+														<LogOutIcon className="mr-2 size-4" />
+														{isSigningOut
+															? "Signing out..."
+															: "Sign out"}
+													</Button>
+												</div>
+											</div>
+										) : (
+											<p className="text-sm text-muted-foreground">
+												No authenticated session was
+												found.
+											</p>
+										)}
 									</div>
 								</div>
 							</TabsContent>
@@ -192,16 +289,84 @@ export default function SettingsPage() {
 								value="notifications"
 								className="space-y-4 pt-4"
 							>
-								<div>
-									<CardTitle>Notification Settings</CardTitle>
-									<CardDescription>
-										Configure how you receive notifications.
-									</CardDescription>
-									<div className="mt-4">
-										<p className="text-sm text-muted-foreground">
-											Notification settings will be
-											available soon.
-										</p>
+								<div className="space-y-6">
+									<div className="flex items-center gap-2">
+										<div className="h-10 w-1 bg-gradient-to-b from-primary to-primary/60 rounded-full" />
+										<div>
+											<CardTitle className="text-xl">
+												Notification Settings
+											</CardTitle>
+											<CardDescription className="text-sm text-muted-foreground mt-1">
+												Choose how updates are surfaced
+												in your workspace.
+											</CardDescription>
+										</div>
+									</div>
+
+									<div className="bg-muted/40 p-6 rounded-xl border border-border/50 shadow-sm space-y-6">
+										<div className="flex items-center justify-between gap-4">
+											<div className="space-y-1">
+												<h3 className="text-sm font-medium leading-none">
+													Email notifications
+												</h3>
+												<p className="text-xs text-muted-foreground">
+													Receive summaries and alerts
+													through email.
+												</p>
+											</div>
+											<Switch
+												checked={
+													emailNotificationsEnabled
+												}
+												onCheckedChange={
+													setEmailNotificationsEnabled
+												}
+												aria-label="Toggle email notifications"
+											/>
+										</div>
+										<Separator />
+										<div className="flex items-center justify-between gap-4">
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<BellIcon className="size-4 text-muted-foreground" />
+													<h3 className="text-sm font-medium leading-none">
+														In-app notifications
+													</h3>
+												</div>
+												<p className="text-xs text-muted-foreground">
+													Show operational updates in
+													the app interface.
+												</p>
+											</div>
+											<Switch
+												checked={
+													inAppNotificationsEnabled
+												}
+												onCheckedChange={
+													setInAppNotificationsEnabled
+												}
+												aria-label="Toggle in-app notifications"
+											/>
+										</div>
+										<Separator />
+										<div className="flex items-center justify-between gap-4">
+											<div className="space-y-1">
+												<h3 className="text-sm font-medium leading-none">
+													Weekly digest
+												</h3>
+												<p className="text-xs text-muted-foreground">
+													Receive a weekly summary of
+													calls, outcomes, and trends.
+												</p>
+											</div>
+											<Switch
+												checked={weeklyDigestEnabled}
+												onCheckedChange={
+													setWeeklyDigestEnabled
+												}
+												aria-label="Toggle weekly digest notifications"
+											/>
+										</div>
 									</div>
 								</div>
 							</TabsContent>

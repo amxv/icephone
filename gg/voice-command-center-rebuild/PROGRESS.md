@@ -579,3 +579,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-46: analytics accuracy`
 - Notes/blockers:
   - None.
+
+---
+
+## Phase 47 — Settings Completeness (Dense Mode + Account + Notifications)
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Replaced remaining settings-page placeholders with functional behavior. Added persisted table density mode (including global compact row rendering via `data-table-density`), implemented account tab with live authenticated user details and sign-out action, and added notification preference toggles (email, in-app, weekly digest) persisted through shared settings context.
+- Files changed:
+  - Updated: `src/contexts/settings-context.tsx`, `src/components/ui/table.tsx`, `src/app/(pages)/settings/page.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-47: settings completeness`
+- Notes/blockers:
+  - Notification toggles are persisted client-side (local storage) and prepared for future server-backed preference syncing.

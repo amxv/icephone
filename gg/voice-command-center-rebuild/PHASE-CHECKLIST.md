@@ -324,3 +324,10 @@ Examples:
 - [x] Keep analytics payload compatibility for existing dashboard components
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-46: analytics accuracy`
+
+### Phase 47 — Settings Completeness (Dense Mode + Account + Notifications)
+- [x] Replace display-tab dense-mode placeholder with functional setting
+- [x] Implement global compact table density behavior via settings-driven document attribute
+- [x] Replace account/notification placeholder tabs with functional controls (session sign-out + persisted notification toggles)
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-47: settings completeness`
