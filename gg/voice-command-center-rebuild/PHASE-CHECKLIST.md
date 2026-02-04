@@ -255,3 +255,10 @@ Examples:
 - [x] Update PR title/body/checklist for telephony + recording readiness scope
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-36: final sync`
+
+### Phase 37 — Phone Numbers UI Integration
+- [x] Add team-scoped phone numbers domain (schema + CRUD actions + default outbound assignment)
+- [x] Build `/phone-numbers` page with provider-aware UI and onboarding content for telephony setup
+- [x] Add sidebar navigation entry for phone numbers management
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-37: phone numbers ui integration`

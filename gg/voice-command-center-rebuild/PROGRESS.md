@@ -457,3 +457,16 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-36: final sync`
 - Notes/blockers:
   - Final quality gates (`bun install`, `bun run typecheck`, `bun run lint`) and PR scope sync.
+
+---
+
+## Phase 37 — Phone Numbers UI Integration
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added end-user phone numbers management UI and team-scoped backend for telephony number inventory. Implemented `team_phone_numbers` schema + actions for create/update/status/default assignment, added a dedicated `/phone-numbers` screen with provider/capability/content blocks, and wired sidebar navigation for direct access.
+- Files changed:
+  - Added: `src/actions/phone-numbers.ts`, `src/components/phone-numbers-page-client.tsx`, `src/app/(pages)/phone-numbers/page.tsx`
+  - Updated: `src/db/schema.ts`, `src/components/sidebar-nav.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-37: phone numbers ui integration`
+- Notes/blockers:
+  - Provider procurement/search APIs are not wired yet; this phase manages imported/provisioned numbers and routing metadata so telephony runtime can consume them in follow-up phases.

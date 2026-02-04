@@ -61,6 +61,13 @@ export function SidebarNav() {
 				<Headset className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
 			)
 		},
+		{
+			label: "Phone Numbers",
+			href: "/phone-numbers",
+			icon: (
+				<PhoneCall className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
 
 		{
 			label: "Voice Agents",

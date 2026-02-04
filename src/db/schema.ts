@@ -97,6 +97,13 @@ export const telephonyRecordingStatusEnum = pgEnum(
 	["processing", "ready", "failed"]
 )
 
+export const phoneNumberStatusEnum = pgEnum("phone_number_status", [
+	"provisioning",
+	"active",
+	"inactive",
+	"released"
+])
+
 // Define task priority enum
 export const taskPriorityEnum = pgEnum("task_priority", [
 	"low",
@@ -258,6 +265,55 @@ export const teamIntegrations = pgTable(
 	(table) => [
 		index("team_integrations_team_id_idx").on(table.teamId),
 		index("team_integrations_provider_idx").on(table.provider)
+	]
+)
+
+// Team phone numbers used by telephony providers
+export const teamPhoneNumbers = pgTable(
+	"team_phone_numbers",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		provider: telephonyProviderEnum("provider").notNull(),
+		phoneNumber: varchar("phone_number", { length: 50 }).notNull(),
+		label: varchar("label", { length: 120 }),
+		status: phoneNumberStatusEnum("status").default("active").notNull(),
+		capabilities: jsonb("capabilities")
+			.$type<{
+				voice: boolean
+				sms?: boolean
+				mms?: boolean
+			}>()
+			.default({ voice: true }),
+		isDefaultOutbound: boolean("is_default_outbound")
+			.default(false)
+			.notNull(),
+		assignedAgentId: integer("assigned_agent_id").references(
+			() => voiceAgents.id,
+			{
+				onDelete: "set null"
+			}
+		),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull()
+	},
+	(table) => [
+		index("team_phone_numbers_team_id_idx").on(table.teamId),
+		index("team_phone_numbers_provider_idx").on(table.provider),
+		index("team_phone_numbers_number_idx").on(table.phoneNumber),
+		index("team_phone_numbers_status_idx").on(table.status),
+		index("team_phone_numbers_agent_idx").on(table.assignedAgentId),
+		index("team_phone_numbers_user_id_idx").on(table.userId),
+		unique("team_phone_numbers_team_number_unique").on(
+			table.teamId,
+			table.phoneNumber
+		)
 	]
 )
 
@@ -1977,8 +2033,19 @@ export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
 		references: [agentRoles.id]
 	}),
 	functions: many(voiceAgentFunctions),
-	sessions: many(voiceSessions)
+	sessions: many(voiceSessions),
+	assignedPhoneNumbers: many(teamPhoneNumbers)
 }))
+
+export const teamPhoneNumbersRelations = relations(
+	teamPhoneNumbers,
+	({ one }) => ({
+		assignedAgent: one(voiceAgents, {
+			fields: [teamPhoneNumbers.assignedAgentId],
+			references: [voiceAgents.id]
+		})
+	})
+)
 
 export const voiceAgentFunctionsRelations = relations(
 	voiceAgentFunctions,
