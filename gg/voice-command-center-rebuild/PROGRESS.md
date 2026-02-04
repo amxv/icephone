@@ -289,17 +289,19 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Added: `gg/voice-command-center-rebuild/crm-integration-research.md`
 - Tests/commands run: Web research via `webctx` (`search`, `read-link`) and document authoring.
-- Commit:
+- Commit: `05f2067` (`phase-23: crm research`)
 - Notes/blockers:
   - Research completed; Phase 24 implementation will follow this design artifact.
 
 ---
 
 ## Phase 24 — CRM Integrations Implementation
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Implemented CRM integration scaffolding for HubSpot, Salesforce, GoHighLevel, and Pipedrive with team-scoped credentials, provider adapters, normalized lead import pipeline, campaign assignment wiring in the campaign lead switcher modal, and call outcome/disposition/auto-note sync writeback to connected CRMs. Added persistent external-record link mapping to support idempotent imports and repeat-safe call sync.
 - Files changed:
-- Tests/commands run:
+  - Added: `src/lib/crm/types.ts`, `src/lib/crm/integration-service.ts`, `src/lib/crm/providers/http.ts`, `src/lib/crm/providers/shared.ts`, `src/lib/crm/providers/index.ts`, `src/lib/crm/providers/hubspot.ts`, `src/lib/crm/providers/salesforce.ts`, `src/lib/crm/providers/gohighlevel.ts`, `src/lib/crm/providers/pipedrive.ts`, `src/actions/crm-integrations.ts`
+  - Updated: `src/db/schema.ts`, `src/components/add-leads-modal.tsx`, `src/actions/calls.ts`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
 - Commit:
 - Notes/blockers:
   - Implement team-scoped integration credentials + connector clients for HubSpot, Salesforce, GoHighLevel, Pipedrive.

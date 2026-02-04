@@ -4,6 +4,7 @@ import { db_ws } from "@/db"
 import { calls, callEvents, leads, voiceAgents } from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
+import { syncCallOutcomeToCRMs } from "@/lib/crm/integration-service"
 import { teamScope } from "@/lib/team-scope"
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm"
 import { z } from "zod"
@@ -391,6 +392,53 @@ export async function updateCallOutcome(callId: number, rawData: unknown) {
 				disposition
 			}
 		})
+
+		try {
+			const syncResults = await syncCallOutcomeToCRMs({
+				teamId,
+				leadId: updatedCall.leadId,
+				payload: {
+					callId: updatedCall.id,
+					callTimestamp: updatedCall.startTime || new Date(),
+					durationSeconds: updatedCall.duration,
+					status: (updatedCall.status as string | null) || data.status || null,
+					disposition,
+					summary:
+						(updatedCall.summary as string | null) ||
+						data.summary ||
+						null,
+					transcript:
+						(updatedCall.transcript as string | null) ||
+						data.transcript ||
+						null,
+					autoNote,
+					campaignId: updatedCall.campaignId || null,
+					agentId: updatedCall.agentId || null
+				}
+			})
+
+			if (syncResults.length > 0) {
+				const syncedMetadata: Record<string, unknown> = {
+					...((updatedCall.metadata as Record<string, unknown>) || {}),
+					crmSync: {
+						attemptedAt: new Date().toISOString(),
+						results: syncResults
+					}
+				}
+
+				await db_ws
+					.update(calls)
+					.set({
+						metadata: syncedMetadata,
+						updatedAt: new Date()
+					})
+					.where(and(eq(calls.id, callId), teamScope(calls, teamId)))
+
+				updatedCall.metadata = syncedMetadata
+			}
+		} catch (crmSyncError) {
+			console.error("Failed CRM call outcome sync:", crmSyncError)
+		}
 
 		return { data: updatedCall, success: true, error: null }
 	} catch (error) {

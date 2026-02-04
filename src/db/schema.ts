@@ -12,6 +12,7 @@ import {
 	serial,
 	text,
 	timestamp,
+	unique,
 	varchar,
 	vector
 } from "drizzle-orm/pg-core"
@@ -233,6 +234,44 @@ export const teamIntegrations = pgTable(
 	(table) => [
 		index("team_integrations_team_id_idx").on(table.teamId),
 		index("team_integrations_provider_idx").on(table.provider)
+	]
+)
+
+// External CRM record linkage for idempotent sync/import mapping
+export const crmExternalRecords = pgTable(
+	"crm_external_records",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		provider: varchar("provider", { length: 50 }).notNull(),
+		entityType: varchar("entity_type", { length: 50 }).notNull(), // lead, call, campaign, appointment
+		entityId: integer("entity_id").notNull(),
+		externalId: varchar("external_id", { length: 255 }).notNull(),
+		externalParentId: varchar("external_parent_id", { length: 255 }),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("crm_external_records_team_idx").on(table.teamId),
+		index("crm_external_records_provider_idx").on(table.provider),
+		index("crm_external_records_entity_idx").on(table.entityType, table.entityId),
+		index("crm_external_records_external_idx").on(table.externalId),
+		unique("crm_external_records_team_provider_entity_unique").on(
+			table.teamId,
+			table.provider,
+			table.entityType,
+			table.entityId
+		),
+		unique("crm_external_records_team_provider_external_unique").on(
+			table.teamId,
+			table.provider,
+			table.externalId
+		)
 	]
 )
 

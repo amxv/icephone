@@ -166,14 +166,14 @@ Examples:
 - [x] Define lead import, campaign switcher sync, and call outcome/disposition/notes sync contracts
 - [x] Document rollout plan and risk constraints
 - [x] Update `PROGRESS.md`
-- [ ] Commit: `phase-23: crm research`
+- [x] Commit: `phase-23: crm research`
 
 ### Phase 24 — CRM Integrations Implementation
-- [ ] Implement integrations for selected CRMs (team-scoped credentials + sync jobs/actions)
-- [ ] Implement lead import into campaign switcher
-- [ ] Implement call data + notes + disposition sync back to CRM records
-- [ ] Validate support/outbound/loan-collections command-center workflows with CRM sync paths
-- [ ] Update `PROGRESS.md`
+- [x] Implement integrations for selected CRMs (team-scoped credentials + sync jobs/actions)
+- [x] Implement lead import into campaign switcher
+- [x] Implement call data + notes + disposition sync back to CRM records
+- [x] Validate support/outbound/loan-collections command-center workflows with CRM sync paths
+- [x] Update `PROGRESS.md`
 - [ ] Commit: `phase-24: crm integrations`
 
 ### Phase 25 — Telephony + Recording Research
