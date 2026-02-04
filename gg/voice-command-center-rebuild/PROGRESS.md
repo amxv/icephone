@@ -121,7 +121,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
   - Updated scripts: `scripts/check-voice-agent-phone-assignments.ts`, `scripts/check-voice-agent.ts`, `scripts/test-call-initiation.ts`.
   - Formatting updates from Biome across related files.
 - Tests/commands run: `bun install`, `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
-- Commit:
+- Commit: `phase-9: quality pass` (`87133bd`)
 - Notes/blockers:
 
 ---
