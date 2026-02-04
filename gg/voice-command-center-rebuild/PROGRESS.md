@@ -327,18 +327,19 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Summary: Closed a high-impact sidebar feature gap by wiring per-agent knowledge-base scoping into the active voice-agent customization and realtime tool execution path. Agents can now explicitly scope allowed knowledge sources, and `searchKnowledgeBase` tool calls are constrained to those configured sources for support/collections workflows. Added source-aware instructions in session bootstrap so realtime responses stay grounded and bounded to the intended KB context.
 - Files changed:
   - Updated: `src/components/voice-agent-customization-dialog.tsx`, `src/app/api/voice/session/route.ts`, `src/hooks/use-realtime-voice-session.ts`, `src/lib/openai/realtime-tools.ts`, `src/actions/knowledge-base.ts`, `src/types.ts`, `src/db/schema.ts`
-- Tests/commands run:
-- Commit:
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `150b2e9` (`phase-26: sidebar product gaps`)
 - Notes/blockers:
   - None.
 
 ---
 
 ## Phase 27 — Backend Optimization Pass II
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Optimized analytics aggregation latency by parallelizing independent database queries inside `getCallAnalytics`. The previous implementation executed multiple heavy aggregations sequentially (summary, outcomes, dispositions, direction, hourly, sentiment, top-agent, daily trend queries). The new implementation batches them with `Promise.all`, reducing end-to-end response time for the analytics screen under normal load without changing business logic or metric definitions.
 - Files changed:
-- Tests/commands run:
+  - Updated: `src/actions/call-analytics.ts`
+- Tests/commands run: `bun install`, `bun run typecheck`, `bun run lint`
 - Commit:
 - Notes/blockers:
-  - Re-profile campaign queue, CRM sync throughput, analytics aggregation queries, and add targeted optimizations.
+  - Re-profile campaign queue + CRM sync throughput in a dedicated pass when real telephony traffic is available.

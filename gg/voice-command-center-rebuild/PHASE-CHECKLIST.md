@@ -192,7 +192,7 @@ Examples:
 - [x] Commit: `phase-26: sidebar product gaps`
 
 ### Phase 27 — Backend Optimization Pass II
-- [ ] Profile and optimize campaign queue + CRM sync throughput
-- [ ] Optimize analytics aggregation bottlenecks identified during CRM rollout
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-27: backend optimization`
+- [x] Profile and optimize campaign queue + CRM sync throughput
+- [x] Optimize analytics aggregation bottlenecks identified during CRM rollout
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-27: backend optimization`
