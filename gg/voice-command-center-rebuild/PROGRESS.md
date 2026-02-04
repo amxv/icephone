@@ -211,13 +211,14 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 17 — CRM Product Gap Analysis (Leads/Pipeline/Appointments)
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Closed two high-impact CRM/backend gaps. Added lead lifecycle sync for appointments so lead status/deal stage automatically move to `qualified` when appointments are created/associated. Replaced call-queue “not implemented” execution path with a full async processing pipeline (batch dequeue, calling state transition, simulated call record creation, retry scheduling, fail terminal state) behind `CALL_EXECUTION_ENABLED` and `CALL_EXECUTION_PROVIDER`.
 - Files changed:
-- Tests/commands run:
-- Commit:
+- Updated: `src/actions/appointmentActions.ts`, `src/app/api/call-queue/process/route.ts`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-17: crm gaps`
 - Notes/blockers:
-  - Review leads/pipeline/appointments for gaps; add phases for any missing features.
+  - Telephony provider adapters are still deferred; current execution provider is `mock` to validate queue/run infrastructure end-to-end.
 
 ---
 

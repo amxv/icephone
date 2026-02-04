@@ -1,7 +1,7 @@
 "use server"
 
 import { db_ws } from "@/db"
-import { appointments, teamIntegrations } from "@/db/schema"
+import { appointments, leads, teamIntegrations } from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
 import {
@@ -11,7 +11,7 @@ import {
 } from "@/lib/calcom"
 import type { IEvent, IUser } from "@/lib/calendar/interfaces"
 import type { TEventColor } from "@/lib/calendar/types"
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, eq, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
@@ -161,6 +161,30 @@ const getApiKey = (integration?: typeof teamIntegrations.$inferSelect) => {
 	return integration?.apiKey || process.env.CALCOM_API_KEY || null
 }
 
+async function markLeadAsQualifiedForAppointment(
+	leadId: number | null | undefined,
+	teamId: string
+) {
+	if (!leadId) {
+		return
+	}
+
+	await db_ws
+		.update(leads)
+		.set({
+			status: "qualified",
+			dealStage: "qualified",
+			updatedAt: new Date()
+		})
+		.where(
+			and(
+				eq(leads.id, leadId),
+				eq(leads.teamId, teamId),
+				inArray(leads.status, ["new", "contacted"])
+			)
+		)
+}
+
 export async function getAppointments(): Promise<IEvent[]> {
 	try {
 		const { teamId } = await requireTeam()
@@ -280,6 +304,8 @@ export async function createAppointment(
 			})
 			.returning()
 
+		await markLeadAsQualifiedForAppointment(created.leadId, teamId)
+
 		await logAuditEvent({
 			teamId,
 			actorUserId: user.id,
@@ -327,6 +353,8 @@ export async function updateAppointment(
 
 		let updatedStart = appointment.startTime
 		let updatedEnd = appointment.endTime
+		const nextLeadId =
+			payload.leadId !== undefined ? payload.leadId : appointment.leadId
 		let calBookingId = appointment.calBookingId
 		let calEventId = appointment.calEventId
 
@@ -385,6 +413,7 @@ export async function updateAppointment(
 				title: payload.title ?? appointment.title,
 				description: payload.description ?? appointment.description,
 				location: payload.location ?? appointment.location,
+				leadId: nextLeadId ?? null,
 				startTime: updatedStart,
 				endTime: updatedEnd,
 				calBookingId,
@@ -393,6 +422,8 @@ export async function updateAppointment(
 			})
 			.where(eq(appointments.id, appointmentId))
 			.returning()
+
+		await markLeadAsQualifiedForAppointment(updated.leadId, teamId)
 
 		await logAuditEvent({
 			teamId,

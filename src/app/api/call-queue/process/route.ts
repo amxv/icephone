@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db_ws } from "@/db"
-import { callQueue } from "@/db/schema"
-import { eq, and, sql } from "drizzle-orm"
+import { callQueue, calls } from "@/db/schema"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 // Simple authentication for background processing
 async function authenticateRequest(request: NextRequest): Promise<boolean> {
@@ -261,11 +261,12 @@ export async function GET(request: NextRequest) {
 
 // Direct queue processing function that doesn't require auth context
 async function processTeamCallQueueDirect(
-	_teamId: string,
-	_userId?: string,
-	_batchSize: number = 5
+	teamId: string,
+	userId?: string,
+	batchSize: number = 5
 ) {
 	const callExecutionEnabled = process.env.CALL_EXECUTION_ENABLED === "true"
+	const executionProvider = process.env.CALL_EXECUTION_PROVIDER || "mock"
 
 	if (!callExecutionEnabled) {
 		return {
@@ -283,10 +284,175 @@ async function processTeamCallQueueDirect(
 		}
 	}
 
+	const queueEntries = await db_ws
+		.select({
+			id: callQueue.id,
+			leadId: callQueue.leadId,
+			campaignId: callQueue.campaignId,
+			agentId: callQueue.agentId,
+			voiceAgentId: callQueue.voiceAgentId,
+			priority: callQueue.priority,
+			scheduledTime: callQueue.scheduledTime,
+			retryCount: callQueue.retryCount,
+			maxRetries: callQueue.maxRetries,
+			retryInterval: callQueue.retryInterval,
+			instructions: callQueue.instructions,
+			phoneNumber: callQueue.phoneNumber,
+			userId: callQueue.userId
+		})
+		.from(callQueue)
+		.where(
+			and(
+				eq(callQueue.teamId, teamId),
+				userId ? eq(callQueue.userId, userId) : sql`true`,
+				eq(callQueue.status, "pending"),
+				sql`(${callQueue.scheduledTime} IS NULL OR ${callQueue.scheduledTime} <= NOW())`
+			)
+		)
+		.orderBy(desc(callQueue.priority), callQueue.scheduledTime)
+		.limit(batchSize)
+
+	if (!queueEntries.length) {
+		return {
+			success: true,
+			data: {
+				processed: 0,
+				results: [],
+				successful: 0,
+				failed: 0,
+				retries: 0,
+				message: "No queued calls ready for processing."
+			},
+			error: null
+		}
+	}
+
+	const now = new Date()
+	const queueIds = queueEntries.map((entry) => entry.id)
+	await db_ws
+		.update(callQueue)
+		.set({
+			status: "calling",
+			startedAt: now,
+			updatedAt: now
+		})
+		.where(inArray(callQueue.id, queueIds))
+
+	const results: Array<{
+		queueId: number
+		status: "completed" | "retry_scheduled" | "failed"
+		callId?: number
+		error?: string
+	}> = []
+
+	let successful = 0
+	let failed = 0
+	let retries = 0
+
+	for (const entry of queueEntries) {
+		try {
+			if (executionProvider !== "mock") {
+				throw new Error(
+					`Unsupported call execution provider: ${executionProvider}`
+				)
+			}
+
+			const durationSeconds = 45 + Math.floor(Math.random() * 120)
+			const completedAt = new Date(Date.now() + durationSeconds * 1000)
+			const [createdCall] = await db_ws
+				.insert(calls)
+				.values({
+					leadId: entry.leadId,
+					teamId,
+					agentId: entry.agentId || entry.voiceAgentId,
+					campaignId: entry.campaignId,
+					direction: "outgoing",
+					type: "outgoing",
+					duration: durationSeconds,
+					startTime: entry.scheduledTime || now,
+					endTime: completedAt,
+					status: "completed",
+					summary:
+						"Simulated call execution completed (telephony integration pending).",
+					metadata: {
+						queueId: entry.id,
+						executionProvider,
+						simulated: true
+					},
+					createdAt: now,
+					updatedAt: completedAt,
+					userId: entry.userId
+				})
+				.returning({ id: calls.id })
+
+			await updateCallQueueStatus(entry.id, "completed", {
+				completedAt,
+				callResult: {
+					callId: String(createdCall.id),
+					duration: durationSeconds,
+					outcome: "simulated_completed",
+					notes: "Processed by mock call executor"
+				}
+			})
+
+			successful += 1
+			results.push({
+				queueId: entry.id,
+				status: "completed",
+				callId: createdCall.id
+			})
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error"
+			const retryCount = (entry.retryCount || 0) + 1
+			const maxRetries = entry.maxRetries ?? 3
+
+			if (retryCount <= maxRetries) {
+				const retryAt = new Date(
+					Date.now() + (entry.retryInterval ?? 60) * 60_000
+				)
+				await updateCallQueueStatus(entry.id, "pending", {
+					retryCount,
+					scheduledTime: retryAt,
+					lastError: errorMessage
+				})
+				retries += 1
+				results.push({
+					queueId: entry.id,
+					status: "retry_scheduled",
+					error: errorMessage
+				})
+				continue
+			}
+
+			await updateCallQueueStatus(entry.id, "failed", {
+				retryCount,
+				lastError: errorMessage,
+				completedAt: new Date()
+			})
+			failed += 1
+			results.push({
+				queueId: entry.id,
+				status: "failed",
+				error: errorMessage
+			})
+		}
+	}
+
 	return {
-		success: false,
-		error: "Call execution is not implemented yet.",
-		data: null
+		success: true,
+		data: {
+			processed: queueEntries.length,
+			results,
+			successful,
+			failed,
+			retries,
+			message:
+				executionProvider === "mock"
+					? "Calls processed with mock execution provider."
+					: "Calls processed."
+		},
+		error: null
 	}
 }
 
