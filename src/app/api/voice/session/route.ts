@@ -32,7 +32,8 @@ export async function POST(request: Request) {
 				name: voiceAgents.name,
 				prompt: voiceAgents.prompt,
 				firstMessage: voiceAgents.firstMessage,
-				voice: voiceAgents.voice
+				voice: voiceAgents.voice,
+				configuration: voiceAgents.configuration
 			})
 			.from(voiceAgents)
 			.where(
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
 		}
 
 		const agentRecord = agent[0]
+		const commandCenter = agentRecord.configuration?.command_center
 		const voiceSelection = normalizeOpenAIVoiceId(
 			agentRecord.voice?.provider === "openai"
 				? agentRecord.voice.voice_id
@@ -78,6 +80,15 @@ export async function POST(request: Request) {
 			agentRecord.prompt || "",
 			agentRecord.firstMessage
 				? `Begin the conversation with: ${agentRecord.firstMessage}`
+				: "",
+			commandCenter?.mode
+				? `Operating mode: ${commandCenter.mode}.`
+				: "",
+			commandCenter?.personality
+				? `Personality guidance: ${commandCenter.personality}`
+				: "",
+			commandCenter?.scriptDirection
+				? `Script direction: ${commandCenter.scriptDirection}`
 				: "",
 			"When scheduling appointments, call the scheduleAppointment tool with ISO-8601 start and end times.",
 			"For factual support, policy, pricing, product, or collections questions, call the searchKnowledgeBase tool before answering.",

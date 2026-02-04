@@ -271,13 +271,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 22 — Voice Agent Command Center Modes + Templates
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Implemented command-center template customization for voice agents with operating mode support and reusable quick starts. Added explicit modes (`support`, `outbound_cold_calling`, `loan_repayment_collections`) plus three additional templates (`appointment_setting`, `customer_onboarding`, `renewal_retention`). Voice-agent customization now supports template selection, personality text, script-direction text, first-message editing, and persists configuration metadata while keeping all text user-editable.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Added: `src/lib/voice-agent-command-center.ts`
+  - Updated: `src/components/voice-agent-customization-dialog.tsx`, `src/components/voice-agents-page-client.tsx`, `src/app/api/voice/session/route.ts`, `src/types.ts`, `src/db/schema.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-22: command center templates`
 - Notes/blockers:
-  - Must support support, outbound cold-calling, and loan repayment collections plus 3 additional templates.
+  - None.
 
 ---
 

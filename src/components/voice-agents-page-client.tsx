@@ -33,6 +33,7 @@ import {
 	TooltipTrigger
 } from "@/components/ui/tooltip"
 import { getOpenAIVoiceLabel } from "@/lib/openai/realtime-voice"
+import { getVoiceAgentCommandCenterTemplate } from "@/lib/voice-agent-command-center"
 import type { VoiceAgent, VoiceAgentStatus } from "@/types"
 import {
 	BotIcon,
@@ -44,14 +45,74 @@ import {
 	UserIcon,
 	CalendarIcon,
 	BarChartIcon,
-	EditIcon
+	EditIcon,
+	PhoneCallIcon,
+	WalletIcon
 } from "lucide-react"
 import { useCallback, useState } from "react"
 import { toast } from "sonner"
 
 // Helper function to get role display information
-function getRoleInfo(prompt: string) {
-	const promptLower = prompt.toLowerCase()
+function getRoleInfo(agent: VoiceAgent) {
+	const template = getVoiceAgentCommandCenterTemplate(
+		agent.configuration?.command_center?.templateId
+	)
+	const mode = agent.configuration?.command_center?.mode
+	const promptLower = (agent.prompt || "").toLowerCase()
+
+	if (template) {
+		if (template.mode === "loan_repayment_collections") {
+			return {
+				role: template.label,
+				icon: WalletIcon,
+				color: "from-amber-500 to-amber-500/60",
+				description: template.description
+			}
+		}
+
+		if (template.mode === "outbound_cold_calling") {
+			return {
+				role: template.label,
+				icon: PhoneCallIcon,
+				color: "from-emerald-500 to-emerald-500/60",
+				description: template.description
+			}
+		}
+
+		return {
+			role: template.label,
+			icon: MessageSquareIcon,
+			color: "from-blue-500 to-blue-500/60",
+			description: template.description
+		}
+	}
+
+	if (mode === "loan_repayment_collections") {
+		return {
+			role: "Loan Repayment Collections",
+			icon: WalletIcon,
+			color: "from-amber-500 to-amber-500/60",
+			description: "Collects repayment commitments and outcomes"
+		}
+	}
+
+	if (mode === "outbound_cold_calling") {
+		return {
+			role: "Outbound Cold Calling",
+			icon: PhoneCallIcon,
+			color: "from-emerald-500 to-emerald-500/60",
+			description: "Runs outbound discovery and conversion calls"
+		}
+	}
+
+	if (mode === "support") {
+		return {
+			role: "Support Command Center",
+			icon: MessageSquareIcon,
+			color: "from-blue-500 to-blue-500/60",
+			description: "Handles support and knowledge-based questions"
+		}
+	}
 
 	if (
 		promptLower.includes("customer service") ||
@@ -129,7 +190,7 @@ function VoiceAgentCard({
 		useState<VoiceAgentStatus>("active")
 	const [isUpdating, setIsUpdating] = useState(false)
 
-	const roleInfo = getRoleInfo(agent.prompt || "")
+	const roleInfo = getRoleInfo(agent)
 	const voiceDisplayName = getVoiceDisplayName(agent.voice)
 
 	const statusConfig = {

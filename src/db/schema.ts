@@ -817,6 +817,22 @@ export const voiceAgents = pgTable(
 					files?: string[]
 					messages?: string[]
 				}
+				command_center?: {
+					mode?:
+						| "support"
+						| "outbound_cold_calling"
+						| "loan_repayment_collections"
+					templateId?:
+						| "support"
+						| "outbound_cold_calling"
+						| "loan_repayment_collections"
+						| "appointment_setting"
+						| "customer_onboarding"
+						| "renewal_retention"
+					personality?: string
+					scriptDirection?: string
+					updatedAt?: string
+				}
 				speech_to_text?: {
 					provider?: "deepgram"
 					multilingual?: boolean

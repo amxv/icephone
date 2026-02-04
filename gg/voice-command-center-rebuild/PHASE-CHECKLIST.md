@@ -155,11 +155,11 @@ Examples:
 - [x] Commit: `phase-21: realtime kb tools`
 
 ### Phase 22 — Voice Agent Command Center Modes + Templates
-- [ ] Add configurable operating modes for `support`, `outbound cold calling`, and `loan repayment collections`
-- [ ] Add at least 3 additional templates/use-cases as quick starts
-- [ ] Ensure templates drive prompt/personality/script defaults and remain user-customizable
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-22: command center templates`
+- [x] Add configurable operating modes for `support`, `outbound cold calling`, and `loan repayment collections`
+- [x] Add at least 3 additional templates/use-cases as quick starts
+- [x] Ensure templates drive prompt/personality/script defaults and remain user-customizable
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-22: command center templates`
 
 ### Phase 23 — CRM Integrations Research + Design
 - [ ] Pick 4 high-priority CRMs and document API/auth/data-mapping strategy
