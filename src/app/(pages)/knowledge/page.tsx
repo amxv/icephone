@@ -10,7 +10,6 @@ import KnowledgeBaseSearch from "@/components/knowledge-base/KnowledgeBaseSearch
 import KnowledgeBaseSourcesList from "@/components/knowledge-base/KnowledgeBaseSourcesList"
 import KnowledgeBaseStats from "@/components/knowledge-base/KnowledgeBaseStats"
 import type { KnowledgeBaseStatsProps } from "@/components/knowledge-base/KnowledgeBaseStats"
-import StreamingRAGChat from "@/components/knowledge-base/StreamingRAGChat"
 import FileUpload from "@/components/ui/file-upload"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -41,19 +40,12 @@ export default async function KnowledgeBasePage() {
 
 				<Separator className="my-2" />
 
-				<Tabs defaultValue="chat" className="flex-1 flex flex-col">
+				<Tabs defaultValue="search" className="flex-1 flex flex-col">
 					<TabsList>
-						<TabsTrigger value="chat">AI Chat</TabsTrigger>
 						<TabsTrigger value="search">Search</TabsTrigger>
 						<TabsTrigger value="sources">Sources</TabsTrigger>
 						<TabsTrigger value="add">Add New Source</TabsTrigger>
 					</TabsList>
-
-					<TabsContent value="chat" className="flex-1 overflow-auto">
-						<Suspense fallback={<div>Loading AI chat...</div>}>
-							<StreamingRAGChat />
-						</Suspense>
-					</TabsContent>
 
 					<TabsContent
 						value="search"

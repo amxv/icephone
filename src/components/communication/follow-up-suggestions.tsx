@@ -9,7 +9,6 @@ import {
 	BrainIcon,
 	ClockIcon,
 	PhoneCallIcon,
-	MailIcon,
 	MessageSquareIcon,
 	CalendarIcon,
 	TrendingUpIcon,
@@ -19,7 +18,7 @@ import { getCommunicationLogs } from "@/actions/lead-communication"
 
 interface FollowUpSuggestion {
 	id: string
-	type: "call" | "email" | "text" | "appointment"
+	type: "call" | "text" | "appointment"
 	priority: "high" | "medium" | "low"
 	title: string
 	description: string
@@ -34,7 +33,6 @@ interface FollowUpSuggestionsProps {
 	leadScore?: number
 	lastActivity?: Date
 	onCallSuggestion: () => void
-	onEmailSuggestion: () => void
 	onTextSuggestion: () => void
 	onAppointmentSuggestion: () => void
 }
@@ -43,8 +41,6 @@ const getActionIcon = (type: string) => {
 	switch (type) {
 		case "call":
 			return PhoneCallIcon
-		case "email":
-			return MailIcon
 		case "text":
 			return MessageSquareIcon
 		case "appointment":
@@ -68,7 +64,7 @@ const getPriorityColor = (priority: string) => {
 }
 
 interface CommunicationHistoryItem {
-	type: "call" | "email" | "text" | "appointment"
+	type: "call" | "text" | "appointment"
 	direction: "incoming" | "outgoing"
 	status: string
 	timestamp: Date
@@ -90,9 +86,6 @@ const generateSuggestions = (
 	// Check for recent communications
 	const recentCalls = communicationHistory.filter(
 		(item) => item.type === "call" && item.direction === "outgoing"
-	)
-	const recentEmails = communicationHistory.filter(
-		(item) => item.type === "email" && item.direction === "outgoing"
 	)
 
 	// High priority suggestions based on lead status and activity
@@ -121,20 +114,6 @@ const generateSuggestions = (
 		})
 	}
 
-	// Medium priority suggestions based on communication patterns
-	if (recentCalls.length > 0 && recentEmails.length === 0) {
-		suggestions.push({
-			id: "email-follow-up",
-			type: "email",
-			priority: "medium",
-			title: "Email Follow-up",
-			description:
-				"Send follow-up email with call summary and next steps",
-			reasoning: "Recent calls but no email follow-up",
-			suggestedTiming: "Within 6 hours of last call"
-		})
-	}
-
 	if (leadScore && leadScore > 70 && daysSinceLastActivity > 7) {
 		suggestions.push({
 			id: "high-score-reengagement",
@@ -144,19 +123,6 @@ const generateSuggestions = (
 			description:
 				"High-scoring lead - schedule a product demo or meeting",
 			reasoning: "High lead score but no recent activity",
-			suggestedTiming: "This week"
-		})
-	}
-
-	// Low priority suggestions for nurturing
-	if (leadStatus === "contacted" && daysSinceLastActivity > 14) {
-		suggestions.push({
-			id: "nurture-sequence",
-			type: "email",
-			priority: "low",
-			title: "Nurture Email",
-			description: "Send valuable content to stay top-of-mind",
-			reasoning: "Lead contacted but needs nurturing",
 			suggestedTiming: "This week"
 		})
 	}
@@ -186,7 +152,6 @@ export function FollowUpSuggestions({
 	leadScore,
 	lastActivity,
 	onCallSuggestion,
-	onEmailSuggestion,
 	onTextSuggestion,
 	onAppointmentSuggestion
 }: FollowUpSuggestionsProps) {
@@ -214,9 +179,6 @@ export function FollowUpSuggestions({
 								switch (suggestion.type) {
 									case "call":
 										onCallSuggestion()
-										break
-									case "email":
-										onEmailSuggestion()
 										break
 									case "text":
 										onTextSuggestion()
@@ -246,7 +208,6 @@ export function FollowUpSuggestions({
 		leadScore,
 		lastActivity,
 		onCallSuggestion,
-		onEmailSuggestion,
 		onTextSuggestion,
 		onAppointmentSuggestion
 	])

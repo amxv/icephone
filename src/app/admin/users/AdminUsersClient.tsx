@@ -46,7 +46,6 @@ interface PlatformUser {
 	leadsCount: number
 	callsCount: number
 	voiceAgentsCount: number
-	phoneNumbersCount: number
 	appointmentsCount: number
 	campaignsCount: number
 	lastActivityAt: Date | string | null

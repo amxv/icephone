@@ -12,10 +12,7 @@ import {
 	Funnel,
 	Headset,
 	LayoutDashboard,
-	Mail,
 	Megaphone,
-	MessagesSquare,
-	Phone,
 	PhoneCall,
 	Settings,
 	Users
@@ -71,31 +68,10 @@ export function SidebarNav() {
 			)
 		},
 		{
-			label: "Chats",
-			href: "/chats",
-			icon: (
-				<MessagesSquare className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-			)
-		},
-		{
-			label: "Emails",
-			href: "/emails",
-			icon: (
-				<Mail className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-			)
-		},
-		{
 			label: "Campaigns",
 			href: "/campaigns",
 			icon: (
 				<Megaphone className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-			)
-		},
-		{
-			label: "Phone Numbers",
-			href: "/phone-numbers",
-			icon: (
-				<Phone className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
 			)
 		},
 		{

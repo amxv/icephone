@@ -2,12 +2,7 @@
 
 import { getAgentRoles } from "@/actions/agent-roles"
 import type { AgentRole } from "@/actions/agent-roles"
-import { getPhoneNumbers } from "@/actions/phone-numbers"
-import type { PhoneNumber } from "@/actions/phone-numbers"
-import {
-	createVoiceAgent,
-	createVoiceAgentWithRole
-} from "@/actions/voice-agents"
+import { createVoiceAgentWithRole } from "@/actions/voice-agents"
 import { getVoicePresets } from "@/actions/voice-presets"
 import type { VoicePreset } from "@/actions/voice-presets"
 import { Button } from "@/components/ui/button"
@@ -60,7 +55,6 @@ interface AgentConfig {
 
 	// Step 3: Basic Setup
 	name: string
-	phoneNumberId?: number
 	status: "active" | "inactive"
 	industryContext?: string
 }
@@ -89,7 +83,6 @@ export function SimpleAgentCreator({
 	// Data loading states
 	const [agentRoles, setAgentRoles] = useState<AgentRole[]>([])
 	const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([])
-	const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([])
 	const [isLoadingData, setIsLoadingData] = useState(false)
 
 	// Form state
@@ -128,14 +121,10 @@ export function SimpleAgentCreator({
 	const loadInitialData = useCallback(async () => {
 		setIsLoadingData(true)
 		try {
-			const [rolesResult, phonesResult] = await Promise.all([
-				getAgentRoles(),
-				getPhoneNumbers()
-			])
+			const rolesResult = await getAgentRoles()
 
 			// Server actions return arrays directly, not wrapped in success/data
 			setAgentRoles(rolesResult)
-			setPhoneNumbers(phonesResult)
 
 			// Load initial voice presets for English
 			await loadVoicePresets("en")
@@ -215,14 +204,12 @@ export function SimpleAgentCreator({
 				return
 			}
 
-			// Use the enhanced createVoiceAgentWithRole function for automatic VAPI assistant creation
 			const agentData = {
 				name: config.name,
 				description: `${selectedRole.displayName} agent with ${selectedVoice.displayName} voice`,
 				agentRoleId: config.roleId,
 				voicePresetId: config.voicePresetId,
 				language: config.language,
-				phoneNumberId: config.phoneNumberId,
 				status: config.status,
 				industryContext: config.industryContext
 			}
@@ -230,9 +217,7 @@ export function SimpleAgentCreator({
 			const result = await createVoiceAgentWithRole(agentData)
 
 			if (result.success) {
-				toast.success(
-					"Voice agent created successfully with VAPI assistant!"
-				)
+				toast.success("Voice agent created successfully")
 				setOpen(false)
 				setCurrentStep(1)
 				setConfig({
@@ -496,49 +481,6 @@ export function SimpleAgentCreator({
 											}
 											className="rounded-2xl"
 										/>
-									</div>
-
-									{/* Phone Number Assignment */}
-									<div className="space-y-2">
-										<Label className="text-base font-medium">
-											Phone Number (Optional)
-										</Label>
-										<Select
-											value={
-												config.phoneNumberId?.toString() ||
-												"none"
-											}
-											onValueChange={(value) =>
-												updateConfig({
-													phoneNumberId:
-														value === "none"
-															? undefined
-															: Number.parseInt(
-																	value,
-																	10
-																)
-												})
-											}
-										>
-											<SelectTrigger className="w-full rounded-2xl">
-												<SelectValue placeholder="Assign to phone number" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="none">
-													No phone number assigned
-												</SelectItem>
-												{phoneNumbers.map((phone) => (
-													<SelectItem
-														key={phone.id}
-														value={phone.id.toString()}
-													>
-														{phone.number}{" "}
-														{phone.friendlyName &&
-															`(${phone.friendlyName})`}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
 									</div>
 
 									{/* Agent Status */}

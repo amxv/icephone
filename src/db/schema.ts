@@ -1,9 +1,7 @@
-import { customVector } from "@useverk/drizzle-pgvector"
 import { relations } from "drizzle-orm"
 import { sql } from "drizzle-orm"
 import {
 	boolean,
-	date,
 	decimal,
 	index,
 	integer,
@@ -14,7 +12,6 @@ import {
 	serial,
 	text,
 	timestamp,
-	uuid,
 	varchar,
 	vector
 } from "drizzle-orm/pg-core"
@@ -42,21 +39,6 @@ export const dealStageEnum = pgEnum("deal_stage", [
 export const communicationTypeEnum = pgEnum("communication_type", [
 	"incoming",
 	"outgoing"
-])
-
-// Define phone number type enum
-export const phoneNumberTypeEnum = pgEnum("phone_number_type", [
-	"inbound",
-	"outbound",
-	"both"
-])
-
-// Define phone number status enum
-export const phoneNumberStatusEnum = pgEnum("phone_number_status", [
-	"active",
-	"inactive",
-	"pending",
-	"suspended"
 ])
 
 // Define task priority enum
@@ -236,221 +218,6 @@ export const campaigns = pgTable(
 	]
 )
 
-// Phone Numbers table - stores inbound and outbound phone numbers for voice agents
-export const phoneNumbers = pgTable(
-	"phone_numbers",
-	{
-		id: serial("id").primaryKey(),
-		number: varchar("number", { length: 20 }).notNull().unique(), // E.164 format
-		friendlyName: varchar("friendly_name", { length: 255 }).notNull(), // User-defined name
-		type: phoneNumberTypeEnum("type").notNull(),
-		status: phoneNumberStatusEnum("status").default("active"),
-		isDefault: boolean("is_default").default(false), // Default number for outbound calls
-		provider: varchar("provider", { length: 100 }), // Telephony provider (Twilio, etc.)
-		providerSid: varchar("provider_sid", { length: 255 }), // Provider's unique identifier
-
-		// VAPI-specific fields for Phase 3 enhancement
-		vapiPhoneNumberId: varchar("vapi_phone_number_id", { length: 255 }), // VAPI phone number reference
-		vapiProviderDetails: jsonb("vapi_provider_details")
-			.$type<{
-				providerId?: string
-				providerName?: string
-				region?: string
-				country?: string
-				capabilities?: {
-					sms?: boolean
-					voice?: boolean
-					mms?: boolean
-				}
-				cost?: {
-					monthly?: number
-					perMinute?: number
-					currency?: string
-				}
-			}>()
-			.default({}), // Provider-specific metadata from VAPI
-		vapiCapabilities: jsonb("vapi_capabilities")
-			.$type<{
-				inbound?: boolean
-				outbound?: boolean
-				sms?: boolean
-				recording?: boolean
-				voicemail?: boolean
-				conferencing?: boolean
-				transcription?: boolean
-			}>()
-			.default({}), // Phone number capabilities from VAPI
-		vapiStatusLastSync: timestamp("vapi_status_last_sync"), // VAPI status synchronization timestamp
-		vapiWebhookEvents: jsonb("vapi_webhook_events")
-			.$type<{
-				lastEventId?: string
-				lastEventType?: string
-				lastEventTime?: string
-				eventCount?: number
-				failedEvents?: Array<{
-					eventType: string
-					timestamp: string
-					error: string
-				}>
-			}>()
-			.default({}), // Tracking webhook events from VAPI
-		vapiErrorCount: integer("vapi_error_count").default(0), // Count of VAPI errors
-		vapiLastError: jsonb("vapi_last_error")
-			.$type<{
-				message?: string
-				code?: string
-				timestamp?: string
-				operation?: string
-				details?: Record<string, unknown>
-			}>()
-			.default({}), // Last VAPI error details
-
-		capabilities: jsonb("capabilities")
-			.$type<{
-				voice: boolean
-				sms: boolean
-				mms: boolean
-				fax: boolean
-			}>()
-			.default({ voice: true, sms: false, mms: false, fax: false }),
-		configuration: jsonb("configuration")
-			.$type<{
-				routingRules?: {
-					businessHours?: {
-						enabled: boolean
-						timezone: string
-						schedule: {
-							[key: string]: { start: string; end: string } | null
-						}
-					}
-					voicemail?: {
-						enabled: boolean
-						greeting: string
-					}
-					fallback?: {
-						enabled: boolean
-						forwardTo: string
-					}
-				}
-				callerIdName?: string
-				recordCalls?: boolean
-			}>()
-			.default({}),
-		costPerMinute: decimal("cost_per_minute", {
-			precision: 10,
-			scale: 4
-		}).default("0.0000"), // Cost tracking
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("phone_number_idx").on(table.number),
-		index("phone_type_idx").on(table.type),
-		index("phone_status_idx").on(table.status),
-		index("phone_user_id_idx").on(table.userId),
-		index("phone_is_default_idx").on(table.isDefault),
-		// VAPI-specific indexes for Phase 3
-		index("phone_vapi_id_idx").on(table.vapiPhoneNumberId),
-		index("phone_vapi_sync_idx").on(table.vapiStatusLastSync),
-		index("phone_vapi_errors_idx").on(table.vapiErrorCount)
-	]
-)
-
-// Phone Number Usage table - stores daily usage analytics for phone numbers
-export const phoneNumberUsage = pgTable(
-	"phone_number_usage",
-	{
-		id: serial("id").primaryKey(),
-		phoneNumberId: integer("phone_number_id")
-			.notNull()
-			.references(() => phoneNumbers.id, { onDelete: "cascade" }),
-		date: date("date").notNull(),
-		inboundCalls: integer("inbound_calls").default(0),
-		outboundCalls: integer("outbound_calls").default(0),
-		totalMinutes: integer("total_minutes").default(0),
-		totalCost: decimal("total_cost", { precision: 10, scale: 4 }).default(
-			"0.0000"
-		),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("phone_usage_phone_id_idx").on(table.phoneNumberId),
-		index("phone_usage_date_idx").on(table.date),
-		index("phone_usage_user_id_idx").on(table.userId),
-		// Unique constraint to prevent duplicate usage records for same phone number on same date
-		index("phone_usage_unique_idx").on(table.phoneNumberId, table.date)
-	]
-)
-
-// VAPI Operations Log table - audit trail for VAPI API operations (Phase 3)
-export const vapiPhoneOperations = pgTable(
-	"vapi_phone_operations",
-	{
-		id: serial("id").primaryKey(),
-		vapiPhoneNumberId: varchar("vapi_phone_number_id", {
-			length: 255
-		}).notNull(), // VAPI phone number ID
-		operationType: varchar("operation_type", { length: 100 }).notNull(), // create, update, delete, sync, test
-		requestData: jsonb("request_data")
-			.$type<Record<string, unknown>>()
-			.default({}), // Request payload sent to VAPI
-		responseData: jsonb("response_data")
-			.$type<Record<string, unknown>>()
-			.default({}), // Response received from VAPI
-		status: varchar("status", { length: 50 }).notNull(), // success, error, timeout, retry
-		errorDetails: jsonb("error_details")
-			.$type<{
-				message?: string
-				code?: string
-				statusCode?: number
-				details?: Record<string, unknown>
-			}>()
-			.default({}), // Error details if operation failed
-		duration: integer("duration"), // Operation duration in milliseconds
-		retryCount: integer("retry_count").default(0), // Number of retries attempted
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("vapi_ops_phone_id_idx").on(table.vapiPhoneNumberId),
-		index("vapi_ops_type_idx").on(table.operationType),
-		index("vapi_ops_status_idx").on(table.status),
-		index("vapi_ops_created_idx").on(table.createdAt),
-		index("vapi_ops_user_id_idx").on(table.userId)
-	]
-)
-
-// VAPI Webhooks table - webhook event tracking for phone numbers (Phase 3)
-export const vapiPhoneWebhooks = pgTable(
-	"vapi_phone_webhooks",
-	{
-		id: serial("id").primaryKey(),
-		vapiPhoneNumberId: varchar("vapi_phone_number_id", { length: 255 }), // VAPI phone number ID (nullable for account-level events)
-		eventType: varchar("event_type", { length: 100 }).notNull(), // call.started, call.ended, phone.updated, etc.
-		eventId: varchar("event_id", { length: 255 }).notNull().unique(), // VAPI event ID for deduplication
-		payload: jsonb("payload").$type<Record<string, unknown>>().default({}), // Full webhook payload from VAPI
-		signature: varchar("signature", { length: 512 }), // Webhook signature for verification
-		processedAt: timestamp("processed_at"), // When the event was processed
-		processingStatus: varchar("processing_status", { length: 50 }).default(
-			"pending"
-		), // pending, processed, failed, ignored
-		processingError: text("processing_error"), // Error details if processing failed
-		retryCount: integer("retry_count").default(0), // Number of processing retries
-		createdAt: timestamp("created_at").defaultNow().notNull(), // When webhook was received
-		userId: varchar("user_id", { length: 255 }) // Clerk user ID (if applicable)
-	},
-	(table) => [
-		index("vapi_webhook_phone_id_idx").on(table.vapiPhoneNumberId),
-		index("vapi_webhook_type_idx").on(table.eventType),
-		index("vapi_webhook_event_id_idx").on(table.eventId),
-		index("vapi_webhook_status_idx").on(table.processingStatus),
-		index("vapi_webhook_created_idx").on(table.createdAt),
-		index("vapi_webhook_user_id_idx").on(table.userId)
-	]
-)
-
 // Calls table - stores call records with leads
 export const calls = pgTable(
 	"calls",
@@ -503,58 +270,11 @@ export const textMessages = pgTable(
 	]
 )
 
-// Emails table - stores email records with leads
-export const emails = pgTable(
-	"emails",
-	{
-		id: serial("id").primaryKey(),
-		leadId: integer("lead_id")
-			.notNull()
-			.references(() => leads.id),
-		type: communicationTypeEnum("type").notNull(),
-		subject: varchar("subject", { length: 255 }).notNull(),
-		content: text("content").notNull(),
-		sentAt: timestamp("sent_at").notNull(),
-		status: varchar("status", { length: 50 }).default("pending"), // pending, sent, failed, opened
-		openedAt: timestamp("opened_at"),
-		clickedAt: timestamp("clicked_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("email_lead_id_idx").on(table.leadId),
-		index("email_sent_at_idx").on(table.sentAt),
-		index("email_user_id_idx").on(table.userId)
-	]
-)
-
-// Chats table - stores chat conversations or summaries with leads
-export const chats = pgTable(
-	"chats",
-	{
-		id: serial("id").primaryKey(),
-		leadId: integer("lead_id").references(() => leads.id),
-		summary: text("summary"), // Stores the main content or summary of the chat
-		timestamp: timestamp("timestamp").notNull(), // When the chat occurred/was last updated
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("chat_lead_id_idx").on(table.leadId),
-		index("chat_timestamp_idx").on(table.timestamp),
-		index("chat_user_id_idx").on(table.userId)
-	]
-)
-
 // Relations definition
 export const leadsRelations = relations(leads, ({ one, many }) => ({
 	appointments: many(appointments),
 	calls: many(calls),
 	textMessages: many(textMessages),
-	emails: many(emails),
-	chats: many(chats),
 	voiceSessions: many(voiceSessions),
 	interactions: many(leadInteractions),
 	tasks: many(tasks),
@@ -585,48 +305,6 @@ export const textMessagesRelations = relations(textMessages, ({ one }) => ({
 	lead: one(leads, {
 		fields: [textMessages.leadId],
 		references: [leads.id]
-	})
-}))
-
-export const emailsRelations = relations(emails, ({ one }) => ({
-	lead: one(leads, {
-		fields: [emails.leadId],
-		references: [leads.id]
-	})
-}))
-
-// Chat messages table - stores individual messages in a chat conversation
-export const chatMessages = pgTable(
-	"chat_messages",
-	{
-		id: serial("id").primaryKey(),
-		chatId: integer("chat_id")
-			.references(() => chats.id)
-			.notNull(),
-		content: text("content").notNull(),
-		role: varchar("role", { length: 50 }).notNull(), // 'user' or 'assistant'
-		timestamp: timestamp("timestamp").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("chat_message_chat_id_idx").on(table.chatId),
-		index("chat_message_timestamp_idx").on(table.timestamp),
-		index("chat_message_user_id_idx").on(table.userId)
-	]
-)
-
-export const chatsRelations = relations(chats, ({ one, many }) => ({
-	lead: one(leads, {
-		fields: [chats.leadId],
-		references: [leads.id]
-	}),
-	messages: many(chatMessages)
-}))
-
-export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
-	chat: one(chats, {
-		fields: [chatMessages.chatId],
-		references: [chats.id]
 	})
 }))
 
@@ -817,9 +495,6 @@ export const voiceAgents = pgTable(
 			settings?: Record<string, unknown>
 		}>(),
 		language: varchar("language", { length: 10 }).default("en"), // Language code (en, es, fr, etc.)
-		phoneNumberId: integer("phone_number_id").references(
-			() => phoneNumbers.id
-		), // Associated phone number
 		status: voiceAgentStatusEnum("status").default("inactive"),
 		configuration: jsonb("configuration")
 			.$type<{
@@ -899,7 +574,6 @@ export const voiceAgents = pgTable(
 			}>()
 			.default({}),
 		firstMessage: text("first_message"), // First message the agent says
-		vapiAssistantId: varchar("vapi_assistant_id", { length: 255 }), // VAPI Assistant ID for voice calls
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
@@ -907,7 +581,6 @@ export const voiceAgents = pgTable(
 	(table) => [
 		index("voice_agent_name_idx").on(table.name),
 		index("voice_agent_status_idx").on(table.status),
-		index("voice_agent_phone_number_idx").on(table.phoneNumberId),
 		index("voice_agent_voice_preset_idx").on(table.voicePresetId),
 		index("voice_agent_role_idx").on(table.agentRoleId),
 		index("voice_agent_user_id_idx").on(table.userId)
@@ -1022,49 +695,6 @@ export const voiceRecordings = pgTable(
 		index("voice_recording_status_idx").on(table.processingStatus),
 		index("voice_recording_user_id_idx").on(table.userId)
 	]
-)
-
-// Phone number relations
-export const phoneNumbersRelations = relations(
-	phoneNumbers,
-	({ many, one }) => ({
-		usage: many(phoneNumberUsage),
-		voiceAgents: many(voiceAgents),
-		vapiOperations: many(vapiPhoneOperations),
-		vapiWebhooks: many(vapiPhoneWebhooks)
-	})
-)
-
-export const phoneNumberUsageRelations = relations(
-	phoneNumberUsage,
-	({ one }) => ({
-		phoneNumber: one(phoneNumbers, {
-			fields: [phoneNumberUsage.phoneNumberId],
-			references: [phoneNumbers.id]
-		})
-	})
-)
-
-// VAPI Operations Relations
-export const vapiPhoneOperationsRelations = relations(
-	vapiPhoneOperations,
-	({ one }) => ({
-		phoneNumber: one(phoneNumbers, {
-			fields: [vapiPhoneOperations.vapiPhoneNumberId],
-			references: [phoneNumbers.vapiPhoneNumberId]
-		})
-	})
-)
-
-// VAPI Webhooks Relations
-export const vapiPhoneWebhooksRelations = relations(
-	vapiPhoneWebhooks,
-	({ one }) => ({
-		phoneNumber: one(phoneNumbers, {
-			fields: [vapiPhoneWebhooks.vapiPhoneNumberId],
-			references: [phoneNumbers.vapiPhoneNumberId]
-		})
-	})
 )
 
 // Knowledge Base Sources Table
@@ -1562,38 +1192,6 @@ export const callQueue = pgTable(
 	]
 )
 
-// Email Templates table - stores reusable email templates
-export const emailTemplates = pgTable(
-	"email_templates",
-	{
-		id: serial("id").primaryKey(),
-		name: varchar("name", { length: 255 }).notNull(),
-		subject: varchar("subject", { length: 500 }).notNull(),
-		content: text("content").notNull(),
-		description: text("description"), // Description of when to use this template
-		category: varchar("category", { length: 100 }), // e.g., "follow_up", "introduction", "proposal"
-		isDefault: boolean("is_default").default(false), // System default templates
-		variables: jsonb("variables")
-			.$type<{
-				// Dynamic variables that can be replaced in subject/content
-				leadName?: boolean
-				companyName?: boolean
-				userSignature?: boolean
-				customFields?: Record<string, string>
-			}>()
-			.default({}),
-		tags: varchar("tags", { length: 500 }), // Comma-separated tags for organization
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("email_templates_name_idx").on(table.name),
-		index("email_templates_category_idx").on(table.category),
-		index("email_templates_user_id_idx").on(table.userId)
-	]
-)
-
 // Communication Logs table - tracks all communication attempts and their outcomes
 export const communicationLogs = pgTable(
 	"communication_logs",
@@ -1620,8 +1218,8 @@ export const communicationLogs = pgTable(
 				clickTime?: string
 			}>()
 			.default({}),
-		relatedRecordId: integer("related_record_id"), // ID in calls, emails, textMessages, appointments table
-		relatedRecordType: varchar("related_record_type", { length: 50 }), // "call", "email", "text_message", "appointment"
+		relatedRecordId: integer("related_record_id"), // ID in calls, textMessages, appointments table
+		relatedRecordType: varchar("related_record_type", { length: 50 }), // "call", "text_message", "appointment"
 		notes: text("notes"), // User-added notes about this communication
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -1724,10 +1322,6 @@ export const visualElementsRelations = relations(visualElements, ({ one }) => ({
 
 // Voice agent relations
 export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
-	phoneNumber: one(phoneNumbers, {
-		fields: [voiceAgents.phoneNumberId],
-		references: [phoneNumbers.id]
-	}),
 	voicePreset: one(voicePresets, {
 		fields: [voiceAgents.voicePresetId],
 		references: [voicePresets.id]
@@ -1851,14 +1445,6 @@ export const callQueueRelations = relations(callQueue, ({ one }) => ({
 		references: [voiceAgents.id]
 	})
 }))
-
-// Email Templates relations
-export const emailTemplatesRelations = relations(
-	emailTemplates,
-	({ many }) => ({
-		// Could add relation to sent emails if we track template usage
-	})
-)
 
 // Communication Logs relations
 export const communicationLogsRelations = relations(

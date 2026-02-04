@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
 	PhoneCallIcon,
-	MailIcon,
 	MessageSquareIcon,
 	CalendarIcon,
 	SearchIcon,
@@ -23,7 +22,7 @@ import { getCommunicationLogs } from "@/actions/lead-communication"
 
 interface CommunicationHistoryItem {
 	id: string
-	type: "call" | "email" | "text" | "appointment"
+	type: "call" | "text" | "appointment"
 	direction: "incoming" | "outgoing"
 	status: string
 	timestamp: Date
@@ -48,8 +47,6 @@ const getTypeIcon = (type: string) => {
 	switch (type) {
 		case "call":
 			return PhoneCallIcon
-		case "email":
-			return MailIcon
 		case "text":
 			return MessageSquareIcon
 		case "appointment":
@@ -65,8 +62,6 @@ const getTypeColor = (type: string, direction: string) => {
 	switch (type) {
 		case "call":
 			return isIncoming ? "text-emerald-500" : "text-blue-500"
-		case "email":
-			return isIncoming ? "text-amber-600" : "text-amber-500"
 		case "text":
 			return isIncoming ? "text-violet-600" : "text-violet-500"
 		case "appointment":
@@ -266,7 +261,7 @@ export function CommunicationTimeline({
 		setSelectedTypes(newTypes)
 	}
 
-	const typeOptions = ["call", "email", "text", "appointment"]
+	const typeOptions = ["call", "text", "appointment"]
 
 	return (
 		<div className="space-y-4">

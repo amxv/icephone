@@ -9,14 +9,11 @@ import { Badge } from "@/components/ui/badge"
 import {
 	LayoutDashboard,
 	Users,
-	Phone,
 	Bot,
 	BarChart3,
 	Settings,
 	Database,
 	PhoneCall,
-	MessageSquare,
-	Mail,
 	Calendar,
 	Target,
 	Zap,
@@ -39,12 +36,6 @@ const sidebarItems = [
 		description: "Manage all platform users"
 	},
 	{
-		title: "Phone Numbers",
-		href: "/admin/phone-numbers",
-		icon: Phone,
-		description: "Import and assign phone numbers"
-	},
-	{
 		title: "Voice Agents",
 		href: "/admin/voice-agents",
 		icon: Bot,
@@ -61,18 +52,6 @@ const sidebarItems = [
 		href: "/admin/calls",
 		icon: PhoneCall,
 		description: "All call records and transcripts"
-	},
-	{
-		title: "Messages",
-		href: "/admin/messages",
-		icon: MessageSquare,
-		description: "SMS and chat messages"
-	},
-	{
-		title: "Emails",
-		href: "/admin/emails",
-		icon: Mail,
-		description: "Email communications"
 	},
 	{
 		title: "Appointments",

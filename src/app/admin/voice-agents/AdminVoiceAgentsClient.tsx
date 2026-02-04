@@ -37,7 +37,6 @@ import {
 	Search,
 	MoreHorizontal,
 	Plus,
-	Phone,
 	User,
 	Settings,
 	Trash2,
@@ -68,11 +67,9 @@ interface AdminVoiceAgentWithDetails {
 	prompt: string | null
 	voice: Record<string, unknown> | null
 	language: string | null
-	phoneNumberId: number | null
 	status: VoiceAgentStatus | null
 	configuration: Record<string, unknown> | null
 	firstMessage: string | null
-	vapiAssistantId: string | null
 	createdAt: Date
 	updatedAt: Date
 	userId: string
@@ -81,13 +78,6 @@ interface AdminVoiceAgentWithDetails {
 		email: string | null
 		firstName: string | null
 		lastName: string | null
-	} | null
-	phoneNumber: {
-		id: number
-		number: string
-		friendlyName: string | null
-		type: string | null
-		status: string | null
 	} | null
 	agentRole: {
 		id: number
@@ -107,7 +97,6 @@ interface AdminVoiceAgentWithDetails {
 interface VoiceAgentStats {
 	totalAgents: number
 	activeAgents: number
-	agentsWithPhoneNumbers: number
 	totalSessions: number
 	recentAgents: number
 	statusDistribution: Record<string, number>
@@ -130,7 +119,7 @@ const statusColors: Record<string, string> = {
 // Statistics cards component
 function VoiceAgentStatsCards({ stats }: { stats: VoiceAgentStats }) {
 	return (
-		<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+		<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 			<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 				<CardContent className="px-6 py-4">
 					<div className="flex items-center gap-3">
@@ -161,24 +150,6 @@ function VoiceAgentStatsCards({ stats }: { stats: VoiceAgentStats }) {
 							</p>
 							<p className="text-2xl font-semibold">
 								{stats.activeAgents}
-							</p>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-
-			<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-				<CardContent className="px-6 py-4">
-					<div className="flex items-center gap-3">
-						<div className="rounded-2xl p-2 bg-purple-100">
-							<Phone className="h-4 w-4 text-purple-600" />
-						</div>
-						<div>
-							<p className="text-sm text-muted-foreground">
-								With Phone
-							</p>
-							<p className="text-2xl font-semibold">
-								{stats.agentsWithPhoneNumbers}
 							</p>
 						</div>
 					</div>
@@ -446,7 +417,7 @@ export function AdminVoiceAgentsClient({
 				<div className="relative flex-1 max-w-md">
 					<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 					<Input
-						placeholder="Search agents, users, phone numbers..."
+						placeholder="Search agents or users..."
 						value={searchQuery}
 						onChange={(e) => handleSearch(e.target.value)}
 						className="pl-10 rounded-2xl bg-card/30"
@@ -470,7 +441,6 @@ export function AdminVoiceAgentsClient({
 								<TableRow className="border-border/40">
 									<TableHead>Agent</TableHead>
 									<TableHead>User</TableHead>
-									<TableHead>Phone Number</TableHead>
 									<TableHead>Role & Voice</TableHead>
 									<TableHead>Status</TableHead>
 									<TableHead>Sessions</TableHead>
@@ -538,36 +508,6 @@ export function AdminVoiceAgentsClient({
 														)}
 													</div>
 												</div>
-											</TableCell>
-											<TableCell>
-												{agent.phoneNumber ? (
-													<div className="flex items-center gap-2">
-														<Phone className="h-4 w-4 text-muted-foreground" />
-														<div>
-															<div className="text-sm font-medium">
-																{
-																	agent
-																		.phoneNumber
-																		.number
-																}
-															</div>
-															{agent.phoneNumber
-																.friendlyName && (
-																<div className="text-xs text-muted-foreground">
-																	{
-																		agent
-																			.phoneNumber
-																			.friendlyName
-																	}
-																</div>
-															)}
-														</div>
-													</div>
-												) : (
-													<div className="text-sm text-muted-foreground">
-														No phone assigned
-													</div>
-												)}
 											</TableCell>
 											<TableCell>
 												<div className="space-y-1">

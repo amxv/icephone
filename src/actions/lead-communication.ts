@@ -4,11 +4,9 @@ import { currentUser } from "@clerk/nextjs/server"
 import { db_ws } from "@/db"
 import {
 	callQueue,
-	emails,
 	textMessages,
 	appointments,
 	communicationLogs,
-	emailTemplates,
 	voiceAgents,
 	leads,
 	calls
@@ -24,13 +22,6 @@ interface ScheduleCallInput {
 	scheduledTime?: Date
 	priority?: number
 	phoneNumber?: string // Override lead's phone if needed
-}
-
-interface SendEmailInput {
-	leadId: number
-	subject: string
-	content: string
-	templateId?: number
 }
 
 interface SendTextMessageInput {
@@ -50,7 +41,7 @@ interface ScheduleAppointmentInput {
 // Add to existing types
 interface CommunicationHistoryItem {
 	id: string
-	type: "call" | "email" | "text" | "appointment"
+	type: "call" | "text" | "appointment"
 	direction: "incoming" | "outgoing"
 	status: string
 	timestamp: Date
@@ -147,198 +138,6 @@ export async function scheduleCall(input: ScheduleCallInput) {
 	} catch (error) {
 		console.error("Error scheduling call:", error)
 		return { success: false, error: "Failed to schedule call" }
-	}
-}
-
-// Send email to a lead
-export async function sendEmail(input: SendEmailInput) {
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
-
-		// Validate lead exists and belongs to user
-		const lead = await db_ws
-			.select()
-			.from(leads)
-			.where(and(eq(leads.id, input.leadId), eq(leads.userId, user.id)))
-			.limit(1)
-
-		if (!lead.length) {
-			return { success: false, error: "Lead not found" }
-		}
-
-		if (!lead[0].email) {
-			return { success: false, error: "Lead has no email address" }
-		}
-
-		// Create email record with pending status
-		const [emailRecord] = await db_ws
-			.insert(emails)
-			.values({
-				leadId: input.leadId,
-				type: "outgoing",
-				subject: input.subject,
-				content: input.content,
-				sentAt: new Date(),
-				status: "pending",
-				userId: user.id
-			})
-			.returning()
-
-		// Get template for HTML generation if templateId provided
-		let templateData = null
-		if (input.templateId) {
-			const templateResult = await db_ws
-				.select()
-				.from(emailTemplates)
-				.where(
-					and(
-						eq(emailTemplates.id, input.templateId),
-						eq(emailTemplates.userId, user.id)
-					)
-				)
-				.limit(1)
-
-			if (templateResult.length > 0) {
-				templateData = templateResult[0]
-			}
-		}
-
-		// Send actual email using Resend service
-		try {
-			const { sendEmail: sendEmailService } = await import("@/lib/email")
-			const { generateFollowUpEmailTemplate } = await import(
-				"@/lib/email-templates"
-			)
-
-			// Generate HTML email content
-			const templateType =
-				templateData?.category === "appointment_reminder"
-					? "appointment_reminder"
-					: templateData?.category === "follow_up"
-						? "follow_up"
-						: "custom"
-
-			const emailHtml = generateFollowUpEmailTemplate(
-				lead[0].name,
-				input.content,
-				templateType as "follow_up" | "appointment_reminder" | "custom"
-			)
-
-			const emailResult = await sendEmailService({
-				to: [lead[0].email],
-				subject: input.subject,
-				html: emailHtml,
-				replyTo: "support@icephone.com"
-			})
-
-			if (emailResult.success) {
-				// Update email record with sent status
-				await db_ws
-					.update(emails)
-					.set({
-						status: "sent",
-						updatedAt: new Date()
-					})
-					.where(eq(emails.id, emailRecord.id))
-
-				// Update communication log with success
-				await db_ws.insert(communicationLogs).values({
-					leadId: input.leadId,
-					type: "outgoing",
-					method: "email",
-					status: "sent",
-					details: {
-						subject: input.subject,
-						content: input.content,
-						templateId: input.templateId
-					},
-					relatedRecordId: emailRecord.id,
-					relatedRecordType: "email",
-					userId: user.id
-				})
-
-				revalidatePath(`/leads/${input.leadId}`)
-				revalidatePath("/emails")
-
-				return {
-					success: true,
-					data: { ...emailRecord, status: "sent" },
-					message: "Email sent successfully"
-				}
-			}
-
-			// Update email record with failed status
-			await db_ws
-				.update(emails)
-				.set({
-					status: "failed",
-					updatedAt: new Date()
-				})
-				.where(eq(emails.id, emailRecord.id))
-
-			// Update communication log with failure
-			await db_ws.insert(communicationLogs).values({
-				leadId: input.leadId,
-				type: "outgoing",
-				method: "email",
-				status: "failed",
-				details: {
-					subject: input.subject,
-					content: input.content,
-					templateId: input.templateId,
-					errorMessage: emailResult.error || "Email sending failed"
-				},
-				relatedRecordId: emailRecord.id,
-				relatedRecordType: "email",
-				userId: user.id
-			})
-
-			return {
-				success: false,
-				error: `Failed to send email: ${emailResult.error}`
-			}
-		} catch (emailError) {
-			// Update email record with failed status
-			await db_ws
-				.update(emails)
-				.set({
-					status: "failed",
-					updatedAt: new Date()
-				})
-				.where(eq(emails.id, emailRecord.id))
-
-			// Log the communication failure
-			await db_ws.insert(communicationLogs).values({
-				leadId: input.leadId,
-				type: "outgoing",
-				method: "email",
-				status: "failed",
-				details: {
-					subject: input.subject,
-					content: input.content,
-					templateId: input.templateId,
-					errorMessage:
-						emailError instanceof Error
-							? emailError.message
-							: "Unknown error"
-				},
-				relatedRecordId: emailRecord.id,
-				relatedRecordType: "email",
-				userId: user.id
-			})
-
-			console.error("Error sending email via Resend:", emailError)
-			return {
-				success: false,
-				error: "Failed to send email via email service"
-			}
-		}
-	} catch (error) {
-		console.error("Error in sendEmail function:", error)
-		return { success: false, error: "Failed to send email" }
 	}
 }
 
@@ -515,31 +314,6 @@ export async function getAvailableVoiceAgents() {
 	}
 }
 
-// Get email templates for a user
-export async function getEmailTemplates() {
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized", data: [] }
-		}
-
-		const templates = await db_ws
-			.select()
-			.from(emailTemplates)
-			.where(eq(emailTemplates.userId, user.id))
-			.orderBy(emailTemplates.name)
-
-		return { success: true, data: templates }
-	} catch (error) {
-		console.error("Error getting email templates:", error)
-		return {
-			success: false,
-			error: "Failed to get email templates",
-			data: []
-		}
-	}
-}
-
 // Get call queue status for a lead
 export async function getCallQueueStatus(leadId: number) {
 	try {
@@ -709,12 +483,6 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 				notes: communicationLogs.notes,
 				createdAt: communicationLogs.createdAt,
 				// Additional data from related tables
-				emailSubject: sql<
-					string | null
-				>`CASE WHEN ${communicationLogs.relatedRecordType} = 'email' THEN ${emails.subject} END`,
-				emailContent: sql<
-					string | null
-				>`CASE WHEN ${communicationLogs.relatedRecordType} = 'email' THEN ${emails.content} END`,
 				textContent: sql<
 					string | null
 				>`CASE WHEN ${communicationLogs.relatedRecordType} = 'text_message' THEN ${textMessages.content} END`,
@@ -736,13 +504,6 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 				>`CASE WHEN ${communicationLogs.relatedRecordType} = 'call_queue' THEN ${callQueue.phoneNumber} END`
 			})
 			.from(communicationLogs)
-			.leftJoin(
-				emails,
-				and(
-					eq(communicationLogs.relatedRecordId, emails.id),
-					eq(communicationLogs.relatedRecordType, "email")
-				)
-			)
 			.leftJoin(
 				textMessages,
 				and(
@@ -788,7 +549,6 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 					id: `${log.method}-${log.id}`,
 					type: log.method as
 						| "call"
-						| "email"
 						| "text"
 						| "appointment",
 					direction: log.type as "incoming" | "outgoing",
@@ -799,12 +559,6 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 
 				// Add method-specific data
 				switch (log.method) {
-					case "email":
-						item.subject =
-							log.emailSubject || (details?.subject as string)
-						item.content =
-							log.emailContent || (details?.content as string)
-						break
 					case "text":
 						item.content =
 							log.textContent || (details?.content as string)

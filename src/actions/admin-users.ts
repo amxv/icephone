@@ -8,7 +8,6 @@ import {
 	leads,
 	calls,
 	voiceAgents,
-	phoneNumbers,
 	appointments,
 	campaigns
 } from "@/db/schema"
@@ -49,7 +48,6 @@ interface PlatformUser {
 	leadsCount: number
 	callsCount: number
 	voiceAgentsCount: number
-	phoneNumbersCount: number
 	appointmentsCount: number
 	campaignsCount: number
 	lastActivityAt: Date | null
@@ -90,7 +88,6 @@ export async function getAllUsers(): Promise<PlatformUser[]> {
 					leadsStats,
 					callsStats,
 					agentsStats,
-					phoneStats,
 					appointmentsStats,
 					campaignsStats,
 					lastActivity
@@ -112,12 +109,6 @@ export async function getAllUsers(): Promise<PlatformUser[]> {
 						.select({ count: count() })
 						.from(voiceAgents)
 						.where(eq(voiceAgents.userId, clerkUser.id)),
-
-					// Phone numbers count
-					db
-						.select({ count: count() })
-						.from(phoneNumbers)
-						.where(eq(phoneNumbers.userId, clerkUser.id)),
 
 					// Appointments count
 					db
@@ -159,7 +150,6 @@ export async function getAllUsers(): Promise<PlatformUser[]> {
 				const leadsCount = leadsStats[0]?.count || 0
 				const callsCount = callsStats[0]?.count || 0
 				const voiceAgentsCount = agentsStats[0]?.count || 0
-				const phoneNumbersCount = phoneStats[0]?.count || 0
 				const appointmentsCount = appointmentsStats[0]?.count || 0
 				const campaignsCount = campaignsStats[0]?.count || 0
 				const lastActivityAt = lastActivity[0]?.lastActivity || null
@@ -182,7 +172,6 @@ export async function getAllUsers(): Promise<PlatformUser[]> {
 					leadsCount,
 					callsCount,
 					voiceAgentsCount,
-					phoneNumbersCount,
 					appointmentsCount,
 					campaignsCount,
 					lastActivityAt,
@@ -228,7 +217,6 @@ export async function getUserDetails(userId: string): Promise<
 			leadsStats,
 			callsStats,
 			agentsStats,
-			phoneStats,
 			appointmentsStats,
 			campaignsStats,
 			recentLeads,
@@ -250,10 +238,6 @@ export async function getUserDetails(userId: string): Promise<
 				.select({ count: count() })
 				.from(voiceAgents)
 				.where(eq(voiceAgents.userId, userId)),
-			db
-				.select({ count: count() })
-				.from(phoneNumbers)
-				.where(eq(phoneNumbers.userId, userId)),
 			db
 				.select({ count: count() })
 				.from(appointments)
@@ -396,7 +380,6 @@ export async function getUserDetails(userId: string): Promise<
 			leadsCount: leadsStats[0]?.count || 0,
 			callsCount: callsStats[0]?.count || 0,
 			voiceAgentsCount: agentsStats[0]?.count || 0,
-			phoneNumbersCount: phoneStats[0]?.count || 0,
 			appointmentsCount: appointmentsStats[0]?.count || 0,
 			campaignsCount: campaignsStats[0]?.count || 0,
 			lastActivityAt,

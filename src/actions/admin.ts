@@ -4,14 +4,11 @@ import { currentUser } from "@clerk/nextjs/server"
 import { db } from "@/db/db"
 import {
 	leads,
-	phoneNumbers,
 	voiceAgents,
 	calls,
 	appointments,
 	campaigns,
 	textMessages,
-	emails,
-	chats,
 	knowledgeBaseDocuments,
 	adminActivityLogs
 } from "@/db/schema"
@@ -61,8 +58,6 @@ export async function getAdminStats() {
 		// Get total counts across all users
 		const [
 			totalUsersResult,
-			totalPhoneNumbersResult,
-			activePhoneNumbersResult,
 			totalVoiceAgentsResult,
 			activeVoiceAgentsResult,
 			totalCallsResult,
@@ -75,15 +70,6 @@ export async function getAdminStats() {
 			db
 				.select({ count: sql<number>`count(distinct user_id)` })
 				.from(leads),
-
-			// Phone numbers
-			db
-				.select({ count: count() })
-				.from(phoneNumbers),
-			db
-				.select({ count: count() })
-				.from(phoneNumbers)
-				.where(eq(phoneNumbers.status, "active")),
 
 			// Voice agents
 			db
@@ -120,8 +106,6 @@ export async function getAdminStats() {
 		])
 
 		const totalUsers = totalUsersResult[0]?.count || 0
-		const totalPhoneNumbers = totalPhoneNumbersResult[0]?.count || 0
-		const activePhoneNumbers = activePhoneNumbersResult[0]?.count || 0
 		const totalVoiceAgents = totalVoiceAgentsResult[0]?.count || 0
 		const activeVoiceAgents = activeVoiceAgentsResult[0]?.count || 0
 		const totalCalls = totalCallsResult[0]?.count || 0
@@ -133,8 +117,6 @@ export async function getAdminStats() {
 		return {
 			totalUsers,
 			newUsersThisMonth: thisMonthUsers,
-			totalPhoneNumbers,
-			activePhoneNumbers,
 			totalVoiceAgents,
 			activeVoiceAgents,
 			totalCalls,
@@ -302,22 +284,16 @@ export async function getDatabaseOverview() {
 			callsCount,
 			appointmentsCount,
 			campaignsCount,
-			phoneNumbersCount,
 			voiceAgentsCount,
 			textMessagesCount,
-			emailsCount,
-			chatsCount,
 			knowledgeDocsCount
 		] = await Promise.all([
 			db.select({ count: count() }).from(leads),
 			db.select({ count: count() }).from(calls),
 			db.select({ count: count() }).from(appointments),
 			db.select({ count: count() }).from(campaigns),
-			db.select({ count: count() }).from(phoneNumbers),
 			db.select({ count: count() }).from(voiceAgents),
 			db.select({ count: count() }).from(textMessages),
-			db.select({ count: count() }).from(emails),
-			db.select({ count: count() }).from(chats),
 			db.select({ count: count() }).from(knowledgeBaseDocuments)
 		])
 
@@ -326,11 +302,8 @@ export async function getDatabaseOverview() {
 			calls: callsCount[0]?.count || 0,
 			appointments: appointmentsCount[0]?.count || 0,
 			campaigns: campaignsCount[0]?.count || 0,
-			phoneNumbers: phoneNumbersCount[0]?.count || 0,
 			voiceAgents: voiceAgentsCount[0]?.count || 0,
 			textMessages: textMessagesCount[0]?.count || 0,
-			emails: emailsCount[0]?.count || 0,
-			chats: chatsCount[0]?.count || 0,
 			knowledgeDocuments: knowledgeDocsCount[0]?.count || 0
 		}
 	} catch (error) {

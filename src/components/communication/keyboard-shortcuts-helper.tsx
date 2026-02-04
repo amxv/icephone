@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge"
 import {
 	KeyboardIcon,
 	PhoneCallIcon,
-	MailIcon,
 	MessageSquareIcon,
 	CalendarIcon
 } from "lucide-react"
@@ -30,11 +29,6 @@ const shortcuts: KeyboardShortcut[] = [
 		key: "Ctrl + C",
 		description: "Schedule a call",
 		icon: PhoneCallIcon
-	},
-	{
-		key: "Ctrl + E",
-		description: "Send email",
-		icon: MailIcon
 	},
 	{
 		key: "Ctrl + T",

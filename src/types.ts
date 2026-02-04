@@ -285,65 +285,12 @@ export interface TextMessage {
 	userId: string
 }
 
-// Email types
-export interface Email {
-	id: number
-	leadId: number
-	type: "incoming" | "outgoing"
-	subject: string
-	content: string
-	sentAt: string | Date
-	openedAt: string | Date | null
-	clickedAt: string | Date | null
-	createdAt: string | Date
-	updatedAt: string | Date
-	userId: string
-}
-
-// Email thread types
-export interface EmailThreadMessage {
-	content: string
-	role: "user" | "assistant"
-	timestamp: string | Date
-}
-
-export interface EmailThread {
-	thread_id: string
-	name: string | null
-	email: string | null
-	messages: EmailThreadMessage[]
-}
-
 // Lead detail data
 export interface LeadDetailData {
 	lead: Lead
 	appointments: Appointment[]
 	calls: Call[]
 	textMessages: TextMessage[]
-	emails: Email[]
-}
-
-// Chat message types
-export interface ChatMessage {
-	id: number
-	chatId: number
-	content: string
-	role: "user" | "assistant"
-	timestamp: string | Date
-	userId?: string
-}
-
-// Chat types
-export interface Chat {
-	id: number
-	leadId: number | null
-	leadName: string | null
-	summary: string | null
-	timestamp: string | Date
-	createdAt?: string | Date
-	updatedAt?: string | Date
-	userId?: string
-	messages?: ChatMessage[]
 }
 
 // RAG types

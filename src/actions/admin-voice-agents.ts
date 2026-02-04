@@ -3,7 +3,6 @@
 import { db_ws as db } from "@/db"
 import {
 	voiceAgents,
-	phoneNumbers,
 	voiceSessions,
 	agentRoles,
 	voicePresets,
@@ -37,11 +36,9 @@ interface DatabaseVoiceAgent {
 	prompt: string | null
 	voice: Record<string, unknown> | null
 	language: string | null
-	phoneNumberId: number | null
 	status: VoiceAgentStatus | null
 	configuration: Record<string, unknown> | null
 	firstMessage: string | null
-	vapiAssistantId: string | null
 	createdAt: Date
 	updatedAt: Date
 	userId: string
@@ -62,22 +59,14 @@ interface AgentQueryResult {
 	prompt: string | null
 	voice: Record<string, unknown> | null
 	language: string | null
-	phoneNumberId: number | null
 	status: VoiceAgentStatus | null
 	configuration: Record<string, unknown> | null
 	firstMessage: string | null
-	vapiAssistantId: string | null
 	createdAt: Date
 	updatedAt: Date
 	userId: string
 	agentRoleId: number | null
 	voicePresetId: number | null
-	// Phone number fields
-	phoneNumberId_: number | null
-	phoneNumber: string | null
-	phoneNumberFriendlyName: string | null
-	phoneNumberType: string | null
-	phoneNumberStatus: string | null
 	// Agent role fields
 	agentRoleId_: number | null
 	agentRoleDisplayName: string | null
@@ -96,13 +85,6 @@ interface AdminVoiceAgentWithDetails extends DatabaseVoiceAgent {
 		email: string | null
 		firstName: string | null
 		lastName: string | null
-	} | null
-	phoneNumber: {
-		id: number
-		number: string
-		friendlyName: string | null
-		type: string | null
-		status: string | null
 	} | null
 	agentRole: {
 		id: number
@@ -216,22 +198,14 @@ export async function getAllVoiceAgents(): Promise<
 				prompt: voiceAgents.prompt,
 				voice: voiceAgents.voice,
 				language: voiceAgents.language,
-				phoneNumberId: voiceAgents.phoneNumberId,
 				status: voiceAgents.status,
 				configuration: voiceAgents.configuration,
 				firstMessage: voiceAgents.firstMessage,
-				vapiAssistantId: voiceAgents.vapiAssistantId,
 				createdAt: voiceAgents.createdAt,
 				updatedAt: voiceAgents.updatedAt,
 				userId: voiceAgents.userId,
 				agentRoleId: voiceAgents.agentRoleId,
 				voicePresetId: voiceAgents.voicePresetId,
-				// Phone number data
-				phoneNumberId_: phoneNumbers.id,
-				phoneNumber: phoneNumbers.number,
-				phoneNumberFriendlyName: phoneNumbers.friendlyName,
-				phoneNumberType: phoneNumbers.type,
-				phoneNumberStatus: phoneNumbers.status,
 				// Agent role data
 				agentRoleId_: agentRoles.id,
 				agentRoleDisplayName: agentRoles.displayName,
@@ -243,10 +217,6 @@ export async function getAllVoiceAgents(): Promise<
 				voicePresetVapiVoiceId: voicePresets.vapiVoiceId
 			})
 			.from(voiceAgents)
-			.leftJoin(
-				phoneNumbers,
-				eq(voiceAgents.phoneNumberId, phoneNumbers.id)
-			)
 			.leftJoin(agentRoles, eq(voiceAgents.agentRoleId, agentRoles.id))
 			.leftJoin(
 				voicePresets,
@@ -281,11 +251,9 @@ export async function getAllVoiceAgents(): Promise<
 				prompt: agent.prompt,
 				voice: agent.voice,
 				language: agent.language,
-				phoneNumberId: agent.phoneNumberId,
 				status: agent.status,
 				configuration: agent.configuration,
 				firstMessage: agent.firstMessage,
-				vapiAssistantId: agent.vapiAssistantId,
 				createdAt: agent.createdAt,
 				updatedAt: agent.updatedAt,
 				userId: agent.userId,
@@ -295,16 +263,6 @@ export async function getAllVoiceAgents(): Promise<
 					firstName: null,
 					lastName: null
 				},
-				phoneNumber:
-					agent.phoneNumberId_ && agent.phoneNumber
-						? {
-								id: agent.phoneNumberId_,
-								number: agent.phoneNumber,
-								friendlyName: agent.phoneNumberFriendlyName,
-								type: agent.phoneNumberType,
-								status: agent.phoneNumberStatus
-							}
-						: null,
 				agentRole:
 					agent.agentRoleId_ &&
 					agent.agentRoleDisplayName &&
@@ -357,22 +315,14 @@ export async function getVoiceAgentsByUser(
 				prompt: voiceAgents.prompt,
 				voice: voiceAgents.voice,
 				language: voiceAgents.language,
-				phoneNumberId: voiceAgents.phoneNumberId,
 				status: voiceAgents.status,
 				configuration: voiceAgents.configuration,
 				firstMessage: voiceAgents.firstMessage,
-				vapiAssistantId: voiceAgents.vapiAssistantId,
 				createdAt: voiceAgents.createdAt,
 				updatedAt: voiceAgents.updatedAt,
 				userId: voiceAgents.userId,
 				agentRoleId: voiceAgents.agentRoleId,
 				voicePresetId: voiceAgents.voicePresetId,
-				// Phone number data
-				phoneNumberId_: phoneNumbers.id,
-				phoneNumber: phoneNumbers.number,
-				phoneNumberFriendlyName: phoneNumbers.friendlyName,
-				phoneNumberType: phoneNumbers.type,
-				phoneNumberStatus: phoneNumbers.status,
 				// Agent role data
 				agentRoleId_: agentRoles.id,
 				agentRoleDisplayName: agentRoles.displayName,
@@ -384,10 +334,6 @@ export async function getVoiceAgentsByUser(
 				voicePresetVapiVoiceId: voicePresets.vapiVoiceId
 			})
 			.from(voiceAgents)
-			.leftJoin(
-				phoneNumbers,
-				eq(voiceAgents.phoneNumberId, phoneNumbers.id)
-			)
 			.leftJoin(agentRoles, eq(voiceAgents.agentRoleId, agentRoles.id))
 			.leftJoin(
 				voicePresets,
@@ -430,11 +376,9 @@ export async function getVoiceAgentsByUser(
 				prompt: agent.prompt,
 				voice: agent.voice,
 				language: agent.language,
-				phoneNumberId: agent.phoneNumberId,
 				status: agent.status,
 				configuration: agent.configuration,
 				firstMessage: agent.firstMessage,
-				vapiAssistantId: agent.vapiAssistantId,
 				createdAt: agent.createdAt,
 				updatedAt: agent.updatedAt,
 				userId: agent.userId,
@@ -444,16 +388,6 @@ export async function getVoiceAgentsByUser(
 					firstName: null,
 					lastName: null
 				},
-				phoneNumber:
-					agent.phoneNumberId_ && agent.phoneNumber
-						? {
-								id: agent.phoneNumberId_,
-								number: agent.phoneNumber,
-								friendlyName: agent.phoneNumberFriendlyName,
-								type: agent.phoneNumberType,
-								status: agent.phoneNumberStatus
-							}
-						: null,
 				agentRole:
 					agent.agentRoleId_ &&
 					agent.agentRoleDisplayName &&
@@ -546,11 +480,6 @@ export async function getVoiceAgentStats() {
 			.from(voiceAgents)
 			.where(eq(voiceAgents.status, "active"))
 
-		const agentsWithPhoneNumbers = await db
-			.select({ count: count(voiceAgents.id) })
-			.from(voiceAgents)
-			.where(sql`${voiceAgents.phoneNumberId} IS NOT NULL`)
-
 		// Get total sessions across all agents
 		const totalSessions = await db
 			.select({ count: count(voiceSessions.id) })
@@ -586,7 +515,7 @@ export async function getVoiceAgentStats() {
 		return {
 			totalAgents: totalAgents[0]?.count || 0,
 			activeAgents: activeAgents[0]?.count || 0,
-			agentsWithPhoneNumbers: agentsWithPhoneNumbers[0]?.count || 0,
+			agentsWithPhoneNumbers: 0,
 			totalSessions: totalSessions[0]?.count || 0,
 			recentAgents: recentAgents[0]?.count || 0,
 			statusDistribution: statusDistributionResult.reduce(
@@ -640,22 +569,14 @@ export async function searchVoiceAgents(
 				prompt: voiceAgents.prompt,
 				voice: voiceAgents.voice,
 				language: voiceAgents.language,
-				phoneNumberId: voiceAgents.phoneNumberId,
 				status: voiceAgents.status,
 				configuration: voiceAgents.configuration,
 				firstMessage: voiceAgents.firstMessage,
-				vapiAssistantId: voiceAgents.vapiAssistantId,
 				createdAt: voiceAgents.createdAt,
 				updatedAt: voiceAgents.updatedAt,
 				userId: voiceAgents.userId,
 				agentRoleId: voiceAgents.agentRoleId,
 				voicePresetId: voiceAgents.voicePresetId,
-				// Phone number data
-				phoneNumberId_: phoneNumbers.id,
-				phoneNumber: phoneNumbers.number,
-				phoneNumberFriendlyName: phoneNumbers.friendlyName,
-				phoneNumberType: phoneNumbers.type,
-				phoneNumberStatus: phoneNumbers.status,
 				// Agent role data
 				agentRoleId_: agentRoles.id,
 				agentRoleDisplayName: agentRoles.displayName,
@@ -667,10 +588,6 @@ export async function searchVoiceAgents(
 				voicePresetVapiVoiceId: voicePresets.vapiVoiceId
 			})
 			.from(voiceAgents)
-			.leftJoin(
-				phoneNumbers,
-				eq(voiceAgents.phoneNumberId, phoneNumbers.id)
-			)
 			.leftJoin(agentRoles, eq(voiceAgents.agentRoleId, agentRoles.id))
 			.leftJoin(
 				voicePresets,
@@ -681,8 +598,6 @@ export async function searchVoiceAgents(
 					ilike(voiceAgents.name, searchTerm),
 					ilike(voiceAgents.description, searchTerm),
 					ilike(voiceAgents.userId, searchTerm),
-					ilike(phoneNumbers.number, searchTerm),
-					ilike(phoneNumbers.friendlyName, searchTerm),
 					ilike(agentRoles.displayName, searchTerm),
 					ilike(voicePresets.displayName, searchTerm)
 				)
@@ -723,11 +638,9 @@ export async function searchVoiceAgents(
 				prompt: agent.prompt,
 				voice: agent.voice,
 				language: agent.language,
-				phoneNumberId: agent.phoneNumberId,
 				status: agent.status,
 				configuration: agent.configuration,
 				firstMessage: agent.firstMessage,
-				vapiAssistantId: agent.vapiAssistantId,
 				createdAt: agent.createdAt,
 				updatedAt: agent.updatedAt,
 				userId: agent.userId,
@@ -737,16 +650,6 @@ export async function searchVoiceAgents(
 					firstName: null,
 					lastName: null
 				},
-				phoneNumber:
-					agent.phoneNumberId_ && agent.phoneNumber
-						? {
-								id: agent.phoneNumberId_,
-								number: agent.phoneNumber,
-								friendlyName: agent.phoneNumberFriendlyName,
-								type: agent.phoneNumberType,
-								status: agent.phoneNumberStatus
-							}
-						: null,
 				agentRole:
 					agent.agentRoleId_ &&
 					agent.agentRoleDisplayName &&
@@ -790,7 +693,6 @@ export async function createVoiceAgentForUser(data: {
 	userId: string
 	agentRoleId?: number
 	voicePresetId?: number
-	phoneNumberId?: number
 	language?: string
 	status?: VoiceAgentStatus
 }): Promise<DatabaseVoiceAgent> {
@@ -805,14 +707,12 @@ export async function createVoiceAgentForUser(data: {
 				userId: data.userId,
 				agentRoleId: data.agentRoleId || null,
 				voicePresetId: data.voicePresetId || null,
-				phoneNumberId: data.phoneNumberId || null,
 				language: data.language || "en",
 				status: data.status || "inactive",
 				prompt: null, // Will be generated from role
 				voice: null, // Will be generated from preset
 				configuration: {},
 				firstMessage: null,
-				vapiAssistantId: null,
 				createdAt: new Date(),
 				updatedAt: new Date()
 			})

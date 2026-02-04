@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Users, Phone, Bot, PhoneCall } from "lucide-react"
+import { Users, Bot, PhoneCall } from "lucide-react"
 import { getAdminStats } from "@/actions/admin"
 
 interface StatCardProps {
@@ -47,13 +47,6 @@ async function AdminStatsCardsContent() {
 				change={`+${stats.newUsersThisMonth} this month`}
 				icon={Users}
 				color="bg-blue-500"
-			/>
-			<StatCard
-				title="Phone Numbers"
-				value={stats.totalPhoneNumbers}
-				change={`${stats.activePhoneNumbers} active`}
-				icon={Phone}
-				color="bg-green-500"
 			/>
 			<StatCard
 				title="Voice Agents"

@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
 	PhoneCallIcon,
-	MailIcon,
 	MessageSquareIcon,
 	CalendarIcon,
 	PlusIcon,
@@ -14,21 +13,17 @@ import { cn } from "@/lib/utils"
 
 interface QuickActionsFABProps {
 	onCallClick: () => void
-	onEmailClick: () => void
 	onTextClick: () => void
 	onAppointmentClick: () => void
 	hasPhone: boolean
-	hasEmail: boolean
 	className?: string
 }
 
 export function QuickActionsFAB({
 	onCallClick,
-	onEmailClick,
 	onTextClick,
 	onAppointmentClick,
 	hasPhone,
-	hasEmail,
 	className
 }: QuickActionsFABProps) {
 	const [isExpanded, setIsExpanded] = useState(false)
@@ -40,13 +35,6 @@ export function QuickActionsFAB({
 			onClick: onCallClick,
 			disabled: !hasPhone,
 			className: "text-emerald-600 hover:text-emerald-700"
-		},
-		{
-			icon: MailIcon,
-			label: "Quick Email",
-			onClick: onEmailClick,
-			disabled: !hasEmail,
-			className: "text-amber-600 hover:text-amber-700"
 		},
 		{
 			icon: MessageSquareIcon,
@@ -92,7 +80,7 @@ export function QuickActionsFAB({
 							}}
 							title={
 								action.disabled
-									? `${action.label} (No ${hasPhone ? "email" : "phone"})`
+									? `${action.label} (No phone)`
 									: action.label
 							}
 						>

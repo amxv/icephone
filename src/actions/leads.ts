@@ -1,7 +1,7 @@
 "use server"
 
 import { db_ws } from "@/db"
-import { appointments, calls, emails, leads, textMessages } from "@/db/schema"
+import { appointments, calls, leads, textMessages } from "@/db/schema"
 import { auth, currentUser } from "@clerk/nextjs/server"
 import { type SQL, and, asc, desc, eq, gte, lte, sql } from "drizzle-orm"
 import type { PgSelect } from "drizzle-orm/pg-core"
@@ -161,21 +161,13 @@ export async function getLeadById(leadId: number) {
 			)
 			.orderBy(desc(textMessages.sentAt))
 
-		// Get related emails
-		const leadEmails = await db_ws
-			.select()
-			.from(emails)
-			.where(and(eq(emails.leadId, leadId), eq(emails.userId, userId)))
-			.orderBy(desc(emails.sentAt))
-
 		return {
 			success: true,
 			data: {
 				lead: lead[0],
 				appointments: leadAppointments,
 				calls: leadCalls,
-				textMessages: leadTextMessages,
-				emails: leadEmails
+				textMessages: leadTextMessages
 			}
 		}
 	} catch (error) {

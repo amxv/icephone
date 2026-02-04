@@ -18,7 +18,6 @@ import {
 	Bot,
 	Calendar,
 	MessageSquare,
-	Mail,
 	Megaphone,
 	FileText
 } from "lucide-react"
@@ -28,11 +27,8 @@ interface DatabaseOverview {
 	calls: number
 	appointments: number
 	campaigns: number
-	phoneNumbers: number
 	voiceAgents: number
 	textMessages: number
-	emails: number
-	chats: number
 	knowledgeDocuments: number
 }
 
@@ -60,12 +56,6 @@ const tableMetadata = {
 		color: "text-purple-500",
 		priority: "high"
 	},
-	phoneNumbers: {
-		icon: Phone,
-		description: "Phone number inventory",
-		color: "text-orange-500",
-		priority: "medium"
-	},
 	appointments: {
 		icon: Calendar,
 		description: "Scheduled appointments",
@@ -82,18 +72,6 @@ const tableMetadata = {
 		icon: MessageSquare,
 		description: "SMS and text communications",
 		color: "text-cyan-500",
-		priority: "low"
-	},
-	emails: {
-		icon: Mail,
-		description: "Email communications",
-		color: "text-yellow-500",
-		priority: "low"
-	},
-	chats: {
-		icon: MessageSquare,
-		description: "Chat conversations",
-		color: "text-emerald-500",
 		priority: "low"
 	},
 	knowledgeDocuments: {

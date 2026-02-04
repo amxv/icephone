@@ -3,10 +3,8 @@
 import { Button } from "@/components/ui/button"
 import {
 	Plus,
-	Upload,
 	Download,
 	UserPlus,
-	Phone,
 	Bot,
 	Database,
 	BarChart3
@@ -20,13 +18,6 @@ const quickActions = [
 		icon: UserPlus,
 		href: "/admin/users/new",
 		color: "bg-blue-500 hover:bg-blue-600"
-	},
-	{
-		title: "Import Phone Numbers",
-		description: "Bulk upload phone numbers",
-		icon: Upload,
-		href: "/admin/phone-numbers/import",
-		color: "bg-green-500 hover:bg-green-600"
 	},
 	{
 		title: "Create Voice Agent",
