@@ -60,6 +60,13 @@ interface CallAnalytics {
 	successfulCalls: number
 	failedCalls: number
 	successRate: number
+	pickupRate: number
+	outcomeBreakdown: Record<string, number>
+	directionBreakdown: {
+		incoming: number
+		outgoing: number
+		unknown: number
+	}
 	sentimentBreakdown: {
 		positive: number
 		negative: number
@@ -77,6 +84,10 @@ interface CallAnalytics {
 		calls: number
 		duration: number
 		cost: number
+	}>
+	hourlyCallVolume: Array<{
+		hour: string
+		calls: number
 	}>
 }
 
@@ -208,6 +219,18 @@ const SENTIMENT_COLORS = {
 	neutral: "#6b7280"
 }
 
+const OUTCOME_COLORS: Record<string, string> = {
+	completed: "#22c55e",
+	answered: "#10b981",
+	failed: "#ef4444",
+	voicemail: "#f97316",
+	no_answer: "#f59e0b",
+	busy: "#facc15",
+	timeout: "#8b5cf6",
+	unknown: "#94a3b8",
+	active: "#38bdf8"
+}
+
 export default function AnalyticsDashboard({
 	initialAnalytics,
 	voiceAgents,
@@ -321,6 +344,36 @@ export default function AnalyticsDashboard({
 		}
 	].filter((item) => item.value > 0)
 
+	const formatOutcomeLabel = (value: string) =>
+		value
+			.replace(/_/g, " ")
+			.replace(/\b\w/g, (char) => char.toUpperCase())
+
+	const outcomeData = Object.entries(initialAnalytics.outcomeBreakdown)
+		.map(([key, value]) => ({
+			key,
+			name: formatOutcomeLabel(key),
+			value,
+			color: OUTCOME_COLORS[key] ?? "#94a3b8"
+		}))
+		.filter((item) => item.value > 0)
+		.sort((a, b) => b.value - a.value)
+
+	const answeredCalls =
+		(initialAnalytics.outcomeBreakdown.completed || 0) +
+		(initialAnalytics.outcomeBreakdown.answered || 0)
+
+	const directionData = [
+		{
+			name: "Inbound",
+			value: initialAnalytics.directionBreakdown.incoming
+		},
+		{
+			name: "Outbound",
+			value: initialAnalytics.directionBreakdown.outgoing
+		}
+	].filter((item) => item.value > 0)
+
 	// Prepare cost breakdown data for pie chart
 	const costByAgentData = costAnalytics.agentBreakdown
 		.filter((agent) => agent.totalCost > 0)
@@ -387,7 +440,7 @@ export default function AnalyticsDashboard({
 			</div>
 
 			{/* Enhanced Metrics Cards with Trends */}
-			<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+			<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 					<CardHeader className="pb-2">
 						<CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -426,10 +479,27 @@ export default function AnalyticsDashboard({
 					</CardHeader>
 					<CardContent>
 						<div className="text-2xl font-bold">
-							{Math.round(initialAnalytics.successRate * 100)}%
+							{Math.round(initialAnalytics.successRate)}%
 						</div>
 						<p className="text-xs text-muted-foreground">
 							{initialAnalytics.failedCalls} failed calls
+						</p>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+							<PhoneCall className="h-4 w-4" />
+							Pickup Rate
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="text-2xl font-bold">
+							{Math.round(initialAnalytics.pickupRate)}%
+						</div>
+						<p className="text-xs text-muted-foreground">
+							{answeredCalls} answered of {initialAnalytics.totalCalls}
 						</p>
 					</CardContent>
 				</Card>
@@ -771,6 +841,155 @@ export default function AnalyticsDashboard({
 								</div>
 							))}
 						</div>
+					</CardContent>
+				</Card>
+
+				{/* Call Outcomes */}
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<PhoneCall className="h-5 w-5 text-muted-foreground" />
+							Call Outcomes
+						</CardTitle>
+						<CardDescription>
+							Pickup and outcome distribution
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{outcomeData.length === 0 ? (
+							<p className="text-sm text-muted-foreground">
+								No outcome data available for this range.
+							</p>
+						) : (
+							<>
+								<div className="h-[260px] w-full">
+									<ResponsiveContainer width="100%" height="100%">
+										<PieChart>
+											<Pie
+												data={outcomeData}
+												cx="50%"
+												cy="50%"
+												innerRadius={55}
+												outerRadius={95}
+												paddingAngle={2}
+												dataKey="value"
+											>
+												{outcomeData.map((entry) => (
+													<Cell
+														key={entry.key}
+														fill={entry.color}
+													/>
+												))}
+											</Pie>
+											<Tooltip
+												content={({ active, payload }) => {
+													if (
+														active &&
+														payload &&
+														payload.length
+													) {
+														const data =
+															payload[0].payload
+														return (
+															<div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+																<p className="font-medium">
+																	{data.name}
+																</p>
+																<p
+																	style={{
+																		color: data.color
+																	}}
+																>
+																	Count: {data.value}
+																</p>
+															</div>
+														)
+													}
+													return null
+												}}
+											/>
+										</PieChart>
+									</ResponsiveContainer>
+								</div>
+
+								<div className="flex flex-wrap justify-center gap-2 mt-4">
+									{outcomeData.map((item) => (
+										<div
+											key={item.key}
+											className="flex items-center gap-2"
+										>
+											<div
+												className="w-3 h-3 rounded-full"
+												style={{
+													backgroundColor: item.color
+												}}
+											/>
+											<span className="text-sm text-muted-foreground">
+												{item.name} ({item.value})
+											</span>
+										</div>
+									))}
+								</div>
+
+								{directionData.length > 0 && (
+									<div className="flex flex-wrap justify-center gap-2 mt-4">
+										{directionData.map((item) => (
+											<Badge
+												key={item.name}
+												variant="outline"
+												className="rounded-full"
+											>
+												{item.name}: {item.value}
+											</Badge>
+										))}
+									</div>
+								)}
+							</>
+						)}
+					</CardContent>
+				</Card>
+
+				{/* Hourly Call Volume */}
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<BarChart3 className="h-5 w-5 text-muted-foreground" />
+							Call Volume by Hour
+						</CardTitle>
+						<CardDescription>
+							When calls happen across the day
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<ChartContainer className="h-[300px] w-full" config={{}}>
+							<BarChart data={initialAnalytics.hourlyCallVolume}>
+								<CartesianGrid strokeDasharray="3 3" />
+								<XAxis dataKey="hour" interval={3} />
+								<YAxis />
+								<ChartTooltip
+									content={({ active, payload }) => {
+										if (active && payload && payload.length) {
+											return (
+												<div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+													<p className="font-medium">
+														{payload[0].payload.hour}
+													</p>
+													<p className="text-primary">
+														Calls: {payload[0].value}
+													</p>
+												</div>
+											)
+										}
+										return null
+									}}
+								/>
+								<Bar
+									dataKey="calls"
+									fill="hsl(var(--primary))"
+									radius={[6, 6, 0, 0]}
+								/>
+							</BarChart>
+						</ChartContainer>
 					</CardContent>
 				</Card>
 

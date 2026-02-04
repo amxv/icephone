@@ -27,6 +27,13 @@ interface CallAnalytics {
 	successfulCalls: number
 	failedCalls: number
 	successRate: number
+	pickupRate: number
+	outcomeBreakdown: Record<string, number>
+	directionBreakdown: {
+		incoming: number
+		outgoing: number
+		unknown: number
+	}
 	sentimentBreakdown: {
 		positive: number
 		negative: number
@@ -44,6 +51,10 @@ interface CallAnalytics {
 		calls: number
 		duration: number
 		cost: number
+	}>
+	hourlyCallVolume: Array<{
+		hour: string
+		calls: number
 	}>
 }
 
@@ -196,6 +207,155 @@ export async function getCallAnalytics(
 			voiceStats.successfulCalls + legacyStats.successfulCalls,
 		failedCalls: voiceStats.failedCalls + legacyStats.failedCalls
 	}
+
+	// Outcome breakdown (calls + voice sessions)
+	const callOutcomeStats = await db
+		.select({
+			status: calls.status,
+			count: count(calls.id)
+		})
+		.from(calls)
+		.where(
+			and(
+				teamScope(calls, teamId),
+				gte(calls.startTime, startDate),
+				lte(calls.startTime, endDate)
+			)
+		)
+		.groupBy(calls.status)
+
+	const sessionOutcomeStats = await db
+		.select({
+			status: voiceSessions.status,
+			count: count(voiceSessions.id)
+		})
+		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+		.where(
+			and(
+				teamScope(voiceAgents, teamId),
+				gte(voiceSessions.startTime, startDate),
+				lte(voiceSessions.startTime, endDate)
+			)
+		)
+		.groupBy(voiceSessions.status)
+
+	const outcomeBreakdown: Record<string, number> = {}
+	const accumulateOutcome = (
+		status: string | null | undefined,
+		countValue: number
+	) => {
+		const key = status ?? "unknown"
+		outcomeBreakdown[key] = (outcomeBreakdown[key] || 0) + countValue
+	}
+
+	for (const row of callOutcomeStats) {
+		accumulateOutcome(row.status, row.count)
+	}
+	for (const row of sessionOutcomeStats) {
+		accumulateOutcome(row.status, row.count)
+	}
+
+	const answeredCalls =
+		(outcomeBreakdown.completed || 0) + (outcomeBreakdown.answered || 0)
+
+	// Direction breakdown (incoming/outgoing)
+	const callDirectionStats = await db
+		.select({
+			direction: calls.direction,
+			count: count(calls.id)
+		})
+		.from(calls)
+		.where(
+			and(
+				teamScope(calls, teamId),
+				gte(calls.startTime, startDate),
+				lte(calls.startTime, endDate)
+			)
+		)
+		.groupBy(calls.direction)
+
+	const sessionDirectionStats = await db
+		.select({
+			direction: voiceSessions.direction,
+			count: count(voiceSessions.id)
+		})
+		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+		.where(
+			and(
+				teamScope(voiceAgents, teamId),
+				gte(voiceSessions.startTime, startDate),
+				lte(voiceSessions.startTime, endDate)
+			)
+		)
+		.groupBy(voiceSessions.direction)
+
+	const directionBreakdown = {
+		incoming: 0,
+		outgoing: 0,
+		unknown: 0
+	}
+
+	for (const row of callDirectionStats) {
+		if (row.direction === "incoming") directionBreakdown.incoming += row.count
+		else if (row.direction === "outgoing")
+			directionBreakdown.outgoing += row.count
+		else directionBreakdown.unknown += row.count
+	}
+	for (const row of sessionDirectionStats) {
+		if (row.direction === "incoming") directionBreakdown.incoming += row.count
+		else if (row.direction === "outgoing")
+			directionBreakdown.outgoing += row.count
+		else directionBreakdown.unknown += row.count
+	}
+
+	// Hourly call volume (0-23)
+	const callHourlyStats = await db
+		.select({
+			hour: sql<number>`EXTRACT(HOUR FROM ${calls.startTime})`.as("hour"),
+			count: count(calls.id)
+		})
+		.from(calls)
+		.where(
+			and(
+				teamScope(calls, teamId),
+				gte(calls.startTime, startDate),
+				lte(calls.startTime, endDate)
+			)
+		)
+		.groupBy(sql`EXTRACT(HOUR FROM ${calls.startTime})`)
+
+	const sessionHourlyStats = await db
+		.select({
+			hour: sql<number>`EXTRACT(HOUR FROM ${voiceSessions.startTime})`.as(
+				"hour"
+			),
+			count: count(voiceSessions.id)
+		})
+		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+		.where(
+			and(
+				teamScope(voiceAgents, teamId),
+				gte(voiceSessions.startTime, startDate),
+				lte(voiceSessions.startTime, endDate)
+			)
+		)
+		.groupBy(sql`EXTRACT(HOUR FROM ${voiceSessions.startTime})`)
+
+	const hourlyMap = new Map<number, number>()
+	for (const row of callHourlyStats) {
+		hourlyMap.set(row.hour, (hourlyMap.get(row.hour) || 0) + row.count)
+	}
+	for (const row of sessionHourlyStats) {
+		hourlyMap.set(row.hour, (hourlyMap.get(row.hour) || 0) + row.count)
+	}
+
+	const hourlyCallVolume = Array.from({ length: 24 }, (_, hour) => ({
+		hour: `${hour.toString().padStart(2, "0")}:00`,
+		calls: hourlyMap.get(hour) || 0
+	}))
 
 	// Get sentiment breakdown
 	const sentimentStats = await db
@@ -360,9 +520,16 @@ export async function getCallAnalytics(
 							100
 					)
 				: 0,
+		pickupRate:
+			combinedStats.totalCalls > 0
+				? Math.round((answeredCalls / combinedStats.totalCalls) * 100)
+				: 0,
+		outcomeBreakdown,
+		directionBreakdown,
 		sentimentBreakdown,
 		topPerformingAgents,
-		dailyCallVolume
+		dailyCallVolume,
+		hourlyCallVolume
 	}
 }
 

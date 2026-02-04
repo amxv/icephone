@@ -187,13 +187,13 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 15 — Analytics Expansion (Calls + KPIs)
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Expanded call analytics with pickup rate, outcome and direction breakdowns, and hourly call volume; updated analytics dashboard UI with new KPI cards and charts (outcomes + hourly volume).
 - Files changed:
+  - Updated: `src/actions/call-analytics.ts`, `src/app/(pages)/analytics/components/AnalyticsDashboard.tsx`, `src/app/(pages)/analytics/page.tsx`
 - Tests/commands run:
 - Commit:
 - Notes/blockers:
-  - Add KPI metrics (pickup rate, outcomes, etc) and analytics dashboard UI.
 
 ---
 
