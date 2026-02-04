@@ -127,10 +127,12 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 10 — Realtime Tools (Cal.com + Scheduling)
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added OpenAI Realtime tool definitions and wired Cal.com appointment scheduling tool into the voice session flow. Realtime session API now sends tool definitions and prompt guidance; client hook executes tool calls from data channel and returns outputs.
 - Files changed:
-- Tests/commands run:
+  - Added: `src/lib/openai/realtime-tools.ts`
+  - Updated: `src/app/api/voice/session/route.ts`, `src/hooks/use-realtime-voice-session.ts`
+- Tests/commands run: `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
 - Commit:
 - Notes/blockers:
 

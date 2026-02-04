@@ -1,7 +1,9 @@
 "use client"
 
 import { updateCallOutcome } from "@/actions/calls"
+import { scheduleAppointment } from "@/actions/lead-communication"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { z } from "zod"
 
 const OPENAI_REALTIME_WEBRTC_URL = "https://api.openai.com/v1/realtime/calls"
 
@@ -55,6 +57,7 @@ export function useRealtimeVoiceSession(
 	const audioElementRef = useRef<HTMLAudioElement | null>(null)
 	const sessionStartTimeRef = useRef<number | null>(null)
 	const callIdRef = useRef<number | null>(null)
+	const isResponseInProgressRef = useRef(false)
 
 	const resetState = useCallback(() => {
 		setIsConnected(false)
@@ -72,65 +75,168 @@ export function useRealtimeVoiceSession(
 		setUserTranscript("")
 	}, [])
 
-	const handleDataChannelMessage = useCallback((event: MessageEvent) => {
-		try {
-			const msg = JSON.parse(event.data)
+	const executeToolCall = useCallback(
+		async (toolName: string, args: Record<string, unknown>) => {
+			switch (toolName) {
+				case "scheduleAppointment": {
+					const inputSchema = z.object({
+						leadId: z.coerce.number().int().positive(),
+						title: z.string().trim().min(1),
+						description: z.string().optional(),
+						startTime: z.string().min(1),
+						endTime: z.string().min(1),
+						location: z.string().optional()
+					})
 
-			switch (msg.type) {
-				case "session.created":
-					setIsConnected(true)
-					setIsConnecting(false)
-					break
-				case "input_audio_buffer.speech_started":
-					setIsListening(true)
-					setIsSpeaking(false)
-					break
-				case "input_audio_buffer.speech_stopped":
-					setIsListening(false)
-					break
-				case "conversation.item.input_audio_transcription.completed":
-					if (msg.transcript) {
-						setTranscriptHistory((prev) => [
-							...prev,
-							{
-								role: "user",
-								text: msg.transcript,
-								timestamp: new Date()
+					try {
+						const parsed = inputSchema.parse(args)
+						const start = new Date(parsed.startTime)
+						const end = new Date(parsed.endTime)
+
+						if (
+							Number.isNaN(start.getTime()) ||
+							Number.isNaN(end.getTime())
+						) {
+							return {
+								success: false,
+								error: "Invalid appointment time"
 							}
-						])
-						setUserTranscript("")
+						}
+
+						return await scheduleAppointment({
+							leadId: parsed.leadId,
+							title: parsed.title,
+							description: parsed.description,
+							startTime: start,
+							endTime: end,
+							location: parsed.location
+						})
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: "Invalid tool input"
+						return { success: false, error: message }
 					}
-					break
-				case "response.audio_transcript.delta":
-					setAssistantTranscript((prev) => prev + (msg.delta || ""))
-					break
-				case "response.audio_transcript.done":
-					if (msg.transcript) {
-						setTranscriptHistory((prev) => [
-							...prev,
-							{
-								role: "assistant",
-								text: msg.transcript,
-								timestamp: new Date()
-							}
-						])
-					}
-					setAssistantTranscript("")
-					break
-				case "error": {
-					const message = msg.error?.message || "Voice session error"
-					if (!message.includes("active response in progress")) {
-						setError(new Error(message))
-					}
-					break
 				}
 				default:
-					break
+					return {
+						success: false,
+						error: `Unknown tool: ${toolName}`
+					}
 			}
-		} catch (err) {
-			console.error("Error handling data channel message:", err)
-		}
-	}, [])
+		},
+		[]
+	)
+
+	const handleDataChannelMessage = useCallback(
+		async (event: MessageEvent) => {
+			try {
+				const msg = JSON.parse(event.data)
+
+				switch (msg.type) {
+					case "session.created":
+						setIsConnected(true)
+						setIsConnecting(false)
+						break
+					case "input_audio_buffer.speech_started":
+						setIsListening(true)
+						setIsSpeaking(false)
+						break
+					case "input_audio_buffer.speech_stopped":
+						setIsListening(false)
+						break
+					case "conversation.item.input_audio_transcription.completed":
+						if (msg.transcript) {
+							setTranscriptHistory((prev) => [
+								...prev,
+								{
+									role: "user",
+									text: msg.transcript,
+									timestamp: new Date()
+								}
+							])
+							setUserTranscript("")
+						}
+						break
+					case "response.audio_transcript.delta":
+						setAssistantTranscript(
+							(prev) => prev + (msg.delta || "")
+						)
+						break
+					case "response.audio_transcript.done":
+						if (msg.transcript) {
+							setTranscriptHistory((prev) => [
+								...prev,
+								{
+									role: "assistant",
+									text: msg.transcript,
+									timestamp: new Date()
+								}
+							])
+						}
+						setAssistantTranscript("")
+						break
+					case "response.created":
+						isResponseInProgressRef.current = true
+						break
+					case "response.done":
+						isResponseInProgressRef.current = false
+						break
+					case "response.function_call_arguments.done":
+						if (msg.name && msg.arguments) {
+							let parsedArgs: Record<string, unknown> = {}
+							try {
+								parsedArgs = JSON.parse(msg.arguments)
+							} catch (parseError) {
+								console.error(
+									"Failed to parse tool args:",
+									parseError
+								)
+							}
+
+							const result = await executeToolCall(
+								msg.name,
+								parsedArgs
+							)
+
+							dataChannelRef.current?.send(
+								JSON.stringify({
+									type: "conversation.item.create",
+									item: {
+										type: "function_call_output",
+										call_id: msg.call_id,
+										output: JSON.stringify(result)
+									}
+								})
+							)
+
+							if (!isResponseInProgressRef.current) {
+								dataChannelRef.current?.send(
+									JSON.stringify({
+										type: "response.create"
+									})
+								)
+							}
+						}
+						break
+					case "error": {
+						const message =
+							msg.error?.message || "Voice session error"
+						if (!message.includes("active response in progress")) {
+							setError(new Error(message))
+						}
+						break
+					}
+					default:
+						break
+				}
+			} catch (err) {
+				console.error("Error handling data channel message:", err)
+			}
+		},
+		[executeToolCall]
+	)
 
 	const start = useCallback(async () => {
 		if (isConnected || isConnecting) return

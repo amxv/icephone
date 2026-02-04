@@ -2,6 +2,7 @@ import { db_ws } from "@/db"
 import { calls, leads, voiceAgents } from "@/db/schema"
 import { logAuditEvent } from "@/lib/audit-log"
 import { requireTeam } from "@/lib/auth/session"
+import { openAIRealtimeTools } from "@/lib/openai/realtime-tools"
 import { teamScope } from "@/lib/team-scope"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
@@ -70,7 +71,8 @@ export async function POST(request: Request) {
 			agentRecord.prompt || "",
 			agentRecord.firstMessage
 				? `Begin the conversation with: ${agentRecord.firstMessage}`
-				: ""
+				: "",
+			"When scheduling appointments, call the scheduleAppointment tool with ISO-8601 start and end times."
 		].filter(Boolean)
 
 		const instructions = instructionsParts.join("\n\n")
@@ -103,7 +105,7 @@ export async function POST(request: Request) {
 						DEFAULT_REALTIME_MODEL,
 					instructions,
 					output_modalities: ["audio", "text"],
-					tools: [],
+					tools: openAIRealtimeTools,
 					tool_choice: "auto",
 					audio: {
 						input: {
