@@ -379,3 +379,72 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `7ecbff1` (`phase-30: advanced kb settings`)
 - Notes/blockers:
   - None.
+
+---
+
+## Phase 31 — Telephony Readiness Research Refresh (Twilio/Vonage/Telnyx)
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Re-validated telephony assumptions against official docs for Twilio, Telnyx, and Vonage, and documented callback/signature/recording differences needed by backend adapters and webhook ingestion. Added a provider capability refresh artifact with endpoint and auth specifics for implementation continuity.
+- Files changed:
+  - Added: `gg/voice-command-center-rebuild/telephony-provider-readiness-refresh.md`
+- Tests/commands run: Web research via `webctx` (`search`, `read-link`) against official provider documentation.
+- Commit: `phase-31: telephony refresh`
+- Notes/blockers:
+  - Re-read `gg/voice-command-center-rebuild/telephony-recording-research.md` and refresh assumptions against official provider docs.
+  - Capture implementation-critical endpoint/signature/webhook differences across Twilio, Vonage, and Telnyx.
+
+---
+
+## Phase 32 — Telephony Domain + Provider Adapters Foundation
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Add provider abstraction and execution contracts for `twilio`, `vonage`, `telnyx` with `mock` fallback retained.
+  - Keep queue processor behavior deterministic under retry/failure semantics.
+
+---
+
+## Phase 33 — Recording Infrastructure (Backend + UI Readiness)
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Add recording metadata persistence and UI exposure for future telephony rollouts.
+
+---
+
+## Phase 34 — Telephony Webhook Ingestion + Security
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Add provider webhook endpoints with signature verification + idempotent event ingestion.
+
+---
+
+## Phase 35 — Backend Rewrite Gap Audit II
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Deep pass for stale/legacy backend paths that conflict with rewrite goals.
+
+---
+
+## Phase 36 — End-to-End Validation + PR Final Sync
+- Status: [ ] Not started [ ] In progress [ ] Done
+- Summary:
+- Files changed:
+- Tests/commands run:
+- Commit:
+- Notes/blockers:
+  - Final quality gates (`bun install`, `bun run typecheck`, `bun run lint`) and PR scope sync.

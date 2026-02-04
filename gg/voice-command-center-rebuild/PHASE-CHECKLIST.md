@@ -213,3 +213,45 @@ Examples:
 - [x] Load team KB sources and persist `knowledge_base.sourceIds` from advanced settings
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-30: advanced kb settings`
+
+### Phase 31 — Telephony Readiness Research Refresh (Twilio/Vonage/Telnyx)
+- [x] Re-read `gg/voice-command-center-rebuild/telephony-recording-research.md` and align implementation assumptions
+- [x] Validate latest official API docs (Twilio, Vonage, Telnyx) via `webctx` and capture integration-critical endpoints/events
+- [x] Record concrete provider capability matrix and rollout constraints in planning docs
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-31: telephony refresh`
+
+### Phase 32 — Telephony Domain + Provider Adapters Foundation
+- [ ] Add backend telephony domain scaffolding (provider abstraction, execution contracts, normalized call-event shape)
+- [ ] Add first-class provider adapters for Twilio/Vonage/Telnyx (config + request/signature helper surfaces)
+- [ ] Wire call-queue processor to provider abstraction while preserving mock fallback mode
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-32: telephony foundation`
+
+### Phase 33 — Recording Infrastructure (Backend + UI Readiness)
+- [ ] Add recording persistence model and APIs (recording metadata + provider links + storage pointers)
+- [ ] Add recording lifecycle plumbing from telephony execution/webhooks into call records
+- [ ] Expose recording data in UI call details/analytics surfaces
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-33: recording readiness`
+
+### Phase 34 — Telephony Webhook Ingestion + Security
+- [ ] Implement provider webhook endpoints for Twilio/Vonage/Telnyx
+- [ ] Add signature verification + normalized event ingestion + idempotency guards
+- [ ] Persist webhook events for audit/debug replay
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-34: webhook ingestion`
+
+### Phase 35 — Backend Rewrite Gap Audit II
+- [ ] Deep-scan backend for stale/legacy code paths that conflict with rewrite vision
+- [ ] Remove or rewrite incomplete/duplicate implementations surfaced during telephony integration prep
+- [ ] Document newly discovered product/tech debt as follow-up phases if needed
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-35: backend gap audit`
+
+### Phase 36 — End-to-End Validation + PR Final Sync
+- [ ] Run `bun install`, `bun run typecheck`, `bun run lint`
+- [ ] Ensure planning docs reflect completion state for phases 31-35
+- [ ] Update PR title/body/checklist for telephony + recording readiness scope
+- [ ] Update `PROGRESS.md`
+- [ ] Commit: `phase-36: final sync`
