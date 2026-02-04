@@ -236,11 +236,11 @@ Examples:
 - [x] Commit: `phase-33: recording readiness`
 
 ### Phase 34 — Telephony Webhook Ingestion + Security
-- [ ] Implement provider webhook endpoints for Twilio/Vonage/Telnyx
-- [ ] Add signature verification + normalized event ingestion + idempotency guards
-- [ ] Persist webhook events for audit/debug replay
-- [ ] Update `PROGRESS.md`
-- [ ] Commit: `phase-34: webhook ingestion`
+- [x] Implement provider webhook endpoints for Twilio/Vonage/Telnyx
+- [x] Add signature verification + normalized event ingestion + idempotency guards
+- [x] Persist webhook events for audit/debug replay
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-34: webhook ingestion`
 
 ### Phase 35 — Backend Rewrite Gap Audit II
 - [ ] Deep-scan backend for stale/legacy code paths that conflict with rewrite vision

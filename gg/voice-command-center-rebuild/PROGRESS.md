@@ -423,11 +423,13 @@ This file must be updated after **every phase**. Keep notes concise but specific
 ---
 
 ## Phase 34 — Telephony Webhook Ingestion + Security
-- Status: [ ] Not started [ ] In progress [ ] Done
-- Summary:
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Implemented provider webhook ingestion for Twilio, Telnyx, and Vonage with signature verification adapters, normalized event mapping, idempotent dedupe ingestion, and secure state updates. Added event persistence into `telephony_events`, telephony call status updates, and recording lifecycle write-through into `call_recordings`/`calls`.
 - Files changed:
-- Tests/commands run:
-- Commit:
+  - Added: `src/app/api/telephony/webhooks/[provider]/route.ts`
+  - Added: `src/lib/telephony/webhooks/index.ts`, `src/lib/telephony/webhooks/shared.ts`, `src/lib/telephony/webhooks/twilio.ts`, `src/lib/telephony/webhooks/telnyx.ts`, `src/lib/telephony/webhooks/vonage.ts`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-34: webhook ingestion`
 - Notes/blockers:
   - Add provider webhook endpoints with signature verification + idempotent event ingestion.
 
