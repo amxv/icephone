@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db_ws } from "@/db"
-import { callQueue, leads, voiceAgents } from "@/db/schema"
-import { eq, and, lte, sql } from "drizzle-orm"
+import {
+	callQueue,
+	calls,
+	communicationLogs,
+	leads,
+	teamIntegrations,
+	teamPhoneNumbers,
+	telephonyCalls
+} from "@/db/schema"
+import {
+	resolveTeamOutboundPhoneNumber,
+	resolveTeamTelephonyProvider
+} from "@/lib/telephony/outbound-number"
+import { getTelephonyExecutionProvider } from "@/lib/telephony/providers"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 // Simple authentication for background processing
 async function authenticateRequest(request: NextRequest): Promise<boolean> {
@@ -37,11 +50,13 @@ export async function POST(request: NextRequest) {
 		const body = await request.json()
 		const {
 			userId,
+			teamId,
 			maxUsers = 10,
 			batchSize = 5,
 			forceProcessing = false
 		} = body as {
 			userId?: string
+			teamId?: string
 			maxUsers?: number
 			batchSize?: number
 			forceProcessing?: boolean
@@ -49,21 +64,42 @@ export async function POST(request: NextRequest) {
 
 		console.log("🚀 Starting call queue processing", {
 			userId,
+			teamId,
 			maxUsers,
 			batchSize,
 			forceProcessing
 		})
 
-		// Get users with pending calls to process
-		let usersToProcess: { userId: string }[] = []
+		// Get teams with pending calls to process
+		let teamsToProcess: { teamId: string; userId?: string }[] = []
 
-		if (userId) {
-			// Process specific user
-			usersToProcess = [{ userId }]
+		if (teamId) {
+			// Process specific team (optionally scoped to a user)
+			teamsToProcess = [{ teamId, userId }]
+		} else if (userId) {
+			// Find teams with calls ready to process for a specific user
+			const teamsWithCalls = await db_ws
+				.selectDistinct({ teamId: callQueue.teamId })
+				.from(callQueue)
+				.where(
+					and(
+						eq(callQueue.userId, userId),
+						eq(callQueue.status, "pending"),
+						forceProcessing
+							? sql`true`
+							: sql`(${callQueue.scheduledTime} IS NULL OR ${callQueue.scheduledTime} <= NOW())`
+					)
+				)
+				.limit(maxUsers)
+
+			teamsToProcess = teamsWithCalls.map((team) => ({
+				teamId: team.teamId,
+				userId
+			}))
 		} else {
-			// Find users with calls ready to process
-			const usersWithCalls = await db_ws
-				.selectDistinct({ userId: callQueue.userId })
+			// Find teams with calls ready to process
+			const teamsWithCalls = await db_ws
+				.selectDistinct({ teamId: callQueue.teamId })
 				.from(callQueue)
 				.where(
 					and(
@@ -75,35 +111,40 @@ export async function POST(request: NextRequest) {
 				)
 				.limit(maxUsers)
 
-			usersToProcess = usersWithCalls
+			teamsToProcess = teamsWithCalls.map((team) => ({
+				teamId: team.teamId
+			}))
 		}
 
-		if (usersToProcess.length === 0) {
+		if (teamsToProcess.length === 0) {
 			return NextResponse.json({
 				success: true,
-				message: "No users with calls ready to process",
+				message: "No teams with calls ready to process",
 				processed: 0,
 				results: []
 			})
 		}
 
-		console.log(`📞 Processing calls for ${usersToProcess.length} users`)
+		console.log(`📞 Processing calls for ${teamsToProcess.length} teams`)
 
 		const results = []
 		let totalProcessed = 0
 		let totalSuccessful = 0
 		let totalFailed = 0
 
-		// Process each user's call queue
-		for (const user of usersToProcess) {
+		// Process each team's call queue
+		for (const team of teamsToProcess) {
 			try {
-				// Check if user has calls ready to process
+				// Check if team has calls ready to process
 				const readyCalls = await db_ws
 					.select({ count: sql<number>`COUNT(*)` })
 					.from(callQueue)
 					.where(
 						and(
-							eq(callQueue.userId, user.userId),
+							eq(callQueue.teamId, team.teamId),
+							team.userId
+								? eq(callQueue.userId, team.userId)
+								: sql`true`,
 							eq(callQueue.status, "pending"),
 							forceProcessing
 								? sql`true`
@@ -113,7 +154,8 @@ export async function POST(request: NextRequest) {
 
 				if (readyCalls[0].count === 0 && !forceProcessing) {
 					results.push({
-						userId: user.userId,
+						teamId: team.teamId,
+						userId: team.userId,
 						status: "skipped",
 						reason: "No calls ready for processing",
 						processed: 0
@@ -121,9 +163,10 @@ export async function POST(request: NextRequest) {
 					continue
 				}
 
-				// Process the user's call queue batch
-				const result = await processUserCallQueueDirect(
-					user.userId,
+				// Process the team's call queue batch
+				const result = await processTeamCallQueueDirect(
+					team.teamId,
+					team.userId,
 					batchSize
 				)
 
@@ -133,22 +176,25 @@ export async function POST(request: NextRequest) {
 					totalFailed += result.data.failed || 0
 
 					results.push({
-						userId: user.userId,
+						teamId: team.teamId,
+						userId: team.userId,
 						status: "processed",
 						...result.data
 					})
 				} else {
 					results.push({
-						userId: user.userId,
+						teamId: team.teamId,
+						userId: team.userId,
 						status: "error",
 						error: result.error,
 						processed: 0
 					})
 				}
 			} catch (error) {
-				console.error(`Error processing user ${user.userId}:`, error)
+				console.error(`Error processing team ${team.teamId}:`, error)
 				results.push({
-					userId: user.userId,
+					teamId: team.teamId,
+					userId: team.userId,
 					status: "error",
 					error:
 						error instanceof Error
@@ -227,235 +273,477 @@ export async function GET(request: NextRequest) {
 }
 
 // Direct queue processing function that doesn't require auth context
-async function processUserCallQueueDirect(
-	userId: string,
+async function processTeamCallQueueDirect(
+	teamId: string,
+	userId?: string,
 	batchSize: number = 5
 ) {
-	try {
-		// Get next batch of calls ready to process
-		const queueEntries = await db_ws
-			.select({
-				id: callQueue.id,
-				leadId: callQueue.leadId,
-				voiceAgentId: callQueue.voiceAgentId,
-				priority: callQueue.priority,
-				scheduledTime: callQueue.scheduledTime,
-				instructions: callQueue.instructions,
-				phoneNumber: callQueue.phoneNumber,
-				retryCount: callQueue.retryCount,
-				maxRetries: callQueue.maxRetries,
-				lead: {
-					id: leads.id,
-					name: leads.name,
-					phone: leads.phone
-				}
-			})
-			.from(callQueue)
-			.leftJoin(leads, eq(callQueue.leadId, leads.id))
-			.where(
-				and(
-					eq(callQueue.userId, userId),
-					eq(callQueue.status, "pending"),
-					sql`(${callQueue.scheduledTime} IS NULL OR ${callQueue.scheduledTime} <= NOW())`
-				)
-			)
-			.orderBy(
-				sql`${callQueue.priority} DESC NULLS LAST`,
-				sql`${callQueue.scheduledTime} ASC NULLS FIRST`,
-				callQueue.createdAt
-			)
-			.limit(batchSize)
+	const callExecutionEnabled = process.env.CALL_EXECUTION_ENABLED === "true"
+	const configuredExecutionProvider =
+		process.env.CALL_EXECUTION_PROVIDER?.trim() || null
 
-		if (queueEntries.length === 0) {
-			return {
-				success: true,
-				data: { processed: 0, message: "No calls ready to process" },
-				error: null
-			}
+	if (!callExecutionEnabled) {
+		return {
+			success: true,
+			data: {
+				processed: 0,
+				results: [],
+				successful: 0,
+				failed: 0,
+				retries: 0,
+				message:
+					"Call execution is disabled. Set CALL_EXECUTION_ENABLED=true to process queue entries."
+			},
+			error: null
 		}
+	}
 
-		console.log(
-			`📞 Processing ${queueEntries.length} calls for user ${userId}`
+	const queueEntries = await db_ws
+		.select({
+			id: callQueue.id,
+			leadId: callQueue.leadId,
+			campaignId: callQueue.campaignId,
+			agentId: callQueue.agentId,
+			voiceAgentId: callQueue.voiceAgentId,
+			priority: callQueue.priority,
+			scheduledTime: callQueue.scheduledTime,
+			retryCount: callQueue.retryCount,
+			maxRetries: callQueue.maxRetries,
+			retryInterval: callQueue.retryInterval,
+			instructions: callQueue.instructions,
+			phoneNumber: sql<
+				string | null
+			>`COALESCE(${callQueue.phoneNumber}, ${leads.phone})`,
+			metadata: callQueue.metadata,
+			userId: callQueue.userId
+		})
+		.from(callQueue)
+		.leftJoin(leads, eq(callQueue.leadId, leads.id))
+		.where(
+			and(
+				eq(callQueue.teamId, teamId),
+				userId ? eq(callQueue.userId, userId) : sql`true`,
+				eq(callQueue.status, "pending"),
+				sql`(${callQueue.scheduledTime} IS NULL OR ${callQueue.scheduledTime} <= NOW())`
+			)
 		)
+		.orderBy(desc(callQueue.priority), callQueue.scheduledTime)
+		.limit(batchSize)
 
-		const results = []
+	if (!queueEntries.length) {
+		return {
+			success: true,
+			data: {
+				processed: 0,
+				results: [],
+				successful: 0,
+				failed: 0,
+				retries: 0,
+				message: "No queued calls ready for processing."
+			},
+			error: null
+		}
+	}
 
-		// Process each queue entry
-		for (const entry of queueEntries) {
-			if (!entry.lead || !entry.lead.phone) {
-				// Mark as failed - no phone number
+	const now = new Date()
+	const queueIds = queueEntries.map((entry) => entry.id)
+	await db_ws
+		.update(callQueue)
+		.set({
+			status: "calling",
+			startedAt: now,
+			updatedAt: now
+		})
+		.where(inArray(callQueue.id, queueIds))
+
+	const results: Array<{
+		queueId: number
+		status: "completed" | "retry_scheduled" | "failed"
+		callId?: number
+		error?: string
+	}> = []
+
+	let successful = 0
+	let failed = 0
+	let retries = 0
+	const providersUsed = new Set<string>()
+	const providerCache = new Map<string, string>()
+	const outboundNumberCache = new Map<string, string | null>()
+	const explicitOutboundNumberCache = new Map<
+		number,
+		{
+			provider: "mock" | "twilio" | "telnyx" | "vonage"
+			phoneNumber: string
+		} | null
+	>()
+	const providerIntegrationCache = new Map<
+		string,
+		Record<string, unknown> | null
+	>()
+
+	for (const entry of queueEntries) {
+		try {
+			const metadata =
+				(entry.metadata as
+					| {
+							callConfiguration?: {
+								outboundPhoneNumberId?: unknown
+							}
+					  }
+					| null
+					| undefined) || null
+			const explicitOutboundPhoneNumberId =
+				typeof metadata?.callConfiguration?.outboundPhoneNumberId ===
+				"number"
+					? metadata.callConfiguration.outboundPhoneNumberId
+					: null
+			let explicitOutbound: {
+				provider: "mock" | "twilio" | "telnyx" | "vonage"
+				phoneNumber: string
+			} | null = null
+			if (explicitOutboundPhoneNumberId) {
+				if (
+					!explicitOutboundNumberCache.has(
+						explicitOutboundPhoneNumberId
+					)
+				) {
+					const selected = await db_ws
+						.select({
+							provider: teamPhoneNumbers.provider,
+							phoneNumber: teamPhoneNumbers.phoneNumber
+						})
+						.from(teamPhoneNumbers)
+						.where(
+							and(
+								eq(
+									teamPhoneNumbers.id,
+									explicitOutboundPhoneNumberId
+								),
+								eq(teamPhoneNumbers.teamId, teamId),
+								eq(teamPhoneNumbers.status, "active")
+							)
+						)
+						.limit(1)
+					explicitOutboundNumberCache.set(
+						explicitOutboundPhoneNumberId,
+						selected[0] || null
+					)
+				}
+				explicitOutbound =
+					explicitOutboundNumberCache.get(
+						explicitOutboundPhoneNumberId
+					) || null
+			}
+
+			const assignedAgentId = entry.agentId || entry.voiceAgentId || null
+			const providerCacheKey = `${assignedAgentId || "default"}`
+			let resolvedProvider = providerCache.get(providerCacheKey)
+			if (!resolvedProvider) {
+				const teamProvider = await resolveTeamTelephonyProvider({
+					teamId,
+					agentId: assignedAgentId,
+					preferredProvider:
+						explicitOutbound?.provider ||
+						(configuredExecutionProvider === "twilio" ||
+						configuredExecutionProvider === "telnyx" ||
+						configuredExecutionProvider === "vonage" ||
+						configuredExecutionProvider === "mock"
+							? configuredExecutionProvider
+							: null)
+				})
+				resolvedProvider =
+					explicitOutbound?.provider ||
+					configuredExecutionProvider ||
+					teamProvider
+				providerCache.set(providerCacheKey, resolvedProvider)
+			}
+
+			const executionProvider =
+				getTelephonyExecutionProvider(resolvedProvider)
+			providersUsed.add(executionProvider.name)
+
+			const providerIntegrationCacheKey = `${teamId}:${executionProvider.name}`
+			let providerConfig = providerIntegrationCache.get(
+				providerIntegrationCacheKey
+			)
+			if (providerConfig === undefined) {
+				if (executionProvider.name === "mock") {
+					providerConfig = null
+				} else {
+					const [integration] = await db_ws
+						.select({
+							apiKey: teamIntegrations.apiKey,
+							settings: teamIntegrations.settings
+						})
+						.from(teamIntegrations)
+						.where(
+							and(
+								eq(teamIntegrations.teamId, teamId),
+								eq(
+									teamIntegrations.provider,
+									executionProvider.name
+								)
+							)
+						)
+						.limit(1)
+
+					if (!integration) {
+						providerConfig = null
+					} else {
+						providerConfig = {
+							...((integration.settings || {}) as Record<
+								string,
+								unknown
+							>),
+							...(integration.apiKey
+								? { apiKey: integration.apiKey }
+								: {})
+						}
+					}
+				}
+				providerIntegrationCache.set(
+					providerIntegrationCacheKey,
+					providerConfig
+				)
+			}
+
+			const outboundNumberCacheKey = `${executionProvider.name}:${assignedAgentId || "default"}`
+			let fromPhoneNumber = outboundNumberCache.get(
+				outboundNumberCacheKey
+			)
+			if (
+				fromPhoneNumber === undefined &&
+				!explicitOutbound?.phoneNumber
+			) {
+				fromPhoneNumber = await resolveTeamOutboundPhoneNumber({
+					teamId,
+					provider: executionProvider.name,
+					agentId: assignedAgentId
+				})
+				outboundNumberCache.set(outboundNumberCacheKey, fromPhoneNumber)
+			}
+			if (explicitOutbound?.phoneNumber) {
+				fromPhoneNumber = explicitOutbound.phoneNumber
+			}
+
+			const execution = await executionProvider.execute({
+				teamId,
+				queueEntry: entry,
+				startedAt: now,
+				fromPhoneNumber,
+				providerConfig
+			})
+
+			if (execution.status !== "completed") {
+				const retryCount = (entry.retryCount || 0) + 1
+				const maxRetries = entry.maxRetries ?? 3
+
+				if (
+					execution.status === "retryable_failure" &&
+					retryCount <= maxRetries
+				) {
+					const retryAt = new Date(
+						Date.now() + (entry.retryInterval ?? 60) * 60_000
+					)
+					await updateCallQueueStatus(entry.id, "pending", {
+						retryCount,
+						scheduledTime: retryAt,
+						lastError: execution.error
+					})
+					retries += 1
+					results.push({
+						queueId: entry.id,
+						status: "retry_scheduled",
+						error: execution.error
+					})
+					continue
+				}
+
 				await updateCallQueueStatus(entry.id, "failed", {
-					lastError: "No phone number available",
+					retryCount,
+					lastError: execution.error,
 					completedAt: new Date()
 				})
+				failed += 1
 				results.push({
 					queueId: entry.id,
 					status: "failed",
-					reason: "No phone number"
+					error: execution.error
 				})
 				continue
 			}
 
-			try {
-				// Mark as calling (processing)
-				await updateCallQueueStatus(entry.id, "calling", {
-					startedAt: new Date()
-				})
+			const isTerminalCallStatus =
+				execution.callStatus === "completed" ||
+				execution.callStatus === "failed" ||
+				execution.callStatus === "busy" ||
+				execution.callStatus === "no_answer" ||
+				execution.callStatus === "canceled"
 
-				// Get voice agent details - required for calls
-				if (!entry.voiceAgentId) {
-					throw new Error("No voice agent specified for call")
-				}
+			const callDuration = Math.max(
+				0,
+				Math.round(execution.durationSeconds)
+			)
+			const callStartTime = entry.scheduledTime || now
+			const callEndTime = isTerminalCallStatus
+				? execution.completedAt ||
+					(callDuration > 0
+						? new Date(
+								callStartTime.getTime() + callDuration * 1000
+							)
+						: new Date())
+				: null
+			const callStatus =
+				execution.callStatus && execution.callStatus !== "unknown"
+					? execution.callStatus
+					: "queued"
+			const providerFromNumber =
+				(typeof execution.metadata?.fromNumber === "string" &&
+				execution.metadata.fromNumber.trim().length > 0
+					? execution.metadata.fromNumber.trim()
+					: fromPhoneNumber) || null
 
-				const voiceAgent = await db_ws
-					.select({
-						id: voiceAgents.id,
-						phoneNumberId: voiceAgents.phoneNumberId,
-						status: voiceAgents.status
-					})
-					.from(voiceAgents)
-					.where(
-						and(
-							eq(voiceAgents.id, entry.voiceAgentId),
-							eq(voiceAgents.userId, userId)
-						)
-					)
-					.limit(1)
-
-				if (!voiceAgent.length || voiceAgent[0].status !== "active") {
-					throw new Error("Voice agent not found or inactive")
-				}
-
-				const phoneNumberId = voiceAgent[0].phoneNumberId
-				if (!phoneNumberId) {
-					throw new Error("Voice agent has no phone number assigned")
-				}
-
-				// Import and use the voice agent system (background processor version)
-				const { initiateOutboundCallForBackgroundProcessor } =
-					await import("@/actions/voice-agents")
-
-				// Determine phone number to use
-				const callPhoneNumber = entry.phoneNumber || entry.lead.phone
-
-				// Initiate the outbound call
-				const callResult =
-					await initiateOutboundCallForBackgroundProcessor(userId, {
-						fromPhoneNumberId: phoneNumberId,
-						toPhoneNumber: callPhoneNumber,
-						agentId: entry.voiceAgentId,
-						leadId: entry.leadId,
-						metadata: {
-							queueId: entry.id,
-							instructions: entry.instructions,
-							leadCommunicationContext: true
-						}
-					})
-
-				if (callResult.success && callResult.data) {
-					// Call initiated successfully
-					const sessionId =
-						"session" in callResult.data
-							? callResult.data.session?.id
-							: callResult.data.id
-
-					await updateCallQueueStatus(entry.id, "completed", {
-						completedAt: new Date(),
-						callResult: {
-							sessionId,
-							status: "initiated",
-							outcome: "call_started"
-						}
-					})
-
-					results.push({
+			const [createdCall] = await db_ws
+				.insert(calls)
+				.values({
+					leadId: entry.leadId,
+					teamId,
+					agentId: entry.agentId || entry.voiceAgentId,
+					campaignId: entry.campaignId,
+					direction: "outgoing",
+					type: "outgoing",
+					duration: callDuration,
+					startTime: callStartTime,
+					endTime: callEndTime,
+					status: callStatus,
+					summary: execution.summary || "Call execution dispatched.",
+					recordingUrl: execution.recordingUrl || null,
+					metadata: {
 						queueId: entry.id,
-						status: "success",
-						sessionId
-					})
-				} else {
-					// Call failed to initiate
-					const retryCount = entry.retryCount ?? 0
-					const maxRetries = entry.maxRetries ?? 3
-					const shouldRetry = retryCount < maxRetries
-
-					if (shouldRetry) {
-						// Schedule retry with exponential backoff
-						const retryTime = new Date()
-						retryTime.setMinutes(
-							retryTime.getMinutes() + (retryCount + 1) * 30
-						)
-
-						await updateCallQueueStatus(entry.id, "pending", {
-							retryCount: retryCount + 1,
-							scheduledTime: retryTime,
-							lastError:
-								callResult.error || "Call initiation failed"
-						})
-
-						results.push({
-							queueId: entry.id,
-							status: "retry_scheduled",
-							retryTime,
-							error: callResult.error
-						})
-					} else {
-						// Max retries exceeded
-						await updateCallQueueStatus(entry.id, "failed", {
-							completedAt: new Date(),
-							lastError:
-								callResult.error || "Max retries exceeded"
-						})
-
-						results.push({
-							queueId: entry.id,
-							status: "failed",
-							reason: callResult.error || "Max retries exceeded"
-						})
-					}
-				}
-			} catch (error) {
-				console.error(
-					`Error processing queue entry ${entry.id}:`,
-					error
-				)
-
-				// Mark as failed
-				await updateCallQueueStatus(entry.id, "failed", {
-					completedAt: new Date(),
-					lastError:
-						error instanceof Error ? error.message : "Unknown error"
+						executionProvider: execution.provider,
+						providerCallId: execution.providerCallId || null,
+						providerSessionId: execution.providerSessionId || null,
+						fromPhoneNumber: providerFromNumber,
+						callStatus,
+						...execution.metadata
+					},
+					createdAt: now,
+					updatedAt: callEndTime || now,
+					userId: entry.userId
 				})
+				.returning({ id: calls.id })
 
+			let telephonyCallId: number | undefined
+			if (
+				execution.providerCallId ||
+				execution.providerSessionId ||
+				execution.provider !== "mock"
+			) {
+				const [telephonyCall] = await db_ws
+					.insert(telephonyCalls)
+					.values({
+						teamId,
+						callId: createdCall.id,
+						queueEntryId: entry.id,
+						provider: execution.provider,
+						providerCallId: execution.providerCallId || null,
+						providerSessionId: execution.providerSessionId || null,
+						direction: "outgoing",
+						status: callStatus,
+						toNumber: entry.phoneNumber || null,
+						fromNumber: providerFromNumber,
+						startedAt: callStartTime,
+						endedAt: callEndTime,
+						duration: callDuration,
+						recordingStatus: execution.recordingUrl
+							? "ready"
+							: null,
+						recordingUrl: execution.recordingUrl || null,
+						lastWebhookAt: null,
+						metadata: execution.metadata || {},
+						createdAt: now,
+						updatedAt: callEndTime || now,
+						userId: entry.userId
+					})
+					.returning({ id: telephonyCalls.id })
+
+				telephonyCallId = telephonyCall?.id
+			}
+
+			await updateCallQueueStatus(entry.id, "completed", {
+				completedAt: callEndTime || new Date(),
+				callResult: {
+					callId: String(createdCall.id),
+					telephonyCallId: telephonyCallId
+						? String(telephonyCallId)
+						: undefined,
+					sessionId: execution.providerSessionId,
+					duration: callDuration,
+					outcome: execution.outcome || callStatus,
+					notes:
+						execution.notes ||
+						`Processed by ${execution.provider} execution provider`
+				}
+			})
+
+			successful += 1
+			results.push({
+				queueId: entry.id,
+				status: "completed",
+				callId: createdCall.id
+			})
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error"
+			const retryCount = (entry.retryCount || 0) + 1
+			const maxRetries = entry.maxRetries ?? 3
+
+			if (retryCount <= maxRetries) {
+				const retryAt = new Date(
+					Date.now() + (entry.retryInterval ?? 60) * 60_000
+				)
+				await updateCallQueueStatus(entry.id, "pending", {
+					retryCount,
+					scheduledTime: retryAt,
+					lastError: errorMessage
+				})
+				retries += 1
 				results.push({
 					queueId: entry.id,
-					status: "failed",
-					reason:
-						error instanceof Error ? error.message : "Unknown error"
+					status: "retry_scheduled",
+					error: errorMessage
 				})
+				continue
 			}
-		}
 
-		return {
-			success: true,
-			data: {
-				processed: results.length,
-				results,
-				successful: results.filter((r) => r.status === "success")
-					.length,
-				failed: results.filter((r) => r.status === "failed").length,
-				retries: results.filter((r) => r.status === "retry_scheduled")
-					.length
-			},
-			error: null
+			await updateCallQueueStatus(entry.id, "failed", {
+				retryCount,
+				lastError: errorMessage,
+				completedAt: new Date()
+			})
+			failed += 1
+			results.push({
+				queueId: entry.id,
+				status: "failed",
+				error: errorMessage
+			})
 		}
-	} catch (error) {
-		console.error("Error processing user call queue:", error)
-		return {
-			success: false,
-			error: "Failed to process call queue",
-			data: null
-		}
+	}
+
+	return {
+		success: true,
+		data: {
+			processed: queueEntries.length,
+			results,
+			successful,
+			failed,
+			retries,
+			message:
+				providersUsed.size > 1
+					? `Calls processed with providers: ${Array.from(providersUsed).join(", ")}.`
+					: `Calls processed with ${Array.from(providersUsed)[0] || "mock"} execution provider.`
+		},
+		error: null
 	}
 }
 
@@ -484,9 +772,62 @@ async function updateCallQueueStatus(
 		...updates
 	}
 
-	return await db_ws
+	const updatedQueueRows = await db_ws
 		.update(callQueue)
 		.set(updateData)
 		.where(eq(callQueue.id, queueId))
 		.returning()
+
+	const communicationStatus =
+		status === "completed"
+			? "delivered"
+			: status === "failed" || status === "cancelled"
+				? "failed"
+				: "pending"
+	const relatedLogs = await db_ws
+		.select({
+			id: communicationLogs.id,
+			details: communicationLogs.details
+		})
+		.from(communicationLogs)
+		.where(
+			and(
+				eq(communicationLogs.relatedRecordId, queueId),
+				eq(communicationLogs.relatedRecordType, "call_queue")
+			)
+		)
+
+	if (relatedLogs.length > 0) {
+		const now = new Date()
+		const durationRaw = updates.callResult?.duration
+		const duration =
+			typeof durationRaw === "number" && Number.isFinite(durationRaw)
+				? durationRaw
+				: undefined
+		const outcomeRaw = updates.callResult?.outcome
+		const outcome =
+			typeof outcomeRaw === "string" && outcomeRaw.length > 0
+				? outcomeRaw
+				: undefined
+
+		for (const log of relatedLogs) {
+			await db_ws
+				.update(communicationLogs)
+				.set({
+					status: communicationStatus,
+					details: {
+						...(log.details || {}),
+						...(duration !== undefined ? { duration } : {}),
+						...(outcome ? { outcome } : {}),
+						...(updates.lastError
+							? { errorMessage: updates.lastError }
+							: {})
+					},
+					updatedAt: now
+				})
+				.where(eq(communicationLogs.id, log.id))
+		}
+	}
+
+	return updatedQueueRows
 }

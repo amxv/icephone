@@ -2,6 +2,10 @@
 
 import { db_ws as db } from "@/db"
 import { voicePresets } from "@/db/schema"
+import {
+	OPENAI_REALTIME_MODEL,
+	normalizeOpenAIVoiceId
+} from "@/lib/openai/realtime-voice"
 import { and, asc, eq } from "drizzle-orm"
 
 type VoicePresetLanguage =
@@ -16,6 +20,7 @@ type VoicePresetLanguage =
 	| "ar"
 	| "ja"
 type VoicePresetGender = "male" | "female" | "neutral"
+type VoicePresetProvider = "openai"
 
 export type VoicePreset = {
 	id: number
@@ -25,13 +30,31 @@ export type VoicePreset = {
 	gender: VoicePresetGender
 	description: string
 	vapiVoiceId: string
-	vapiProvider: string
+	vapiProvider: VoicePresetProvider
 	vapiModel?: string | null
 	sampleAudioUrl?: string | null
 	isDefault: boolean
 	sortOrder: number
 	createdAt: Date
 	updatedAt: Date
+}
+
+function normalizePreset(
+	preset: Omit<VoicePreset, "vapiProvider" | "vapiVoiceId" | "vapiModel"> & {
+		vapiProvider: string
+		vapiVoiceId: string
+		vapiModel?: string | null
+	}
+): VoicePreset {
+	return {
+		...preset,
+		vapiProvider: "openai",
+		vapiVoiceId: normalizeOpenAIVoiceId(
+			preset.vapiVoiceId,
+			Math.max((preset.sortOrder || 1) - 1, 0)
+		),
+		vapiModel: OPENAI_REALTIME_MODEL
+	}
 }
 
 /**
@@ -55,7 +78,7 @@ export async function getVoicePresets(
 			]
 		})
 
-		return presets as VoicePreset[]
+		return presets.map((preset) => normalizePreset(preset as VoicePreset))
 	} catch (error) {
 		console.error("Failed to get voice presets:", error)
 		throw new Error("Failed to get voice presets")
@@ -81,7 +104,7 @@ export async function getVoicePresetsForLanguage(
 			]
 		})
 
-		return presets as VoicePreset[]
+		return presets.map((preset) => normalizePreset(preset as VoicePreset))
 	} catch (error) {
 		console.error("Failed to get voice presets for language:", error)
 		throw new Error("Failed to get voice presets for language")
@@ -99,7 +122,7 @@ export async function getVoicePreset(id: number): Promise<VoicePreset | null> {
 			where: eq(voicePresets.id, id)
 		})
 
-		return preset as VoicePreset | null
+		return preset ? normalizePreset(preset as VoicePreset) : null
 	} catch (error) {
 		console.error("Failed to get voice preset:", error)
 		throw new Error("Failed to get voice preset")
@@ -122,7 +145,7 @@ export async function getDefaultVoicePreset(
 			)
 		})
 
-		return preset as VoicePreset | null
+		return preset ? normalizePreset(preset as VoicePreset) : null
 	} catch (error) {
 		console.error("Failed to get default voice preset:", error)
 		throw new Error("Failed to get default voice preset")
@@ -164,31 +187,5 @@ export async function getAvailableLanguages(): Promise<string[]> {
 	} catch (error) {
 		console.error("Failed to get available languages:", error)
 		throw new Error("Failed to get available languages")
-	}
-}
-
-/**
- * Convert voice preset configuration to VAPI voice configuration
- * @param voicePresetId - Voice preset ID
- * @returns VAPI voice configuration object
- */
-export async function getVapiVoiceConfig(voicePresetId: number) {
-	try {
-		const preset = await getVoicePreset(voicePresetId)
-		if (!preset) {
-			throw new Error("Voice preset not found")
-		}
-
-		return {
-			provider: preset.vapiProvider,
-			voiceId: preset.vapiVoiceId,
-			model: preset.vapiModel,
-			settings: {
-				// Add any provider-specific settings here
-			}
-		}
-	} catch (error) {
-		console.error("Failed to get VAPI voice config:", error)
-		throw new Error("Failed to get VAPI voice config")
 	}
 }

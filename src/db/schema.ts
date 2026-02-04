@@ -1,9 +1,7 @@
-import { customVector } from "@useverk/drizzle-pgvector"
 import { relations } from "drizzle-orm"
 import { sql } from "drizzle-orm"
 import {
 	boolean,
-	date,
 	decimal,
 	index,
 	integer,
@@ -14,7 +12,7 @@ import {
 	serial,
 	text,
 	timestamp,
-	uuid,
+	unique,
 	varchar,
 	vector
 } from "drizzle-orm/pg-core"
@@ -44,19 +42,66 @@ export const communicationTypeEnum = pgEnum("communication_type", [
 	"outgoing"
 ])
 
-// Define phone number type enum
-export const phoneNumberTypeEnum = pgEnum("phone_number_type", [
-	"inbound",
-	"outbound",
-	"both"
+// Define appointment status enum
+export const appointmentStatusEnum = pgEnum("appointment_status", [
+	"scheduled",
+	"cancelled",
+	"completed"
 ])
 
-// Define phone number status enum
+// Knowledge base enums (Vector Store + R2)
+export const knowledgeSourceTypeEnum = pgEnum("knowledge_source_type", [
+	"website_url",
+	"pdf_upload",
+	"gdoc",
+	"txt_upload",
+	"image_upload",
+	"docx_upload"
+])
+
+export const knowledgeFileStatusEnum = pgEnum("knowledge_file_status", [
+	"processing",
+	"ready",
+	"failed"
+])
+
+// Call event type enum
+export const callEventTypeEnum = pgEnum("call_event_type", [
+	"transcript",
+	"tool_call",
+	"tool_result",
+	"status"
+])
+
+export const telephonyProviderEnum = pgEnum("telephony_provider", [
+	"mock",
+	"twilio",
+	"telnyx",
+	"vonage"
+])
+
+export const telephonyCallStatusEnum = pgEnum("telephony_call_status", [
+	"queued",
+	"ringing",
+	"in_progress",
+	"completed",
+	"failed",
+	"busy",
+	"no_answer",
+	"canceled",
+	"unknown"
+])
+
+export const telephonyRecordingStatusEnum = pgEnum(
+	"telephony_recording_status",
+	["processing", "ready", "failed"]
+)
+
 export const phoneNumberStatusEnum = pgEnum("phone_number_status", [
+	"provisioning",
 	"active",
 	"inactive",
-	"pending",
-	"suspended"
+	"released"
 ])
 
 // Define task priority enum
@@ -85,6 +130,233 @@ export const taskTypeEnum = pgEnum("task_type", [
 	"research",
 	"other"
 ])
+
+// Define team member role enum
+export const teamMemberRoleEnum = pgEnum("team_member_role", [
+	"owner",
+	"member"
+])
+
+// Auth + Tenancy tables (Better Auth)
+export const teams = pgTable(
+	"teams",
+	{
+		id: varchar("id", { length: 21 }).primaryKey(),
+		name: varchar("name", { length: 255 }).notNull(),
+		slug: varchar("slug", { length: 255 }).notNull().unique(),
+		vectorStoreId: varchar("vector_store_id", { length: 255 }),
+		createdByUserId: varchar("created_by_user_id", { length: 21 }),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("teams_slug_idx").on(table.slug),
+		index("teams_created_by_idx").on(table.createdByUserId)
+	]
+)
+
+export const users = pgTable(
+	"users",
+	{
+		id: varchar("id", { length: 21 }).primaryKey(),
+		name: varchar("name", { length: 255 }),
+		email: text("email").notNull().unique(),
+		emailVerified: boolean("email_verified").notNull().default(false),
+		image: text("image"),
+		isActive: boolean("is_active").notNull().default(true),
+		defaultTeamId: varchar("default_team_id", { length: 21 }).references(
+			() => teams.id
+		),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow()
+	},
+	(table) => [
+		index("users_email_idx").on(table.email),
+		index("users_default_team_idx").on(table.defaultTeamId)
+	]
+)
+
+export const teamMembers = pgTable(
+	"team_members",
+	{
+		id: varchar("id", { length: 21 }).primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		userId: varchar("user_id", { length: 21 })
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		role: teamMemberRoleEnum("role").default("member").notNull(),
+		createdAt: timestamp("created_at").notNull().defaultNow()
+	},
+	(table) => [
+		index("team_members_team_id_idx").on(table.teamId),
+		index("team_members_user_id_idx").on(table.userId)
+	]
+)
+
+export const sessions = pgTable(
+	"sessions",
+	{
+		id: varchar("id", { length: 36 }).primaryKey(),
+		userId: varchar("user_id", { length: 21 })
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		token: text("token").notNull().unique(),
+		expiresAt: timestamp("expires_at").notNull(),
+		ipAddress: text("ip_address"),
+		userAgent: text("user_agent"),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow()
+	},
+	(table) => [
+		index("sessions_user_id_idx").on(table.userId),
+		index("sessions_expires_at_idx").on(table.expiresAt)
+	]
+)
+
+export const accounts = pgTable(
+	"accounts",
+	{
+		id: varchar("id", { length: 36 }).primaryKey(),
+		userId: varchar("user_id", { length: 21 })
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		accountId: text("account_id").notNull(),
+		providerId: text("provider_id").notNull(),
+		accessToken: text("access_token"),
+		refreshToken: text("refresh_token"),
+		accessTokenExpiresAt: timestamp("access_token_expires_at"),
+		refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+		scope: text("scope"),
+		idToken: text("id_token"),
+		password: text("password"),
+		createdAt: timestamp("created_at").notNull().defaultNow(),
+		updatedAt: timestamp("updated_at").notNull().defaultNow()
+	},
+	(table) => [index("accounts_user_id_idx").on(table.userId)]
+)
+
+export const verifications = pgTable("verifications", {
+	id: varchar("id", { length: 36 }).primaryKey(),
+	identifier: text("identifier").notNull(),
+	value: text("value").notNull(),
+	expiresAt: timestamp("expires_at").notNull(),
+	createdAt: timestamp("created_at").notNull().defaultNow(),
+	updatedAt: timestamp("updated_at")
+})
+
+// Team integrations (e.g., Cal.com)
+export const teamIntegrations = pgTable(
+	"team_integrations",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		provider: varchar("provider", { length: 50 }).notNull(),
+		apiKey: text("api_key"),
+		settings: jsonb("settings")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("team_integrations_team_id_idx").on(table.teamId),
+		index("team_integrations_provider_idx").on(table.provider)
+	]
+)
+
+// Team phone numbers used by telephony providers
+export const teamPhoneNumbers = pgTable(
+	"team_phone_numbers",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		provider: telephonyProviderEnum("provider").notNull(),
+		phoneNumber: varchar("phone_number", { length: 50 }).notNull(),
+		label: varchar("label", { length: 120 }),
+		status: phoneNumberStatusEnum("status").default("active").notNull(),
+		capabilities: jsonb("capabilities")
+			.$type<{
+				voice: boolean
+				sms?: boolean
+				mms?: boolean
+			}>()
+			.default({ voice: true }),
+		isDefaultOutbound: boolean("is_default_outbound")
+			.default(false)
+			.notNull(),
+		assignedAgentId: integer("assigned_agent_id").references(
+			() => voiceAgents.id,
+			{
+				onDelete: "set null"
+			}
+		),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull()
+	},
+	(table) => [
+		index("team_phone_numbers_team_id_idx").on(table.teamId),
+		index("team_phone_numbers_provider_idx").on(table.provider),
+		index("team_phone_numbers_number_idx").on(table.phoneNumber),
+		index("team_phone_numbers_status_idx").on(table.status),
+		index("team_phone_numbers_agent_idx").on(table.assignedAgentId),
+		index("team_phone_numbers_user_id_idx").on(table.userId),
+		unique("team_phone_numbers_team_number_unique").on(
+			table.teamId,
+			table.phoneNumber
+		)
+	]
+)
+
+// External CRM record linkage for idempotent sync/import mapping
+export const crmExternalRecords = pgTable(
+	"crm_external_records",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		provider: varchar("provider", { length: 50 }).notNull(),
+		entityType: varchar("entity_type", { length: 50 }).notNull(), // lead, call, campaign, appointment
+		entityId: integer("entity_id").notNull(),
+		externalId: varchar("external_id", { length: 255 }).notNull(),
+		externalParentId: varchar("external_parent_id", { length: 255 }),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("crm_external_records_team_idx").on(table.teamId),
+		index("crm_external_records_provider_idx").on(table.provider),
+		index("crm_external_records_entity_idx").on(
+			table.entityType,
+			table.entityId
+		),
+		index("crm_external_records_external_idx").on(table.externalId),
+		unique("crm_external_records_team_provider_entity_unique").on(
+			table.teamId,
+			table.provider,
+			table.entityType,
+			table.entityId
+		),
+		unique("crm_external_records_team_provider_external_unique").on(
+			table.teamId,
+			table.provider,
+			table.externalId
+		)
+	]
+)
 
 // Define campaign status enum
 export const campaignStatusEnum = pgEnum("campaign_status", [
@@ -140,16 +412,52 @@ export const leads = pgTable(
 		expectedCloseDate: timestamp("expected_close_date"),
 		source: varchar("source", { length: 100 }),
 		notes: text("notes"),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
+		assignedUserId: varchar("assigned_user_id", { length: 21 }).references(
+			() => users.id
+		),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("lead_name_idx").on(table.name),
 		index("lead_email_idx").on(table.email),
 		index("lead_status_idx").on(table.status),
 		index("lead_deal_stage_idx").on(table.dealStage),
+		index("lead_team_id_idx").on(table.teamId),
+		index("lead_created_by_idx").on(table.createdByUserId),
+		index("lead_assigned_user_idx").on(table.assignedUserId),
 		index("lead_user_id_idx").on(table.userId)
+	]
+)
+
+// Lead Notes table - stores notes for leads
+export const leadNotes = pgTable(
+	"lead_notes",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		leadId: integer("lead_id")
+			.notNull()
+			.references(() => leads.id, { onDelete: "cascade" }),
+		body: text("body").notNull(),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("lead_notes_team_id_idx").on(table.teamId),
+		index("lead_notes_lead_id_idx").on(table.leadId),
+		index("lead_notes_created_by_idx").on(table.createdByUserId)
 	]
 )
 
@@ -159,19 +467,31 @@ export const appointments = pgTable(
 	{
 		id: serial("id").primaryKey(),
 		leadId: integer("lead_id").references(() => leads.id),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
 		title: varchar("title", { length: 255 }).notNull(),
 		description: text("description"),
 		startTime: timestamp("start_time").notNull(),
 		endTime: timestamp("end_time").notNull(),
 		location: varchar("location", { length: 255 }),
+		status: appointmentStatusEnum("status").default("scheduled"),
+		calEventId: varchar("cal_event_id", { length: 255 }),
+		calBookingId: varchar("cal_booking_id", { length: 255 }),
 		completed: boolean("completed").default(false),
 		notes: text("notes"),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("appointment_lead_id_idx").on(table.leadId),
+		index("appointment_team_id_idx").on(table.teamId),
+		index("appointment_status_idx").on(table.status),
+		index("appointment_cal_event_idx").on(table.calEventId),
 		index("appointment_start_time_idx").on(table.startTime),
 		index("appointment_user_id_idx").on(table.userId)
 	]
@@ -184,6 +504,9 @@ export const campaigns = pgTable(
 		id: serial("id").primaryKey(),
 		name: varchar("name", { length: 255 }).notNull(),
 		description: text("description"),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
 		startDate: timestamp("start_date"),
 		endDate: timestamp("end_date"),
 		status: campaignStatusEnum("status").default("draft"),
@@ -226,228 +549,18 @@ export const campaigns = pgTable(
 			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("campaign_name_idx").on(table.name),
 		index("campaign_status_idx").on(table.status),
 		index("campaign_voice_agent_idx").on(table.voiceAgentId),
+		index("campaign_team_id_idx").on(table.teamId),
+		index("campaign_created_by_idx").on(table.createdByUserId),
 		index("campaign_user_id_idx").on(table.userId)
-	]
-)
-
-// Phone Numbers table - stores inbound and outbound phone numbers for voice agents
-export const phoneNumbers = pgTable(
-	"phone_numbers",
-	{
-		id: serial("id").primaryKey(),
-		number: varchar("number", { length: 20 }).notNull().unique(), // E.164 format
-		friendlyName: varchar("friendly_name", { length: 255 }).notNull(), // User-defined name
-		type: phoneNumberTypeEnum("type").notNull(),
-		status: phoneNumberStatusEnum("status").default("active"),
-		isDefault: boolean("is_default").default(false), // Default number for outbound calls
-		provider: varchar("provider", { length: 100 }), // Telephony provider (Twilio, etc.)
-		providerSid: varchar("provider_sid", { length: 255 }), // Provider's unique identifier
-
-		// VAPI-specific fields for Phase 3 enhancement
-		vapiPhoneNumberId: varchar("vapi_phone_number_id", { length: 255 }), // VAPI phone number reference
-		vapiProviderDetails: jsonb("vapi_provider_details")
-			.$type<{
-				providerId?: string
-				providerName?: string
-				region?: string
-				country?: string
-				capabilities?: {
-					sms?: boolean
-					voice?: boolean
-					mms?: boolean
-				}
-				cost?: {
-					monthly?: number
-					perMinute?: number
-					currency?: string
-				}
-			}>()
-			.default({}), // Provider-specific metadata from VAPI
-		vapiCapabilities: jsonb("vapi_capabilities")
-			.$type<{
-				inbound?: boolean
-				outbound?: boolean
-				sms?: boolean
-				recording?: boolean
-				voicemail?: boolean
-				conferencing?: boolean
-				transcription?: boolean
-			}>()
-			.default({}), // Phone number capabilities from VAPI
-		vapiStatusLastSync: timestamp("vapi_status_last_sync"), // VAPI status synchronization timestamp
-		vapiWebhookEvents: jsonb("vapi_webhook_events")
-			.$type<{
-				lastEventId?: string
-				lastEventType?: string
-				lastEventTime?: string
-				eventCount?: number
-				failedEvents?: Array<{
-					eventType: string
-					timestamp: string
-					error: string
-				}>
-			}>()
-			.default({}), // Tracking webhook events from VAPI
-		vapiErrorCount: integer("vapi_error_count").default(0), // Count of VAPI errors
-		vapiLastError: jsonb("vapi_last_error")
-			.$type<{
-				message?: string
-				code?: string
-				timestamp?: string
-				operation?: string
-				details?: Record<string, unknown>
-			}>()
-			.default({}), // Last VAPI error details
-
-		capabilities: jsonb("capabilities")
-			.$type<{
-				voice: boolean
-				sms: boolean
-				mms: boolean
-				fax: boolean
-			}>()
-			.default({ voice: true, sms: false, mms: false, fax: false }),
-		configuration: jsonb("configuration")
-			.$type<{
-				routingRules?: {
-					businessHours?: {
-						enabled: boolean
-						timezone: string
-						schedule: {
-							[key: string]: { start: string; end: string } | null
-						}
-					}
-					voicemail?: {
-						enabled: boolean
-						greeting: string
-					}
-					fallback?: {
-						enabled: boolean
-						forwardTo: string
-					}
-				}
-				callerIdName?: string
-				recordCalls?: boolean
-			}>()
-			.default({}),
-		costPerMinute: decimal("cost_per_minute", {
-			precision: 10,
-			scale: 4
-		}).default("0.0000"), // Cost tracking
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("phone_number_idx").on(table.number),
-		index("phone_type_idx").on(table.type),
-		index("phone_status_idx").on(table.status),
-		index("phone_user_id_idx").on(table.userId),
-		index("phone_is_default_idx").on(table.isDefault),
-		// VAPI-specific indexes for Phase 3
-		index("phone_vapi_id_idx").on(table.vapiPhoneNumberId),
-		index("phone_vapi_sync_idx").on(table.vapiStatusLastSync),
-		index("phone_vapi_errors_idx").on(table.vapiErrorCount)
-	]
-)
-
-// Phone Number Usage table - stores daily usage analytics for phone numbers
-export const phoneNumberUsage = pgTable(
-	"phone_number_usage",
-	{
-		id: serial("id").primaryKey(),
-		phoneNumberId: integer("phone_number_id")
-			.notNull()
-			.references(() => phoneNumbers.id, { onDelete: "cascade" }),
-		date: date("date").notNull(),
-		inboundCalls: integer("inbound_calls").default(0),
-		outboundCalls: integer("outbound_calls").default(0),
-		totalMinutes: integer("total_minutes").default(0),
-		totalCost: decimal("total_cost", { precision: 10, scale: 4 }).default(
-			"0.0000"
-		),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("phone_usage_phone_id_idx").on(table.phoneNumberId),
-		index("phone_usage_date_idx").on(table.date),
-		index("phone_usage_user_id_idx").on(table.userId),
-		// Unique constraint to prevent duplicate usage records for same phone number on same date
-		index("phone_usage_unique_idx").on(table.phoneNumberId, table.date)
-	]
-)
-
-// VAPI Operations Log table - audit trail for VAPI API operations (Phase 3)
-export const vapiPhoneOperations = pgTable(
-	"vapi_phone_operations",
-	{
-		id: serial("id").primaryKey(),
-		vapiPhoneNumberId: varchar("vapi_phone_number_id", {
-			length: 255
-		}).notNull(), // VAPI phone number ID
-		operationType: varchar("operation_type", { length: 100 }).notNull(), // create, update, delete, sync, test
-		requestData: jsonb("request_data")
-			.$type<Record<string, unknown>>()
-			.default({}), // Request payload sent to VAPI
-		responseData: jsonb("response_data")
-			.$type<Record<string, unknown>>()
-			.default({}), // Response received from VAPI
-		status: varchar("status", { length: 50 }).notNull(), // success, error, timeout, retry
-		errorDetails: jsonb("error_details")
-			.$type<{
-				message?: string
-				code?: string
-				statusCode?: number
-				details?: Record<string, unknown>
-			}>()
-			.default({}), // Error details if operation failed
-		duration: integer("duration"), // Operation duration in milliseconds
-		retryCount: integer("retry_count").default(0), // Number of retries attempted
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("vapi_ops_phone_id_idx").on(table.vapiPhoneNumberId),
-		index("vapi_ops_type_idx").on(table.operationType),
-		index("vapi_ops_status_idx").on(table.status),
-		index("vapi_ops_created_idx").on(table.createdAt),
-		index("vapi_ops_user_id_idx").on(table.userId)
-	]
-)
-
-// VAPI Webhooks table - webhook event tracking for phone numbers (Phase 3)
-export const vapiPhoneWebhooks = pgTable(
-	"vapi_phone_webhooks",
-	{
-		id: serial("id").primaryKey(),
-		vapiPhoneNumberId: varchar("vapi_phone_number_id", { length: 255 }), // VAPI phone number ID (nullable for account-level events)
-		eventType: varchar("event_type", { length: 100 }).notNull(), // call.started, call.ended, phone.updated, etc.
-		eventId: varchar("event_id", { length: 255 }).notNull().unique(), // VAPI event ID for deduplication
-		payload: jsonb("payload").$type<Record<string, unknown>>().default({}), // Full webhook payload from VAPI
-		signature: varchar("signature", { length: 512 }), // Webhook signature for verification
-		processedAt: timestamp("processed_at"), // When the event was processed
-		processingStatus: varchar("processing_status", { length: 50 }).default(
-			"pending"
-		), // pending, processed, failed, ignored
-		processingError: text("processing_error"), // Error details if processing failed
-		retryCount: integer("retry_count").default(0), // Number of processing retries
-		createdAt: timestamp("created_at").defaultNow().notNull(), // When webhook was received
-		userId: varchar("user_id", { length: 255 }) // Clerk user ID (if applicable)
-	},
-	(table) => [
-		index("vapi_webhook_phone_id_idx").on(table.vapiPhoneNumberId),
-		index("vapi_webhook_type_idx").on(table.eventType),
-		index("vapi_webhook_event_id_idx").on(table.eventId),
-		index("vapi_webhook_status_idx").on(table.processingStatus),
-		index("vapi_webhook_created_idx").on(table.createdAt),
-		index("vapi_webhook_user_id_idx").on(table.userId)
 	]
 )
 
@@ -456,26 +569,206 @@ export const calls = pgTable(
 	"calls",
 	{
 		id: serial("id").primaryKey(),
-		leadId: integer("lead_id")
+		leadId: integer("lead_id").references(() => leads.id),
+		teamId: varchar("team_id", { length: 21 })
 			.notNull()
-			.references(() => leads.id),
+			.references(() => teams.id, { onDelete: "cascade" }),
+		agentId: integer("agent_id").references(() => voiceAgents.id),
 		campaignId: integer("campaign_id").references(() => campaigns.id),
+		direction: communicationTypeEnum("direction"),
 		type: communicationTypeEnum("type").notNull(),
 		duration: integer("duration"), // in seconds
 		startTime: timestamp("start_time").notNull(),
+		endTime: timestamp("end_time"),
+		sessionId: varchar("session_id", { length: 255 }),
 		summary: text("summary"),
 		transcript: text("transcript"),
 		recordingUrl: varchar("recording_url", { length: 1024 }),
 		status: varchar("status", { length: 50 }), // answered, voicemail, missed, etc.
+		sentiment: varchar("sentiment", { length: 20 }),
+		cost: decimal("cost", { precision: 10, scale: 4 }),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("call_lead_id_idx").on(table.leadId),
 		index("call_campaign_id_idx").on(table.campaignId),
+		index("call_team_id_idx").on(table.teamId),
+		index("call_agent_id_idx").on(table.agentId),
 		index("call_start_time_idx").on(table.startTime),
 		index("call_user_id_idx").on(table.userId)
+	]
+)
+
+// Call Events table - stores realtime call events (transcript, tool calls, status)
+export const callEvents = pgTable(
+	"call_events",
+	{
+		id: serial("id").primaryKey(),
+		callId: integer("call_id")
+			.notNull()
+			.references(() => calls.id, { onDelete: "cascade" }),
+		type: callEventTypeEnum("type").notNull(),
+		payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("call_events_call_id_idx").on(table.callId),
+		index("call_events_type_idx").on(table.type),
+		index("call_events_created_at_idx").on(table.createdAt)
+	]
+)
+
+// Telephony call table - provider leg metadata for outbound/inbound PSTN execution
+export const telephonyCalls = pgTable(
+	"telephony_calls",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, {
+				onDelete: "cascade"
+			}),
+		callId: integer("call_id").references(() => calls.id, {
+			onDelete: "cascade"
+		}),
+		queueEntryId: integer("queue_entry_id"),
+		provider: telephonyProviderEnum("provider").notNull(),
+		providerCallId: varchar("provider_call_id", { length: 255 }),
+		providerSessionId: varchar("provider_session_id", { length: 255 }),
+		direction: communicationTypeEnum("direction").default("outgoing"),
+		status: telephonyCallStatusEnum("status").default("queued"),
+		toNumber: varchar("to_number", { length: 50 }),
+		fromNumber: varchar("from_number", { length: 50 }),
+		startedAt: timestamp("started_at"),
+		answeredAt: timestamp("answered_at"),
+		endedAt: timestamp("ended_at"),
+		duration: integer("duration"),
+		recordingStatus: telephonyRecordingStatusEnum("recording_status"),
+		recordingUrl: varchar("recording_url", { length: 1024 }),
+		lastWebhookAt: timestamp("last_webhook_at"),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull()
+	},
+	(table) => [
+		index("telephony_calls_team_id_idx").on(table.teamId),
+		index("telephony_calls_call_id_idx").on(table.callId),
+		index("telephony_calls_queue_entry_id_idx").on(table.queueEntryId),
+		index("telephony_calls_provider_idx").on(table.provider),
+		index("telephony_calls_status_idx").on(table.status),
+		index("telephony_calls_user_id_idx").on(table.userId),
+		index("telephony_calls_provider_call_id_idx").on(
+			table.provider,
+			table.providerCallId
+		),
+		unique("telephony_calls_provider_call_unique").on(
+			table.provider,
+			table.providerCallId
+		)
+	]
+)
+
+// Telephony event ingestion table - append-only provider callbacks
+export const telephonyEvents = pgTable(
+	"telephony_events",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 }).references(() => teams.id, {
+			onDelete: "cascade"
+		}),
+		telephonyCallId: integer("telephony_call_id").references(
+			() => telephonyCalls.id,
+			{
+				onDelete: "set null"
+			}
+		),
+		provider: telephonyProviderEnum("provider").notNull(),
+		providerEventId: varchar("provider_event_id", { length: 255 }),
+		eventType: varchar("event_type", { length: 100 }).notNull(),
+		dedupeKey: varchar("dedupe_key", { length: 255 }).notNull().unique(),
+		signatureValid: boolean("signature_valid").default(false).notNull(),
+		occurredAt: timestamp("occurred_at"),
+		receivedAt: timestamp("received_at").defaultNow().notNull(),
+		processingStatus: varchar("processing_status", { length: 30 })
+			.default("ingested")
+			.notNull(),
+		processingError: text("processing_error"),
+		payload: jsonb("payload").$type<Record<string, unknown>>().default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 })
+	},
+	(table) => [
+		index("telephony_events_team_id_idx").on(table.teamId),
+		index("telephony_events_call_id_idx").on(table.telephonyCallId),
+		index("telephony_events_provider_idx").on(table.provider),
+		index("telephony_events_event_type_idx").on(table.eventType),
+		index("telephony_events_received_at_idx").on(table.receivedAt),
+		index("telephony_events_processing_status_idx").on(
+			table.processingStatus
+		)
+	]
+)
+
+// Call recording metadata for telephony provider capture lifecycle
+export const callRecordings = pgTable(
+	"call_recordings",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		callId: integer("call_id")
+			.notNull()
+			.references(() => calls.id, { onDelete: "cascade" }),
+		telephonyCallId: integer("telephony_call_id").references(
+			() => telephonyCalls.id,
+			{
+				onDelete: "set null"
+			}
+		),
+		provider: telephonyProviderEnum("provider").notNull(),
+		providerRecordingId: varchar("provider_recording_id", { length: 255 }),
+		recordingUrl: varchar("recording_url", { length: 1024 }),
+		storageKey: varchar("storage_key", { length: 1024 }),
+		status: telephonyRecordingStatusEnum("status")
+			.default("processing")
+			.notNull(),
+		duration: integer("duration"),
+		channels: integer("channels"),
+		recordedAt: timestamp("recorded_at"),
+		expiresAt: timestamp("expires_at"),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		userId: varchar("user_id", { length: 255 }).notNull()
+	},
+	(table) => [
+		index("call_recordings_team_id_idx").on(table.teamId),
+		index("call_recordings_call_id_idx").on(table.callId),
+		index("call_recordings_telephony_call_id_idx").on(
+			table.telephonyCallId
+		),
+		index("call_recordings_status_idx").on(table.status),
+		index("call_recordings_provider_idx").on(table.provider),
+		index("call_recordings_provider_recording_id_idx").on(
+			table.provider,
+			table.providerRecordingId
+		),
+		unique("call_recordings_provider_recording_unique").on(
+			table.provider,
+			table.providerRecordingId
+		)
 	]
 )
 
@@ -494,7 +787,7 @@ export const textMessages = pgTable(
 		readAt: timestamp("read_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("text_lead_id_idx").on(table.leadId),
@@ -503,58 +796,11 @@ export const textMessages = pgTable(
 	]
 )
 
-// Emails table - stores email records with leads
-export const emails = pgTable(
-	"emails",
-	{
-		id: serial("id").primaryKey(),
-		leadId: integer("lead_id")
-			.notNull()
-			.references(() => leads.id),
-		type: communicationTypeEnum("type").notNull(),
-		subject: varchar("subject", { length: 255 }).notNull(),
-		content: text("content").notNull(),
-		sentAt: timestamp("sent_at").notNull(),
-		status: varchar("status", { length: 50 }).default("pending"), // pending, sent, failed, opened
-		openedAt: timestamp("opened_at"),
-		clickedAt: timestamp("clicked_at"),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("email_lead_id_idx").on(table.leadId),
-		index("email_sent_at_idx").on(table.sentAt),
-		index("email_user_id_idx").on(table.userId)
-	]
-)
-
-// Chats table - stores chat conversations or summaries with leads
-export const chats = pgTable(
-	"chats",
-	{
-		id: serial("id").primaryKey(),
-		leadId: integer("lead_id").references(() => leads.id),
-		summary: text("summary"), // Stores the main content or summary of the chat
-		timestamp: timestamp("timestamp").notNull(), // When the chat occurred/was last updated
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("chat_lead_id_idx").on(table.leadId),
-		index("chat_timestamp_idx").on(table.timestamp),
-		index("chat_user_id_idx").on(table.userId)
-	]
-)
-
 // Relations definition
 export const leadsRelations = relations(leads, ({ one, many }) => ({
 	appointments: many(appointments),
 	calls: many(calls),
 	textMessages: many(textMessages),
-	emails: many(emails),
-	chats: many(chats),
 	voiceSessions: many(voiceSessions),
 	interactions: many(leadInteractions),
 	tasks: many(tasks),
@@ -570,7 +816,7 @@ export const appointmentsRelations = relations(appointments, ({ one }) => ({
 	})
 }))
 
-export const callsRelations = relations(calls, ({ one }) => ({
+export const callsRelations = relations(calls, ({ one, many }) => ({
 	lead: one(leads, {
 		fields: [calls.leadId],
 		references: [leads.id]
@@ -578,55 +824,15 @@ export const callsRelations = relations(calls, ({ one }) => ({
 	campaign: one(campaigns, {
 		fields: [calls.campaignId],
 		references: [campaigns.id]
-	})
+	}),
+	telephonyCalls: many(telephonyCalls),
+	recordings: many(callRecordings)
 }))
 
 export const textMessagesRelations = relations(textMessages, ({ one }) => ({
 	lead: one(leads, {
 		fields: [textMessages.leadId],
 		references: [leads.id]
-	})
-}))
-
-export const emailsRelations = relations(emails, ({ one }) => ({
-	lead: one(leads, {
-		fields: [emails.leadId],
-		references: [leads.id]
-	})
-}))
-
-// Chat messages table - stores individual messages in a chat conversation
-export const chatMessages = pgTable(
-	"chat_messages",
-	{
-		id: serial("id").primaryKey(),
-		chatId: integer("chat_id")
-			.references(() => chats.id)
-			.notNull(),
-		content: text("content").notNull(),
-		role: varchar("role", { length: 50 }).notNull(), // 'user' or 'assistant'
-		timestamp: timestamp("timestamp").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("chat_message_chat_id_idx").on(table.chatId),
-		index("chat_message_timestamp_idx").on(table.timestamp),
-		index("chat_message_user_id_idx").on(table.userId)
-	]
-)
-
-export const chatsRelations = relations(chats, ({ one, many }) => ({
-	lead: one(leads, {
-		fields: [chats.leadId],
-		references: [leads.id]
-	}),
-	messages: many(chatMessages)
-}))
-
-export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
-	chat: one(chats, {
-		fields: [chatMessages.chatId],
-		references: [chats.id]
 	})
 }))
 
@@ -688,10 +894,10 @@ export const voicePresets = pgTable(
 		language: voicePresetLanguageEnum("language").notNull(),
 		gender: voicePresetGenderEnum("gender").notNull(),
 		description: text("description").notNull(), // Description for business users
-		// VAPI provider configuration (hidden from users)
-		vapiVoiceId: varchar("vapi_voice_id", { length: 255 }).notNull(), // ElevenLabs voice ID, etc.
-		vapiProvider: varchar("vapi_provider", { length: 50 }).notNull(), // "elevenlabs", "playht", "cartesia"
-		vapiModel: varchar("vapi_model", { length: 100 }), // Provider-specific model
+		// Provider configuration (hidden from users)
+		vapiVoiceId: varchar("vapi_voice_id", { length: 255 }).notNull(), // OpenAI Realtime voice id (alloy, ash, etc.)
+		vapiProvider: varchar("vapi_provider", { length: 50 }).notNull(), // "openai"
+		vapiModel: varchar("vapi_model", { length: 100 }), // Realtime model id
 		sampleAudioUrl: varchar("sample_audio_url", { length: 1024 }), // URL for voice preview
 		isDefault: boolean("is_default").default(false), // Default voice for language
 		sortOrder: integer("sort_order").default(0), // Display ordering
@@ -803,6 +1009,9 @@ export const voiceAgents = pgTable(
 		id: serial("id").primaryKey(),
 		name: varchar("name", { length: 255 }).notNull(),
 		description: text("description"),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
 		// Business simplification layer references
 		voicePresetId: integer("voice_preset_id").references(
 			() => voicePresets.id
@@ -811,15 +1020,12 @@ export const voiceAgents = pgTable(
 		// Legacy technical fields (deprecated in favor of presets)
 		prompt: text("prompt"), // System prompt for the agent (now auto-generated from role)
 		voice: jsonb("voice").$type<{
-			provider: "elevenlabs" | "playht" | "cartesia"
+			provider: "openai"
 			voice_id: string
 			model?: string
 			settings?: Record<string, unknown>
 		}>(),
 		language: varchar("language", { length: 10 }).default("en"), // Language code (en, es, fr, etc.)
-		phoneNumberId: integer("phone_number_id").references(
-			() => phoneNumbers.id
-		), // Associated phone number
 		status: voiceAgentStatusEnum("status").default("inactive"),
 		configuration: jsonb("configuration")
 			.$type<{
@@ -881,8 +1087,25 @@ export const voiceAgents = pgTable(
 					keywords?: Record<string, unknown>
 				}
 				knowledge_base?: {
+					sourceIds?: number[]
 					files?: string[]
 					messages?: string[]
+				}
+				command_center?: {
+					mode?:
+						| "support"
+						| "outbound_cold_calling"
+						| "loan_repayment_collections"
+					templateId?:
+						| "support"
+						| "outbound_cold_calling"
+						| "loan_repayment_collections"
+						| "appointment_setting"
+						| "customer_onboarding"
+						| "renewal_retention"
+					personality?: string
+					scriptDirection?: string
+					updatedAt?: string
 				}
 				speech_to_text?: {
 					provider?: "deepgram"
@@ -899,17 +1122,20 @@ export const voiceAgents = pgTable(
 			}>()
 			.default({}),
 		firstMessage: text("first_message"), // First message the agent says
-		vapiAssistantId: varchar("vapi_assistant_id", { length: 255 }), // VAPI Assistant ID for voice calls
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("voice_agent_name_idx").on(table.name),
 		index("voice_agent_status_idx").on(table.status),
-		index("voice_agent_phone_number_idx").on(table.phoneNumberId),
 		index("voice_agent_voice_preset_idx").on(table.voicePresetId),
 		index("voice_agent_role_idx").on(table.agentRoleId),
+		index("voice_agent_team_id_idx").on(table.teamId),
+		index("voice_agent_created_by_idx").on(table.createdByUserId),
 		index("voice_agent_user_id_idx").on(table.userId)
 	]
 )
@@ -946,7 +1172,7 @@ export const voiceAgentFunctions = pgTable(
 		excludeSessionId: boolean("exclude_session_id").default(false),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("voice_function_agent_id_idx").on(table.agentId),
@@ -960,7 +1186,7 @@ export const voiceSessions = pgTable(
 	"voice_sessions",
 	{
 		id: serial("id").primaryKey(),
-		sessionId: varchar("session_id", { length: 255 }).unique().notNull(), // Vapi AI session ID
+		sessionId: varchar("session_id", { length: 255 }).unique().notNull(), // Voice session ID
 		agentId: integer("agent_id")
 			.notNull()
 			.references(() => voiceAgents.id),
@@ -985,7 +1211,7 @@ export const voiceSessions = pgTable(
 		cost: decimal("cost", { precision: 10, scale: 4 }).default("0.0000"), // Session cost
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("voice_session_session_id_idx").on(table.sessionId),
@@ -1015,56 +1241,13 @@ export const voiceRecordings = pgTable(
 		), // pending, processing, completed, failed
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("voice_recording_session_id_idx").on(table.sessionId),
 		index("voice_recording_status_idx").on(table.processingStatus),
 		index("voice_recording_user_id_idx").on(table.userId)
 	]
-)
-
-// Phone number relations
-export const phoneNumbersRelations = relations(
-	phoneNumbers,
-	({ many, one }) => ({
-		usage: many(phoneNumberUsage),
-		voiceAgents: many(voiceAgents),
-		vapiOperations: many(vapiPhoneOperations),
-		vapiWebhooks: many(vapiPhoneWebhooks)
-	})
-)
-
-export const phoneNumberUsageRelations = relations(
-	phoneNumberUsage,
-	({ one }) => ({
-		phoneNumber: one(phoneNumbers, {
-			fields: [phoneNumberUsage.phoneNumberId],
-			references: [phoneNumbers.id]
-		})
-	})
-)
-
-// VAPI Operations Relations
-export const vapiPhoneOperationsRelations = relations(
-	vapiPhoneOperations,
-	({ one }) => ({
-		phoneNumber: one(phoneNumbers, {
-			fields: [vapiPhoneOperations.vapiPhoneNumberId],
-			references: [phoneNumbers.vapiPhoneNumberId]
-		})
-	})
-)
-
-// VAPI Webhooks Relations
-export const vapiPhoneWebhooksRelations = relations(
-	vapiPhoneWebhooks,
-	({ one }) => ({
-		phoneNumber: one(phoneNumbers, {
-			fields: [vapiPhoneWebhooks.vapiPhoneNumberId],
-			references: [phoneNumbers.vapiPhoneNumberId]
-		})
-	})
 )
 
 // Knowledge Base Sources Table
@@ -1085,7 +1268,7 @@ export const knowledgeBaseSources = pgTable(
 		lastIndexedAt: timestamp("last_indexed_at"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("kb_source_name_idx").on(table.name),
@@ -1146,7 +1329,7 @@ export const knowledgeBaseDocuments = pgTable(
 		metadata: jsonb("metadata").default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("kb_document_source_id_idx").on(table.sourceId),
@@ -1174,6 +1357,95 @@ export const knowledgeBaseDocuments = pgTable(
 			table.chunkType
 		),
 		index("kb_document_metadata_gin_idx").using("gin", table.metadata)
+	]
+)
+
+// Knowledge Sources (Vector Store + R2)
+export const knowledgeSources = pgTable(
+	"knowledge_sources",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		name: varchar("name", { length: 255 }).notNull(),
+		type: knowledgeSourceTypeEnum("type").notNull(),
+		uri: text("uri").notNull(),
+		status: varchar("status", { length: 20 }).default("active"),
+		lastIndexedAt: timestamp("last_indexed_at"),
+		createdByUserId: varchar("created_by_user_id", {
+			length: 21
+		}).references(() => users.id),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("knowledge_sources_team_id_idx").on(table.teamId),
+		index("knowledge_sources_type_idx").on(table.type),
+		index("knowledge_sources_status_idx").on(table.status)
+	]
+)
+
+export const knowledgeFiles = pgTable(
+	"knowledge_files",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		sourceId: integer("source_id")
+			.notNull()
+			.references(() => knowledgeSources.id, { onDelete: "cascade" }),
+		filename: varchar("filename", { length: 255 }).notNull(),
+		contentType: varchar("content_type", { length: 100 }),
+		size: integer("size"),
+		r2Key: varchar("r2_key", { length: 512 }),
+		openaiFileId: varchar("openai_file_id", { length: 255 }),
+		vectorStoreId: varchar("vector_store_id", { length: 255 }),
+		status: knowledgeFileStatusEnum("status").default("processing"),
+		extractedTextPreview: text("extracted_text_preview"),
+		lastError: text("last_error"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("knowledge_files_team_id_idx").on(table.teamId),
+		index("knowledge_files_source_id_idx").on(table.sourceId),
+		index("knowledge_files_status_idx").on(table.status)
+	]
+)
+
+export const knowledgeChunks = pgTable(
+	"knowledge_chunks",
+	{
+		id: serial("id").primaryKey(),
+		fileId: integer("file_id")
+			.notNull()
+			.references(() => knowledgeFiles.id, { onDelete: "cascade" }),
+		contentChunk: text("content_chunk").notNull(),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [index("knowledge_chunks_file_id_idx").on(table.fileId)]
+)
+
+// Agent Knowledge join table
+export const agentKnowledge = pgTable(
+	"agent_knowledge",
+	{
+		id: serial("id").primaryKey(),
+		agentId: integer("agent_id")
+			.notNull()
+			.references(() => voiceAgents.id, { onDelete: "cascade" }),
+		knowledgeSourceId: integer("knowledge_source_id").references(
+			() => knowledgeSources.id
+		)
+	},
+	(table) => [
+		index("agent_knowledge_agent_id_idx").on(table.agentId),
+		index("agent_knowledge_source_id_idx").on(table.knowledgeSourceId)
 	]
 )
 
@@ -1213,12 +1485,39 @@ export const visualElements = pgTable(
 	]
 )
 
+// Audit Logs table - tracks user actions across the platform
+export const auditLogs = pgTable(
+	"audit_logs",
+	{
+		id: serial("id").primaryKey(),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		actorUserId: varchar("actor_user_id", { length: 21 }).references(
+			() => users.id
+		),
+		action: varchar("action", { length: 100 }).notNull(),
+		entityType: varchar("entity_type", { length: 100 }).notNull(),
+		entityId: varchar("entity_id", { length: 255 }),
+		metadata: jsonb("metadata")
+			.$type<Record<string, unknown>>()
+			.default({}),
+		createdAt: timestamp("created_at").defaultNow().notNull()
+	},
+	(table) => [
+		index("audit_logs_team_id_idx").on(table.teamId),
+		index("audit_logs_actor_idx").on(table.actorUserId),
+		index("audit_logs_entity_idx").on(table.entityType),
+		index("audit_logs_created_at_idx").on(table.createdAt)
+	]
+)
+
 // Admin Activity Logs table - tracks all admin actions for security and auditing
 export const adminActivityLogs = pgTable(
 	"admin_activity_logs",
 	{
 		id: serial("id").primaryKey(),
-		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Clerk user ID of admin
+		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Authenticated user ID of admin
 		actionType: varchar("action_type", { length: 100 }).notNull(), // e.g., 'CREATE', 'UPDATE', 'DELETE', 'VIEW', 'EXPORT'
 		targetTable: varchar("target_table", { length: 100 }), // Which table was affected
 		targetId: varchar("target_id", { length: 255 }), // ID of the affected record
@@ -1252,7 +1551,7 @@ export const adminSessions = pgTable(
 	"admin_sessions",
 	{
 		id: serial("id").primaryKey(),
-		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Clerk user ID
+		adminUserId: varchar("admin_user_id", { length: 255 }).notNull(), // Authenticated user ID
 		sessionId: varchar("session_id", { length: 255 }).notNull().unique(),
 		ipAddress: varchar("ip_address", { length: 45 }),
 		userAgent: text("user_agent"),
@@ -1356,13 +1655,13 @@ export const adminSettings = pgTable(
 	]
 )
 
-// Tool Calls table - tracks all Vapi tool API calls for monitoring and analytics
+// Tool Calls table - tracks tool API calls for monitoring and analytics
 export const toolCalls = pgTable(
 	"tool_calls",
 	{
 		id: serial("id").primaryKey(),
-		toolCallId: varchar("tool_call_id", { length: 255 }).notNull(), // Vapi tool call ID
-		callId: varchar("call_id", { length: 255 }), // Vapi call ID
+		toolCallId: varchar("tool_call_id", { length: 255 }).notNull(), // Tool call ID
+		callId: varchar("call_id", { length: 255 }), // Call ID
 		sessionId: varchar("session_id", { length: 255 }), // Voice session ID
 		toolName: varchar("tool_name", { length: 100 }).notNull(), // e.g., 'updateLeadScore', 'sendFollowUpEmail'
 		parameters: jsonb("parameters").$type<Record<string, unknown>>(), // Tool call parameters
@@ -1406,7 +1705,7 @@ export const tasks = pgTable(
 		createdBy: varchar("created_by", { length: 255 }).notNull(), // User ID who created
 		notes: text("notes"), // Additional notes or completion notes
 		metadata: jsonb("metadata").$type<{
-			source?: string // e.g., 'vapi_tool', 'manual', 'automation'
+			source?: string // e.g., 'tool', 'manual', 'automation'
 			toolCallId?: string
 			callId?: string
 			sessionId?: string
@@ -1437,7 +1736,7 @@ export const leadInteractions = pgTable(
 			.notNull()
 			.references(() => leads.id, { onDelete: "cascade" }),
 		interactionType: varchar("interaction_type", { length: 100 }).notNull(), // e.g., 'score_update', 'note_added', 'email_sent', 'status_change'
-		source: varchar("source", { length: 100 }).notNull(), // e.g., 'vapi_tool', 'manual', 'automation'
+		source: varchar("source", { length: 100 }).notNull(), // e.g., 'tool', 'manual', 'automation'
 		sourceId: varchar("source_id", { length: 255 }), // Reference to source (tool call ID, user ID, etc.)
 		oldValue: jsonb("old_value").$type<Record<string, unknown>>(), // Previous value before interaction
 		newValue: jsonb("new_value").$type<Record<string, unknown>>(), // New value after interaction
@@ -1473,6 +1772,9 @@ export const campaignLeads = pgTable(
 		leadId: integer("lead_id")
 			.notNull()
 			.references(() => leads.id, { onDelete: "cascade" }),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
 		status: campaignLeadStatusEnum("status").default("pending"),
 		priority: integer("priority").default(0), // 0 = normal, higher numbers = higher priority
 		assignedAt: timestamp("assigned_at").defaultNow().notNull(),
@@ -1494,17 +1796,38 @@ export const campaignLeads = pgTable(
 		excludeReason: text("exclude_reason"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("campaign_leads_campaign_id_idx").on(table.campaignId),
 		index("campaign_leads_lead_id_idx").on(table.leadId),
+		index("campaign_leads_team_id_idx").on(table.teamId),
 		index("campaign_leads_status_idx").on(table.status),
 		index("campaign_leads_priority_idx").on(table.priority),
 		index("campaign_leads_next_attempt_idx").on(table.nextAttemptAt),
 		index("campaign_leads_user_id_idx").on(table.userId),
 		// Unique constraint to prevent duplicate lead assignments to same campaign
 		index("campaign_leads_unique_idx").on(table.campaignId, table.leadId)
+	]
+)
+
+// Campaign Runs table - tracks execution runs
+export const campaignRuns = pgTable(
+	"campaign_runs",
+	{
+		id: serial("id").primaryKey(),
+		campaignId: integer("campaign_id")
+			.notNull()
+			.references(() => campaigns.id, { onDelete: "cascade" }),
+		status: varchar("status", { length: 50 }).notNull(),
+		startedAt: timestamp("started_at").defaultNow().notNull(),
+		endedAt: timestamp("ended_at"),
+		stats: jsonb("stats").$type<Record<string, unknown>>().default({})
+	},
+	(table) => [
+		index("campaign_runs_campaign_id_idx").on(table.campaignId),
+		index("campaign_runs_status_idx").on(table.status),
+		index("campaign_runs_started_at_idx").on(table.startedAt)
 	]
 )
 
@@ -1516,6 +1839,11 @@ export const callQueue = pgTable(
 		leadId: integer("lead_id")
 			.notNull()
 			.references(() => leads.id, { onDelete: "cascade" }),
+		teamId: varchar("team_id", { length: 21 })
+			.notNull()
+			.references(() => teams.id, { onDelete: "cascade" }),
+		campaignId: integer("campaign_id").references(() => campaigns.id),
+		agentId: integer("agent_id").references(() => voiceAgents.id),
 		voiceAgentId: integer("voice_agent_id").references(
 			() => voiceAgents.id
 		),
@@ -1533,6 +1861,7 @@ export const callQueue = pgTable(
 		callResult: jsonb("call_result")
 			.$type<{
 				callId?: string
+				telephonyCallId?: string
 				sessionId?: string
 				duration?: number
 				outcome?: string // answered, voicemail, busy, no_answer, failed
@@ -1550,47 +1879,18 @@ export const callQueue = pgTable(
 			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("call_queue_lead_id_idx").on(table.leadId),
+		index("call_queue_team_id_idx").on(table.teamId),
+		index("call_queue_campaign_id_idx").on(table.campaignId),
+		index("call_queue_agent_id_idx").on(table.agentId),
 		index("call_queue_voice_agent_id_idx").on(table.voiceAgentId),
 		index("call_queue_status_idx").on(table.status),
 		index("call_queue_priority_idx").on(table.priority),
 		index("call_queue_scheduled_time_idx").on(table.scheduledTime),
 		index("call_queue_user_id_idx").on(table.userId)
-	]
-)
-
-// Email Templates table - stores reusable email templates
-export const emailTemplates = pgTable(
-	"email_templates",
-	{
-		id: serial("id").primaryKey(),
-		name: varchar("name", { length: 255 }).notNull(),
-		subject: varchar("subject", { length: 500 }).notNull(),
-		content: text("content").notNull(),
-		description: text("description"), // Description of when to use this template
-		category: varchar("category", { length: 100 }), // e.g., "follow_up", "introduction", "proposal"
-		isDefault: boolean("is_default").default(false), // System default templates
-		variables: jsonb("variables")
-			.$type<{
-				// Dynamic variables that can be replaced in subject/content
-				leadName?: boolean
-				companyName?: boolean
-				userSignature?: boolean
-				customFields?: Record<string, string>
-			}>()
-			.default({}),
-		tags: varchar("tags", { length: 500 }), // Comma-separated tags for organization
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
-	},
-	(table) => [
-		index("email_templates_name_idx").on(table.name),
-		index("email_templates_category_idx").on(table.category),
-		index("email_templates_user_id_idx").on(table.userId)
 	]
 )
 
@@ -1614,18 +1914,21 @@ export const communicationLogs = pgTable(
 				templateId?: number
 				voiceAgentId?: number
 				phoneNumber?: string
+				outboundPhoneNumberId?: number
+				outboundPhoneNumber?: string
+				outboundProvider?: "mock" | "twilio" | "telnyx" | "vonage"
 				errorMessage?: string
 				deliveryTime?: string
 				openTime?: string
 				clickTime?: string
 			}>()
 			.default({}),
-		relatedRecordId: integer("related_record_id"), // ID in calls, emails, textMessages, appointments table
-		relatedRecordType: varchar("related_record_type", { length: 50 }), // "call", "email", "text_message", "appointment"
+		relatedRecordId: integer("related_record_id"), // ID in calls, textMessages, appointments table
+		relatedRecordType: varchar("related_record_type", { length: 50 }), // "call", "text_message", "appointment"
 		notes: text("notes"), // User-added notes about this communication
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("communication_logs_lead_id_idx").on(table.leadId),
@@ -1683,7 +1986,7 @@ export const campaignQueue = pgTable(
 			.default({}),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		userId: varchar("user_id", { length: 255 }).notNull() // Clerk user ID
+		userId: varchar("user_id", { length: 255 }).notNull() // Authenticated user ID
 	},
 	(table) => [
 		index("campaign_queue_campaign_id_idx").on(table.campaignId),
@@ -1724,10 +2027,6 @@ export const visualElementsRelations = relations(visualElements, ({ one }) => ({
 
 // Voice agent relations
 export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
-	phoneNumber: one(phoneNumbers, {
-		fields: [voiceAgents.phoneNumberId],
-		references: [phoneNumbers.id]
-	}),
 	voicePreset: one(voicePresets, {
 		fields: [voiceAgents.voicePresetId],
 		references: [voicePresets.id]
@@ -1737,8 +2036,19 @@ export const voiceAgentsRelations = relations(voiceAgents, ({ one, many }) => ({
 		references: [agentRoles.id]
 	}),
 	functions: many(voiceAgentFunctions),
-	sessions: many(voiceSessions)
+	sessions: many(voiceSessions),
+	assignedPhoneNumbers: many(teamPhoneNumbers)
 }))
+
+export const teamPhoneNumbersRelations = relations(
+	teamPhoneNumbers,
+	({ one }) => ({
+		assignedAgent: one(voiceAgents, {
+			fields: [teamPhoneNumbers.assignedAgentId],
+			references: [voiceAgents.id]
+		})
+	})
+)
 
 export const voiceAgentFunctionsRelations = relations(
 	voiceAgentFunctions,
@@ -1840,6 +2150,39 @@ export const campaignQueueRelations = relations(campaignQueue, ({ one }) => ({
 	})
 }))
 
+export const telephonyCallsRelations = relations(
+	telephonyCalls,
+	({ one, many }) => ({
+		call: one(calls, {
+			fields: [telephonyCalls.callId],
+			references: [calls.id]
+		}),
+		events: many(telephonyEvents),
+		recordings: many(callRecordings)
+	})
+)
+
+export const telephonyEventsRelations = relations(
+	telephonyEvents,
+	({ one }) => ({
+		telephonyCall: one(telephonyCalls, {
+			fields: [telephonyEvents.telephonyCallId],
+			references: [telephonyCalls.id]
+		})
+	})
+)
+
+export const callRecordingsRelations = relations(callRecordings, ({ one }) => ({
+	call: one(calls, {
+		fields: [callRecordings.callId],
+		references: [calls.id]
+	}),
+	telephonyCall: one(telephonyCalls, {
+		fields: [callRecordings.telephonyCallId],
+		references: [telephonyCalls.id]
+	})
+}))
+
 // Call Queue relations
 export const callQueueRelations = relations(callQueue, ({ one }) => ({
 	lead: one(leads, {
@@ -1851,14 +2194,6 @@ export const callQueueRelations = relations(callQueue, ({ one }) => ({
 		references: [voiceAgents.id]
 	})
 }))
-
-// Email Templates relations
-export const emailTemplatesRelations = relations(
-	emailTemplates,
-	({ many }) => ({
-		// Could add relation to sent emails if we track template usage
-	})
-)
 
 // Communication Logs relations
 export const communicationLogsRelations = relations(

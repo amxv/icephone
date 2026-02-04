@@ -1,6 +1,6 @@
 "use client"
 
-import { getLeadById, updateLead } from "@/actions/leads"
+import { getLead, updateLead } from "@/actions/leads"
 import { Avatar } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,6 @@ import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { CallDialog } from "@/components/communication/call-dialog"
-import { EmailDialog } from "@/components/communication/email-dialog"
 import { TextMessageDialog } from "@/components/communication/text-message-dialog"
 import { AppointmentDialog } from "@/components/communication/appointment-dialog"
 import { EditLeadDialog } from "@/components/communication/edit-lead-dialog"
@@ -23,13 +22,7 @@ import { CommunicationTimeline } from "@/components/communication/communication-
 import { QuickActionsFAB } from "@/components/communication/quick-actions-fab"
 import { FollowUpSuggestions } from "@/components/communication/follow-up-suggestions"
 import { KeyboardShortcutsHelper } from "@/components/communication/keyboard-shortcuts-helper"
-import type {
-	Appointment,
-	Call,
-	Email,
-	LeadDetailData,
-	TextMessage
-} from "@/types"
+import type { Appointment, Call, LeadDetailData, TextMessage } from "@/types"
 import { format, isAfter, isBefore } from "date-fns"
 import {
 	ArrowLeftIcon,
@@ -242,38 +235,6 @@ const TextMessageCard = ({ text }: { text: TextMessage }) => {
 	)
 }
 
-// Email component
-const EmailCard = ({ email }: { email: Email }) => {
-	return (
-		<Card className="border-border bg-card/40 backdrop-blur-sm overflow-hidden h-full">
-			<div className="flex flex-col h-full">
-				<div
-					className={`h-1 ${email.type === "incoming" ? "bg-green-500" : "bg-blue-500"}`}
-				/>
-				<div className="flex-1 p-4">
-					<div className="flex items-start justify-between">
-						<div className="flex items-center gap-2">
-							<MailIcon
-								className={`h-3 w-3 ${email.type === "incoming" ? "text-green-500" : "text-blue-500"}`}
-							/>
-							<h3 className="text-sm font-medium line-clamp-1">
-								{email.subject}
-							</h3>
-						</div>
-						<div className="text-xs text-muted-foreground">
-							{format(new Date(email.sentAt), "MMM d, h:mm a")}
-						</div>
-					</div>
-
-					<div className="mt-2 p-2 rounded-lg bg-card/30 text-xs line-clamp-3">
-						{email.content}
-					</div>
-				</div>
-			</div>
-		</Card>
-	)
-}
-
 // Empty state components for each section
 const EmptyState = ({
 	icon: Icon,
@@ -383,15 +344,6 @@ function LeadDetailSkeleton() {
 						</div>
 						<Skeleton className="h-48 w-full rounded-2xl" />
 					</div>
-
-					{/* Emails skeleton */}
-					<div>
-						<div className="flex items-center justify-between mb-4">
-							<Skeleton className="h-8 w-48" />
-							<Skeleton className="h-8 w-32" />
-						</div>
-						<Skeleton className="h-48 w-full rounded-2xl" />
-					</div>
 				</div>
 			</div>
 		</div>
@@ -412,7 +364,6 @@ export default function LeadDetailPage() {
 
 	// Communication dialog states
 	const [callDialogOpen, setCallDialogOpen] = useState(false)
-	const [emailDialogOpen, setEmailDialogOpen] = useState(false)
 	const [textDialogOpen, setTextDialogOpen] = useState(false)
 	const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false)
 	const [editLeadDialogOpen, setEditLeadDialogOpen] = useState(false)
@@ -422,11 +373,6 @@ export default function LeadDetailPage() {
 		onCall: () => {
 			if (leadData?.lead.phone && !callDialogOpen) {
 				setCallDialogOpen(true)
-			}
-		},
-		onEmail: () => {
-			if (leadData?.lead.email && !emailDialogOpen) {
-				setEmailDialogOpen(true)
 			}
 		},
 		onText: () => {
@@ -491,16 +437,6 @@ export default function LeadDetailPage() {
 								size="sm"
 								className="w-28"
 								variant="outline"
-								disabled={disabled || !leadData.lead.email}
-								onClick={() => setEmailDialogOpen(true)}
-							>
-								<MailIcon className="h-4 w-4" />
-								Email
-							</Button>
-							<Button
-								size="sm"
-								className="w-28"
-								variant="outline"
 								disabled={disabled}
 								onClick={() => setAppointmentDialogOpen(true)}
 							>
@@ -538,7 +474,7 @@ export default function LeadDetailPage() {
 					return
 				}
 
-				const result = await getLeadById(leadId)
+				const result = await getLead(leadId)
 
 				if (result.success && result.data) {
 					setLeadData(result.data as unknown as LeadDetailData)
@@ -594,7 +530,7 @@ export default function LeadDetailPage() {
 		if (!leadData) return
 
 		try {
-			const result = await getLeadById(leadData.lead.id)
+			const result = await getLead(leadData.lead.id)
 			if (result.success && result.data) {
 				setLeadData(result.data as unknown as LeadDetailData)
 				// Trigger communication timeline refresh
@@ -651,7 +587,7 @@ export default function LeadDetailPage() {
 		)
 	}
 
-	const { lead, appointments, calls, textMessages, emails } = leadData
+	const { lead, appointments, calls, textMessages } = leadData
 
 	// Split appointments into upcoming and past
 	const now = new Date()
@@ -839,7 +775,6 @@ export default function LeadDetailPage() {
 									: undefined
 							}
 							onCallSuggestion={() => setCallDialogOpen(true)}
-							onEmailSuggestion={() => setEmailDialogOpen(true)}
 							onTextSuggestion={() => setTextDialogOpen(true)}
 							onAppointmentSuggestion={() =>
 								setAppointmentDialogOpen(true)
@@ -949,7 +884,7 @@ export default function LeadDetailPage() {
 								icon={MessageSquareIcon}
 								title="Text Messages"
 								buttonText="View all messages"
-								buttonLink="/chats"
+								buttonLink="#"
 								gradient="from-violet-500 to-violet-500/60"
 							/>
 
@@ -975,39 +910,6 @@ export default function LeadDetailPage() {
 								</div>
 							)}
 						</div>
-
-						{/* Emails section */}
-						<div>
-							<SectionHeader
-								icon={MailIcon}
-								title="Emails"
-								buttonText="View all emails"
-								buttonLink="/emails"
-								gradient="from-amber-500 to-amber-500/60"
-							/>
-
-							{emails.length === 0 ? (
-								<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-									<CardContent>
-										<EmptyState
-											icon={MailIcon}
-											title="No Emails"
-											description="No email history with this lead yet."
-											buttonText="Send Email"
-										/>
-									</CardContent>
-								</Card>
-							) : (
-								<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-									{emails.slice(0, 4).map((email) => (
-										<EmailCard
-											key={email.id}
-											email={email}
-										/>
-									))}
-								</div>
-							)}
-						</div>
 					</div>
 				</div>
 			</div>
@@ -1024,16 +926,6 @@ export default function LeadDetailPage() {
 						leadId={leadData.lead.id}
 						leadName={leadData.lead.name}
 						leadPhone={leadData.lead.phone || undefined}
-					/>
-					<EmailDialog
-						open={emailDialogOpen}
-						onOpenChange={(open) => {
-							setEmailDialogOpen(open)
-							if (!open) refreshLeadData()
-						}}
-						leadId={leadData.lead.id}
-						leadName={leadData.lead.name}
-						leadEmail={leadData.lead.email || undefined}
 					/>
 					<TextMessageDialog
 						open={textDialogOpen}
@@ -1067,13 +959,11 @@ export default function LeadDetailPage() {
 					{/* Quick Actions FAB */}
 					<QuickActionsFAB
 						onCallClick={() => setCallDialogOpen(true)}
-						onEmailClick={() => setEmailDialogOpen(true)}
 						onTextClick={() => setTextDialogOpen(true)}
 						onAppointmentClick={() =>
 							setAppointmentDialogOpen(true)
 						}
 						hasPhone={!!leadData.lead.phone}
-						hasEmail={!!leadData.lead.email}
 					/>
 				</>
 			)}

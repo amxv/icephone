@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { redirect } from "next/navigation"
 import {
 	getCallAnalytics,
@@ -23,8 +23,8 @@ interface SearchParams {
 
 function MetricsSkeleton() {
 	return (
-		<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-			{Array.from({ length: 5 }).map((_, i) => (
+		<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+			{Array.from({ length: 6 }).map((_, i) => (
 				<div
 					key={i}
 					className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm p-6"
@@ -109,7 +109,7 @@ export default async function AnalyticsPage({
 	// Transform recentCalls to match expected interface
 	const recentCalls = recentCallsResult.map((call) => ({
 		id: call.sessionId || call.id.toString(),
-		agentId: call.id, // Use the session id as a proxy for agentId
+		agentId: call.agentId,
 		phoneNumber: call.phoneNumber,
 		status: call.status || "unknown",
 		startTime: call.startTime,
@@ -117,7 +117,7 @@ export default async function AnalyticsPage({
 		sentiment: call.sentiment,
 		agent: call.agentName
 			? {
-					id: call.id,
+					id: call.agentId ?? call.id,
 					name: call.agentName
 				}
 			: undefined

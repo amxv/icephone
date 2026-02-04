@@ -2,12 +2,7 @@
 
 import { getAgentRoles } from "@/actions/agent-roles"
 import type { AgentRole } from "@/actions/agent-roles"
-import { getPhoneNumbers } from "@/actions/phone-numbers"
-import type { PhoneNumber } from "@/actions/phone-numbers"
-import {
-	createVoiceAgent,
-	createVoiceAgentWithRole
-} from "@/actions/voice-agents"
+import { createVoiceAgentWithRole } from "@/actions/voice-agents"
 import { getVoicePresets } from "@/actions/voice-presets"
 import type { VoicePreset } from "@/actions/voice-presets"
 import { Button } from "@/components/ui/button"
@@ -15,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger
@@ -42,7 +38,7 @@ import {
 	SettingsIcon,
 	UserIcon
 } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 interface SimpleAgentCreatorProps {
@@ -60,7 +56,6 @@ interface AgentConfig {
 
 	// Step 3: Basic Setup
 	name: string
-	phoneNumberId?: number
 	status: "active" | "inactive"
 	industryContext?: string
 }
@@ -78,6 +73,12 @@ const LANGUAGE_OPTIONS = [
 	{ value: "ja", label: "Japanese", flag: "🇯🇵" }
 ]
 
+const INITIAL_AGENT_CONFIG: AgentConfig = {
+	language: "en",
+	name: "",
+	status: "inactive"
+}
+
 export function SimpleAgentCreator({
 	onAgentCreated,
 	trigger
@@ -89,77 +90,88 @@ export function SimpleAgentCreator({
 	// Data loading states
 	const [agentRoles, setAgentRoles] = useState<AgentRole[]>([])
 	const [voicePresets, setVoicePresets] = useState<VoicePreset[]>([])
-	const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([])
-	const [isLoadingData, setIsLoadingData] = useState(false)
+	const [isLoadingRoles, setIsLoadingRoles] = useState(false)
+	const [isLoadingVoices, setIsLoadingVoices] = useState(false)
 
 	// Form state
-	const [config, setConfig] = useState<AgentConfig>({
-		language: "en",
-		name: "",
-		status: "inactive"
-	})
-
-	const loadVoicePresets = useCallback(
-		async (language: string) => {
-			try {
-				const result = await getVoicePresets(language)
-
-				// Server action returns array directly
-				setVoicePresets(result)
-
-				// Auto-select default voice if available
-				const defaultVoice = result.find(
-					(voice: VoicePreset) => voice.isDefault
-				)
-				if (defaultVoice && !config.voicePresetId) {
-					setConfig((prev) => ({
-						...prev,
-						voicePresetId: defaultVoice.id
-					}))
-				}
-			} catch (error) {
-				console.error("Failed to load voice presets:", error)
-				toast.error("Failed to load voice options")
-			}
-		},
-		[config.voicePresetId]
-	)
-
-	const loadInitialData = useCallback(async () => {
-		setIsLoadingData(true)
-		try {
-			const [rolesResult, phonesResult] = await Promise.all([
-				getAgentRoles(),
-				getPhoneNumbers()
-			])
-
-			// Server actions return arrays directly, not wrapped in success/data
-			setAgentRoles(rolesResult)
-			setPhoneNumbers(phonesResult)
-
-			// Load initial voice presets for English
-			await loadVoicePresets("en")
-		} catch (error) {
-			console.error("Failed to load initial data:", error)
-			toast.error("Failed to load agent setup data")
-		} finally {
-			setIsLoadingData(false)
-		}
-	}, [loadVoicePresets])
+	const [config, setConfig] = useState<AgentConfig>(INITIAL_AGENT_CONFIG)
 
 	// Load initial data when dialog opens
 	useEffect(() => {
-		if (open) {
-			loadInitialData()
+		if (!open) return
+
+		let cancelled = false
+
+		const loadAgentRoles = async () => {
+			setIsLoadingRoles(true)
+			try {
+				const rolesResult = await getAgentRoles()
+				if (cancelled) return
+				setAgentRoles(rolesResult)
+			} catch (error) {
+				console.error("Failed to load agent roles:", error)
+				toast.error("Failed to load agent roles")
+			} finally {
+				if (!cancelled) {
+					setIsLoadingRoles(false)
+				}
+			}
 		}
-	}, [open, loadInitialData])
+
+		loadAgentRoles()
+
+		return () => {
+			cancelled = true
+		}
+	}, [open])
 
 	// Load voice presets when language changes
 	useEffect(() => {
-		if (config.language) {
-			loadVoicePresets(config.language)
+		if (!open || !config.language) return
+
+		let cancelled = false
+
+		const loadLanguageVoices = async () => {
+			setIsLoadingVoices(true)
+			try {
+				const presetsResult = await getVoicePresets(config.language)
+				if (cancelled) return
+
+				setVoicePresets(presetsResult)
+				setConfig((prev) => {
+					const hasCurrentVoice = presetsResult.some(
+						(voice) => voice.id === prev.voicePresetId
+					)
+					if (hasCurrentVoice) {
+						return prev
+					}
+
+					const defaultVoice =
+						presetsResult.find((voice) => voice.isDefault) ||
+						presetsResult[0]
+
+					if (!defaultVoice) {
+						return { ...prev, voicePresetId: undefined }
+					}
+
+					return { ...prev, voicePresetId: defaultVoice.id }
+				})
+			} catch (error) {
+				console.error("Failed to load voice presets:", error)
+				toast.error("Failed to load voice options")
+			} finally {
+				if (!cancelled) {
+					setIsLoadingVoices(false)
+				}
+			}
 		}
-	}, [config.language, loadVoicePresets])
+
+		loadLanguageVoices()
+
+		return () => {
+			cancelled = true
+		}
+	}, [open, config.language])
 
 	const updateConfig = (updates: Partial<AgentConfig>) => {
 		setConfig((prev) => ({ ...prev, ...updates }))
@@ -215,14 +227,12 @@ export function SimpleAgentCreator({
 				return
 			}
 
-			// Use the enhanced createVoiceAgentWithRole function for automatic VAPI assistant creation
 			const agentData = {
 				name: config.name,
 				description: `${selectedRole.displayName} agent with ${selectedVoice.displayName} voice`,
 				agentRoleId: config.roleId,
 				voicePresetId: config.voicePresetId,
 				language: config.language,
-				phoneNumberId: config.phoneNumberId,
 				status: config.status,
 				industryContext: config.industryContext
 			}
@@ -230,16 +240,10 @@ export function SimpleAgentCreator({
 			const result = await createVoiceAgentWithRole(agentData)
 
 			if (result.success) {
-				toast.success(
-					"Voice agent created successfully with VAPI assistant!"
-				)
+				toast.success("Voice agent created successfully")
 				setOpen(false)
 				setCurrentStep(1)
-				setConfig({
-					language: "en",
-					name: "",
-					status: "inactive"
-				})
+				setConfig(INITIAL_AGENT_CONFIG)
 				onAgentCreated?.()
 			} else {
 				toast.error(result.error || "Failed to create voice agent")
@@ -259,6 +263,10 @@ export function SimpleAgentCreator({
 	const selectedLanguage = LANGUAGE_OPTIONS.find(
 		(lang) => lang.value === config.language
 	)
+	const nextDisabled =
+		currentStep === 1
+			? isLoadingRoles || !canProceedFromStep(currentStep)
+			: !canProceedFromStep(currentStep)
 
 	const DefaultTrigger = (
 		<Button variant="outline" className="gap-2 rounded-2xl">
@@ -268,14 +276,29 @@ export function SimpleAgentCreator({
 	)
 
 	return (
-		<Dialog open={open} onOpenChange={setOpen}>
+		<Dialog
+			open={open}
+			onOpenChange={(nextOpen) => {
+				setOpen(nextOpen)
+				if (!nextOpen) {
+					setCurrentStep(1)
+					setConfig(INITIAL_AGENT_CONFIG)
+					setAgentRoles([])
+					setVoicePresets([])
+				}
+			}}
+		>
 			<DialogTrigger asChild>{trigger || DefaultTrigger}</DialogTrigger>
 
-			<DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+			<DialogContent className="w-[96vw] sm:max-w-4xl max-h-[90vh] overflow-hidden">
 				<DialogHeader>
 					<DialogTitle className="text-2xl font-medium">
 						Create Voice Agent
 					</DialogTitle>
+					<DialogDescription>
+						Set up your agent role, voice, and baseline settings in
+						three quick steps.
+					</DialogDescription>
 				</DialogHeader>
 
 				{/* Progress Indicator */}
@@ -311,7 +334,7 @@ export function SimpleAgentCreator({
 				</div>
 
 				{/* Step Content */}
-				<div className="min-h-[400px]">
+				<div className="min-h-[260px] md:min-h-[320px] max-h-[56vh] overflow-y-auto pr-1">
 					{/* Step 1: Role Selection */}
 					{currentStep === 1 && (
 						<div className="space-y-6">
@@ -327,69 +350,100 @@ export function SimpleAgentCreator({
 								</p>
 							</div>
 
-							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-								{agentRoles.map((role) => {
-									const IconComponent =
-										role.icon === "MessageSquareIcon"
-											? MessageSquareIcon
-											: role.icon === "PhoneIcon"
-												? PhoneIcon
-												: role.icon === "SettingsIcon"
-													? SettingsIcon
-													: UserIcon
-
-									return (
+							{isLoadingRoles ? (
+								<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+									{[1, 2, 3].map((index) => (
 										<Card
-											key={role.id}
-											className={`cursor-pointer transition-all hover:shadow-md border-2 rounded-3xl ${
-												config.roleId === role.id
-													? "border-primary bg-primary/5 shadow-sm"
-													: "border-border hover:border-primary/50"
-											}`}
-											onClick={() =>
-												updateConfig({
-													roleId: role.id
-												})
-											}
+											key={index}
+											className="rounded-3xl border-2"
 										>
 											<CardHeader className="text-center pb-2">
-												<div className="mx-auto mb-3 p-3 rounded-2xl bg-primary/10 w-fit">
-													<IconComponent className="h-6 w-6 text-primary" />
-												</div>
-												<CardTitle className="text-lg">
-													{role.displayName}
-												</CardTitle>
+												<div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-muted animate-pulse" />
+												<div className="h-5 w-2/3 rounded bg-muted animate-pulse mx-auto" />
 											</CardHeader>
-											<CardContent className="pt-0">
-												<p className="text-sm text-muted-foreground text-center mb-4">
-													{role.description}
-												</p>
-												<div className="space-y-2">
-													<div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-														Conversation Style
-													</div>
-													<div className="text-sm">
-														{role.conversationStyle}
-													</div>
-
-													{role.industryFocus && (
-														<>
-															<div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-3">
-																Industry Focus
-															</div>
-															<div className="text-sm">
-																{
-																	role.industryFocus
-																}
-															</div>
-														</>
-													)}
-												</div>
+											<CardContent className="pt-0 space-y-3">
+												<div className="h-4 w-full rounded bg-muted animate-pulse" />
+												<div className="h-4 w-5/6 rounded bg-muted animate-pulse" />
+												<div className="h-3 w-1/3 rounded bg-muted animate-pulse mt-3" />
+												<div className="h-4 w-2/3 rounded bg-muted animate-pulse" />
 											</CardContent>
 										</Card>
-									)
-								})}
-							</div>
+									))}
+								</div>
+							) : agentRoles.length === 0 ? (
+								<div className="rounded-2xl border border-dashed p-6 text-center text-muted-foreground">
+									No agent roles are available yet. Please try
+									again in a moment.
+								</div>
+							) : (
+								<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+									{agentRoles.map((role) => {
+										const IconComponent =
+											role.icon === "MessageSquareIcon"
+												? MessageSquareIcon
+												: role.icon === "PhoneIcon"
+													? PhoneIcon
+													: role.icon ===
+															"SettingsIcon"
+														? SettingsIcon
+														: UserIcon
+
+										return (
+											<Card
+												key={role.id}
+												className={`cursor-pointer transition-all hover:shadow-md border-2 rounded-3xl ${
+													config.roleId === role.id
+														? "border-primary bg-primary/5 shadow-sm"
+														: "border-border hover:border-primary/50"
+												}`}
+												onClick={() =>
+													updateConfig({
+														roleId: role.id
+													})
+												}
+											>
+												<CardHeader className="text-center pb-2">
+													<div className="mx-auto mb-3 p-3 rounded-2xl bg-primary/10 w-fit">
+														<IconComponent className="h-6 w-6 text-primary" />
+													</div>
+													<CardTitle className="text-lg">
+														{role.displayName}
+													</CardTitle>
+												</CardHeader>
+												<CardContent className="pt-0">
+													<p className="text-sm text-muted-foreground text-center mb-4">
+														{role.description}
+													</p>
+													<div className="space-y-2">
+														<div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+															Conversation Style
+														</div>
+														<div className="text-sm">
+															{
+																role.conversationStyle
+															}
+														</div>
+
+														{role.industryFocus && (
+															<>
+																<div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mt-3">
+																	Industry
+																	Focus
+																</div>
+																<div className="text-sm">
+																	{
+																		role.industryFocus
+																	}
+																</div>
+															</>
+														)}
+													</div>
+												</CardContent>
+											</Card>
+										)
+									})}
+								</div>
+							)}
 						</div>
 					)}
 
@@ -453,7 +507,7 @@ export function SimpleAgentCreator({
 											voicePresetId: preset.id
 										})
 									}
-									isLoading={isLoadingData}
+									isLoading={isLoadingVoices}
 									columns={2}
 								/>
 							</div>
@@ -496,49 +550,6 @@ export function SimpleAgentCreator({
 											}
 											className="rounded-2xl"
 										/>
-									</div>
-
-									{/* Phone Number Assignment */}
-									<div className="space-y-2">
-										<Label className="text-base font-medium">
-											Phone Number (Optional)
-										</Label>
-										<Select
-											value={
-												config.phoneNumberId?.toString() ||
-												"none"
-											}
-											onValueChange={(value) =>
-												updateConfig({
-													phoneNumberId:
-														value === "none"
-															? undefined
-															: Number.parseInt(
-																	value,
-																	10
-																)
-												})
-											}
-										>
-											<SelectTrigger className="w-full rounded-2xl">
-												<SelectValue placeholder="Assign to phone number" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="none">
-													No phone number assigned
-												</SelectItem>
-												{phoneNumbers.map((phone) => (
-													<SelectItem
-														key={phone.id}
-														value={phone.id.toString()}
-													>
-														{phone.number}{" "}
-														{phone.friendlyName &&
-															`(${phone.friendlyName})`}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
 									</div>
 
 									{/* Agent Status */}
@@ -660,11 +671,15 @@ export function SimpleAgentCreator({
 						{currentStep < 3 ? (
 							<Button
 								onClick={nextStep}
-								disabled={!canProceedFromStep(currentStep)}
+								disabled={nextDisabled}
 								className="gap-2 rounded-2xl"
 							>
-								Next
-								<ArrowRightIcon className="h-4 w-4" />
+								{currentStep === 1 && isLoadingRoles
+									? "Loading roles..."
+									: "Next"}
+								{!(currentStep === 1 && isLoadingRoles) && (
+									<ArrowRightIcon className="h-4 w-4" />
+								)}
 							</Button>
 						) : (
 							<Button

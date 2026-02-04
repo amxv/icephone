@@ -18,6 +18,13 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue
+} from "@/components/ui/select"
+import {
 	Bot,
 	Settings,
 	MessageSquare,
@@ -36,6 +43,7 @@ import {
 	configureCampaignVoiceAgent,
 	getCampaignVoiceConfiguration
 } from "@/actions/campaigns/voice-integration"
+import { getPhoneNumbers } from "@/actions/phone-numbers"
 import { toast } from "sonner"
 
 interface CampaignVoiceConfigurationComponentProps {
@@ -45,15 +53,28 @@ interface CampaignVoiceConfigurationComponentProps {
 	onConfigurationSaved?: () => void
 }
 
+interface TeamPhoneNumberOption {
+	id: number
+	phoneNumber: string
+	provider: "mock" | "twilio" | "telnyx" | "vonage"
+	label: string | null
+	isDefaultOutbound: boolean
+	status: "provisioning" | "active" | "inactive" | "released"
+}
+
 export function CampaignVoiceConfigurationComponent({
 	campaignId,
 	campaignName,
 	voiceAgentId,
 	onConfigurationSaved
 }: CampaignVoiceConfigurationComponentProps) {
+	const [resolvedVoiceAgentId, setResolvedVoiceAgentId] = useState<
+		number | null
+	>(voiceAgentId ?? null)
 	const [configuration, setConfiguration] =
 		useState<CampaignVoiceConfiguration>({
 			campaignSpecificPrompt: "",
+			outboundPhoneNumberId: null,
 			leadPersonalizationRules: {
 				includeLeadName: true,
 				includeLeadScore: true,
@@ -86,18 +107,35 @@ export function CampaignVoiceConfigurationComponent({
 	const [isLoading, setIsLoading] = useState(false)
 	const [isSaving, setIsSaving] = useState(false)
 	const [objectionInput, setObjectionInput] = useState("")
+	const [teamPhoneNumbers, setTeamPhoneNumbers] = useState<
+		TeamPhoneNumberOption[]
+	>([])
 
 	// Load existing configuration
 	useEffect(() => {
 		const loadConfiguration = async () => {
 			setIsLoading(true)
 			try {
-				const result = await getCampaignVoiceConfiguration(campaignId)
-				if (result.success && result.data?.voiceConfiguration) {
+				const [configResult, phoneNumbersResult] = await Promise.all([
+					getCampaignVoiceConfiguration(campaignId),
+					getPhoneNumbers()
+				])
+				if (
+					configResult.success &&
+					configResult.data?.voiceConfiguration
+				) {
 					setConfiguration((prevConfig) => ({
 						...prevConfig,
-						...result.data.voiceConfiguration
+						...configResult.data.voiceConfiguration
 					}))
+				}
+				setResolvedVoiceAgentId(configResult.data?.voiceAgentId ?? null)
+				if (phoneNumbersResult.success && phoneNumbersResult.data) {
+					setTeamPhoneNumbers(
+						phoneNumbersResult.data.filter(
+							(number) => number.status === "active"
+						)
+					)
 				}
 			} catch (error) {
 				console.error("Error loading voice configuration:", error)
@@ -111,7 +149,7 @@ export function CampaignVoiceConfigurationComponent({
 	}, [campaignId])
 
 	const handleSaveConfiguration = async () => {
-		if (!voiceAgentId) {
+		if (!resolvedVoiceAgentId) {
 			toast.error("Please assign a voice agent to this campaign first")
 			return
 		}
@@ -205,7 +243,7 @@ export function CampaignVoiceConfigurationComponent({
 				</div>
 				<Button
 					onClick={handleSaveConfiguration}
-					disabled={isSaving || !voiceAgentId}
+					disabled={isSaving || !resolvedVoiceAgentId}
 					className="gap-2 rounded-2xl"
 				>
 					<Save className="h-4 w-4" />
@@ -213,7 +251,7 @@ export function CampaignVoiceConfigurationComponent({
 				</Button>
 			</div>
 
-			{!voiceAgentId && (
+			{!resolvedVoiceAgentId && (
 				<Card className="rounded-2xl border-amber-200 bg-amber-50/40 backdrop-blur-sm">
 					<CardContent className="p-4">
 						<div className="flex items-center gap-2">
@@ -733,6 +771,60 @@ export function CampaignVoiceConfigurationComponent({
 										</Button>
 									))}
 								</div>
+							</div>
+
+							<Separator />
+
+							<div className="space-y-2">
+								<Label htmlFor="campaign-outbound-number">
+									Outbound Caller ID
+								</Label>
+								<Select
+									value={
+										configuration.outboundPhoneNumberId
+											? configuration.outboundPhoneNumberId.toString()
+											: "auto"
+									}
+									onValueChange={(value) =>
+										setConfiguration((prev) => ({
+											...prev,
+											outboundPhoneNumberId:
+												value === "auto"
+													? null
+													: Number(value)
+										}))
+									}
+								>
+									<SelectTrigger
+										id="campaign-outbound-number"
+										className="rounded-lg mt-1.5"
+									>
+										<SelectValue placeholder="Auto-select from team routing" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="auto">
+											Auto-select from team routing
+										</SelectItem>
+										{teamPhoneNumbers.map((number) => (
+											<SelectItem
+												key={number.id}
+												value={number.id.toString()}
+											>
+												{number.phoneNumber}
+												{number.label
+													? ` • ${number.label}`
+													: ""}
+												{number.isDefaultOutbound
+													? " • Default"
+													: ""}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<p className="text-xs text-muted-foreground">
+									Applies to queued campaign calls. Keep Auto
+									to use provider + agent-aware routing.
+								</p>
 							</div>
 						</CardContent>
 					</Card>

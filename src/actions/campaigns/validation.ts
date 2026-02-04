@@ -1,6 +1,7 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
 import { and, eq, sql } from "drizzle-orm"
 
 import { db_ws } from "@/db"
@@ -13,10 +14,7 @@ export async function validateCampaignConfiguration(
 	campaignId?: number
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, conflicts: [] }
-		}
+		const { teamId } = await requireTeam()
 
 		const conflicts: string[] = []
 
@@ -26,14 +24,13 @@ export async function validateCampaignConfiguration(
 				.select({
 					id: voiceAgents.id,
 					name: voiceAgents.name,
-					status: voiceAgents.status,
-					phoneNumberId: voiceAgents.phoneNumberId
+					status: voiceAgents.status
 				})
 				.from(voiceAgents)
 				.where(
 					and(
 						eq(voiceAgents.id, campaignData.voiceAgentId),
-						eq(voiceAgents.userId, userId)
+						teamScope(voiceAgents, teamId)
 					)
 				)
 				.limit(1)
@@ -47,13 +44,6 @@ export async function validateCampaignConfiguration(
 				if (agent.status !== "active") {
 					conflicts.push(
 						`Voice agent "${agent.name}" is not active (current status: ${agent.status})`
-					)
-				}
-
-				// Check if voice agent has a phone number assigned
-				if (!agent.phoneNumberId) {
-					conflicts.push(
-						`Voice agent "${agent.name}" does not have a phone number assigned`
 					)
 				}
 
@@ -73,7 +63,7 @@ export async function validateCampaignConfiguration(
 									campaigns.voiceAgentId,
 									campaignData.voiceAgentId
 								),
-								eq(campaigns.userId, userId),
+								teamScope(campaigns, teamId),
 								eq(campaigns.status, "running"),
 								campaignId
 									? sql`${campaigns.id} != ${campaignId}`

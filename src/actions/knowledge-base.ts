@@ -1,817 +1,741 @@
 "use server"
 
-import { db } from "@/db/db"
-import { knowledgeBaseDocuments, knowledgeBaseSources } from "@/db/schema"
-import type {
-	KnowledgeBaseDocument,
-	KnowledgeBaseDocumentCreateRequest,
-	KnowledgeBaseSource,
-	KnowledgeBaseSourceCreateRequest,
-	VectorQueryResult
-} from "@/types"
-import { currentUser } from "@clerk/nextjs/server"
-import { and, eq } from "drizzle-orm"
-import { sql } from "drizzle-orm"
+import { db_ws } from "@/db"
+import { knowledgeFiles, knowledgeSources, teams } from "@/db/schema"
+import { logAuditEvent } from "@/lib/audit-log"
+import { requireTeam } from "@/lib/auth/session"
+import { deleteObject, getKnowledgeFileKey, uploadBuffer } from "@/lib/storage"
+import {
+	addFileToVectorStore,
+	createVectorStore,
+	deleteOpenAIFile,
+	getVectorStoreFileStatus,
+	removeFileFromVectorStore,
+	retrieveVectorStoreFileContent,
+	searchVectorStore,
+	uploadFileToOpenAI
+} from "@/lib/openai/vector-store"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+import { z } from "zod"
 
-// Create a new knowledge base source
-export async function createKnowledgeBaseSource(
-	source: KnowledgeBaseSourceCreateRequest
-) {
+const knowledgeSourceSchema = z.object({
+	name: z.string().trim().min(2),
+	type: z.enum([
+		"website_url",
+		"pdf_upload",
+		"gdoc",
+		"txt_upload",
+		"image_upload",
+		"docx_upload"
+	]),
+	uri: z.string().trim().min(1)
+})
+
+const sourceIdSchema = z.number().int().positive()
+const fileIdSchema = z.number().int().positive()
+
+const querySchema = z.object({
+	query: z.string().trim().min(1),
+	limit: z.number().int().min(1).max(50).optional(),
+	sourceId: sourceIdSchema.optional(),
+	sourceIds: z.array(sourceIdSchema).min(1).max(20).optional(),
+	threshold: z.number().min(0).max(1).optional()
+})
+
+export type RAGSearchResult = {
+	id: number
+	source_id: number
+	sourceId: number
+	content_chunk: string
+	contentChunk: string
+	metadata: Record<string, unknown>
+	source_name: string
+	source_type: string
+	similarity: number
+	retrievalStrategy?: string
+	strategyWeight?: number
+	reranked?: boolean
+}
+
+export type RAGQueryMetadata = {
+	queryAnalysis?: {
+		hasVisualContent?: boolean
+		complexity?: string
+		queryType?: string
+	}
+	strategiesUsed?: string[]
+	totalDocumentsRetrieved?: number
+	documentsAfterDeduplication?: number
+	finalDocuments?: number
+	rerankingEnabled?: boolean
+}
+
+export type RAGQueryResult = {
+	success: boolean
+	data?: RAGSearchResult[]
+	error?: string
+	query?: string
+	searchType?: string
+	metadata?: RAGQueryMetadata
+}
+
+async function getTeamVectorStoreId(teamId: string) {
+	const [team] = await db_ws
+		.select({
+			id: teams.id,
+			name: teams.name,
+			vectorStoreId: teams.vectorStoreId
+		})
+		.from(teams)
+		.where(eq(teams.id, teamId))
+		.limit(1)
+
+	if (!team) {
+		throw new Error("Team not found")
+	}
+
+	return team.vectorStoreId || null
+}
+
+async function getOrCreateTeamVectorStore(teamId: string) {
+	const existing = await getTeamVectorStoreId(teamId)
+	if (existing) {
+		return existing
+	}
+
+	const [team] = await db_ws
+		.select({ id: teams.id, name: teams.name })
+		.from(teams)
+		.where(eq(teams.id, teamId))
+		.limit(1)
+
+	if (!team) {
+		throw new Error("Team not found")
+	}
+
+	const vectorStore = await createVectorStore(`team-${team.name || team.id}`)
+	await db_ws
+		.update(teams)
+		.set({ vectorStoreId: vectorStore.id, updatedAt: new Date() })
+		.where(eq(teams.id, team.id))
+
+	return vectorStore.id
+}
+
+export async function createKnowledgeBaseSource(input: {
+	name: string
+	type: string
+	uri: string
+}) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const payload = knowledgeSourceSchema.parse(input)
+		const { teamId, user } = await requireTeam()
 
-		const [createdSource] = await db
-			.insert(knowledgeBaseSources)
+		const [created] = await db_ws
+			.insert(knowledgeSources)
 			.values({
-				name: source.name,
-				type: source.type,
-				uri: source.uri,
-				userId: user.id
+				teamId,
+				name: payload.name,
+				type: payload.type,
+				uri: payload.uri,
+				createdByUserId: user.id
 			})
 			.returning()
 
-		revalidatePath("/admin/knowledge-base")
-		return { success: true, data: createdSource }
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "knowledge.source.created",
+			entityType: "knowledge_source",
+			entityId: created.id,
+			metadata: {
+				name: created.name,
+				type: created.type
+			}
+		})
+
+		revalidatePath("/knowledge")
+
+		return { success: true, data: created }
 	} catch (error) {
-		console.error("Failed to create knowledge base source:", error)
-		return {
-			success: false,
-			error: "Failed to create knowledge base source"
-		}
+		console.error("Failed to create knowledge source:", error)
+		return { success: false, error: "Failed to create knowledge source" }
 	}
 }
 
-// Get all knowledge base sources for the current user
 export async function getKnowledgeBaseSources() {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const { teamId } = await requireTeam()
 
-		const sources = await db
+		const sources = await db_ws
 			.select()
-			.from(knowledgeBaseSources)
-			.where(eq(knowledgeBaseSources.userId, user.id))
-			.orderBy(knowledgeBaseSources.createdAt)
+			.from(knowledgeSources)
+			.where(eq(knowledgeSources.teamId, teamId))
+			.orderBy(desc(knowledgeSources.createdAt))
 
 		return { success: true, data: sources }
 	} catch (error) {
-		console.error("Failed to get knowledge base sources:", error)
-		return { success: false, error: "Failed to get knowledge base sources" }
+		console.error("Failed to list knowledge sources:", error)
+		return { success: false, error: "Failed to list knowledge sources" }
 	}
 }
 
-// Get a knowledge base source by ID
 export async function getKnowledgeBaseSourceById(id: number) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const sourceId = sourceIdSchema.parse(id)
+		const { teamId } = await requireTeam()
 
-		const source = await db
+		const [source] = await db_ws
 			.select()
-			.from(knowledgeBaseSources)
+			.from(knowledgeSources)
 			.where(
 				and(
-					eq(knowledgeBaseSources.id, id),
-					eq(knowledgeBaseSources.userId, user.id)
+					eq(knowledgeSources.id, sourceId),
+					eq(knowledgeSources.teamId, teamId)
 				)
 			)
 			.limit(1)
 
-		if (!source.length) {
-			return { success: false, error: "Knowledge base source not found" }
+		if (!source) {
+			return { success: false, error: "Knowledge source not found" }
 		}
 
-		return { success: true, data: source[0] }
+		return { success: true, data: source }
 	} catch (error) {
-		console.error("Failed to get knowledge base source:", error)
-		return { success: false, error: "Failed to get knowledge base source" }
+		console.error("Failed to get knowledge source:", error)
+		return { success: false, error: "Failed to get knowledge source" }
 	}
 }
 
-// Delete a knowledge base source
 export async function deleteKnowledgeBaseSource(id: number) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const sourceId = sourceIdSchema.parse(id)
+		const { teamId, user } = await requireTeam()
 
-		// Check if the source belongs to the user
-		const sourceCheck = await db
-			.select({ id: knowledgeBaseSources.id })
-			.from(knowledgeBaseSources)
+		const [source] = await db_ws
+			.select()
+			.from(knowledgeSources)
 			.where(
 				and(
-					eq(knowledgeBaseSources.id, id),
-					eq(knowledgeBaseSources.userId, user.id)
+					eq(knowledgeSources.id, sourceId),
+					eq(knowledgeSources.teamId, teamId)
 				)
 			)
 			.limit(1)
 
-		if (!sourceCheck.length) {
-			return { success: false, error: "Knowledge base source not found" }
+		if (!source) {
+			return { success: false, error: "Knowledge source not found" }
 		}
 
-		await db
-			.delete(knowledgeBaseSources)
-			.where(eq(knowledgeBaseSources.id, id))
-
-		revalidatePath("/admin/knowledge-base")
-		return { success: true }
-	} catch (error) {
-		console.error("Failed to delete knowledge base source:", error)
-		return {
-			success: false,
-			error: "Failed to delete knowledge base source"
-		}
-	}
-}
-
-// Insert a vector embedding document
-export async function insertKnowledgeBaseDocument(
-	document: KnowledgeBaseDocumentCreateRequest
-) {
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
-
-		// If sourceId is provided, verify it belongs to the user
-		if (document.sourceId) {
-			const sourceCheck = await db
-				.select({ id: knowledgeBaseSources.id })
-				.from(knowledgeBaseSources)
-				.where(
-					and(
-						eq(knowledgeBaseSources.id, document.sourceId),
-						eq(knowledgeBaseSources.userId, user.id)
-					)
+		const files = await db_ws
+			.select()
+			.from(knowledgeFiles)
+			.where(
+				and(
+					eq(knowledgeFiles.sourceId, sourceId),
+					eq(knowledgeFiles.teamId, teamId)
 				)
-				.limit(1)
+			)
 
-			if (!sourceCheck.length) {
-				return {
-					success: false,
-					error: "Knowledge base source not found or unauthorized"
+		for (const file of files) {
+			if (file.vectorStoreId && file.openaiFileId) {
+				try {
+					await removeFileFromVectorStore(
+						file.vectorStoreId,
+						file.openaiFileId
+					)
+				} catch (error) {
+					console.warn(
+						"Failed removing file from vector store:",
+						error
+					)
+				}
+			}
+
+			if (file.openaiFileId) {
+				try {
+					await deleteOpenAIFile(file.openaiFileId)
+				} catch (error) {
+					console.warn("Failed deleting OpenAI file:", error)
+				}
+			}
+
+			if (file.r2Key) {
+				try {
+					await deleteObject(file.r2Key)
+				} catch (error) {
+					console.warn("Failed deleting R2 object:", error)
 				}
 			}
 		}
 
-		// Convert embedding array to PostgreSQL vector format
-		const vectorValues = document.textEmbedding.join(",")
+		await db_ws
+			.delete(knowledgeSources)
+			.where(
+				and(
+					eq(knowledgeSources.id, sourceId),
+					eq(knowledgeSources.teamId, teamId)
+				)
+			)
 
-		// Use raw SQL for vector insertion
-		const result = await db.execute(sql`
-			INSERT INTO knowledge_base_documents
-			(source_id, content_chunk, text_embedding_model, text_embedding, metadata, user_id)
-			VALUES
-			(${document.sourceId || null},
-			 ${document.contentChunk},
-			 ${document.textEmbeddingModel},
-			 ${sql.raw(`'[${vectorValues}]'::vector`)},
-			 ${JSON.stringify(document.metadata || {})},
-			 ${user.id})
-			RETURNING *
-		`)
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "knowledge.source.deleted",
+			entityType: "knowledge_source",
+			entityId: sourceId,
+			metadata: {
+				name: source.name
+			}
+		})
 
-		if (!result.rows || !result.rows.length) {
-			return { success: false, error: "Failed to insert document" }
-		}
-
-		// Update source lastIndexedAt if sourceId is provided
-		if (document.sourceId) {
-			await db
-				.update(knowledgeBaseSources)
-				.set({ lastIndexedAt: new Date() })
-				.where(eq(knowledgeBaseSources.id, document.sourceId))
-		}
-
-		return { success: true, data: result.rows[0] }
+		revalidatePath("/knowledge")
+		return { success: true }
 	} catch (error) {
-		console.error("Failed to insert knowledge base document:", error)
-		return {
-			success: false,
-			error: "Failed to insert knowledge base document"
-		}
+		console.error("Failed to delete knowledge source:", error)
+		return { success: false, error: "Failed to delete knowledge source" }
 	}
 }
 
-// Retrieve documents for a source
-export async function getDocumentsForSource(sourceId: number) {
+export async function uploadKnowledgeFile(
+	sourceId: number,
+	file: File
+): Promise<{
+	success: boolean
+	data?: { fileId: number }
+	error?: string
+}> {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
+		const parsedSourceId = sourceIdSchema.parse(sourceId)
+		if (!file) {
+			return { success: false, error: "File is required" }
 		}
 
-		// First check if the source belongs to the user
-		const sourceCheck = await db
-			.select({ id: knowledgeBaseSources.id })
-			.from(knowledgeBaseSources)
+		const { teamId, user } = await requireTeam()
+
+		const [source] = await db_ws
+			.select()
+			.from(knowledgeSources)
 			.where(
 				and(
-					eq(knowledgeBaseSources.id, sourceId),
-					eq(knowledgeBaseSources.userId, user.id)
+					eq(knowledgeSources.id, parsedSourceId),
+					eq(knowledgeSources.teamId, teamId)
 				)
 			)
 			.limit(1)
 
-		if (!sourceCheck.length) {
+		if (!source) {
+			return { success: false, error: "Knowledge source not found" }
+		}
+
+		const vectorStoreId = await getOrCreateTeamVectorStore(teamId)
+		const buffer = Buffer.from(await file.arrayBuffer())
+		const fileForOpenAI = new File([buffer], file.name, { type: file.type })
+		const r2Key = getKnowledgeFileKey(teamId, parsedSourceId, file.name)
+
+		await uploadBuffer({
+			buffer,
+			key: r2Key,
+			contentType: file.type,
+			metadata: {
+				sourceId: String(parsedSourceId),
+				filename: file.name
+			}
+		})
+
+		let createdFile: { id: number } | undefined
+		let openaiFileId: string | null = null
+
+		try {
+			const openaiFile = await uploadFileToOpenAI(fileForOpenAI)
+			openaiFileId = openaiFile.id
+			await addFileToVectorStore(vectorStoreId, openaiFile.id)
+			;[createdFile] = await db_ws
+				.insert(knowledgeFiles)
+				.values({
+					teamId,
+					sourceId: parsedSourceId,
+					filename: file.name,
+					contentType: file.type,
+					size: file.size,
+					r2Key,
+					openaiFileId: openaiFile.id,
+					vectorStoreId,
+					status: "processing",
+					createdAt: new Date(),
+					updatedAt: new Date()
+				})
+				.returning()
+		} catch (error) {
+			try {
+				await deleteObject(r2Key)
+			} catch (cleanupError) {
+				console.warn("Failed cleaning up R2 object:", cleanupError)
+			}
+			throw error
+		}
+
+		if (!createdFile) {
+			return { success: false, error: "Failed to save knowledge file" }
+		}
+
+		await db_ws
+			.update(knowledgeSources)
+			.set({ lastIndexedAt: new Date(), updatedAt: new Date() })
+			.where(eq(knowledgeSources.id, parsedSourceId))
+
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "knowledge.file.uploaded",
+			entityType: "knowledge_file",
+			entityId: createdFile.id,
+			metadata: {
+				filename: file.name,
+				sourceId: parsedSourceId,
+				openaiFileId
+			}
+		})
+
+		revalidatePath("/knowledge")
+		revalidatePath(`/knowledge/${parsedSourceId}`)
+
+		return { success: true, data: { fileId: createdFile.id } }
+	} catch (error) {
+		console.error("Failed to upload knowledge file:", error)
+		return { success: false, error: "Failed to upload knowledge file" }
+	}
+}
+
+export async function listKnowledgeFiles(sourceId: number) {
+	try {
+		const parsedSourceId = sourceIdSchema.parse(sourceId)
+		const { teamId } = await requireTeam()
+
+		const [source] = await db_ws
+			.select({ id: knowledgeSources.id })
+			.from(knowledgeSources)
+			.where(
+				and(
+					eq(knowledgeSources.id, parsedSourceId),
+					eq(knowledgeSources.teamId, teamId)
+				)
+			)
+			.limit(1)
+
+		if (!source) {
+			return { success: false, error: "Knowledge source not found" }
+		}
+
+		const files = await db_ws
+			.select()
+			.from(knowledgeFiles)
+			.where(
+				and(
+					eq(knowledgeFiles.sourceId, parsedSourceId),
+					eq(knowledgeFiles.teamId, teamId)
+				)
+			)
+			.orderBy(desc(knowledgeFiles.createdAt))
+
+		const mapped = files.map((file) => ({
+			id: file.id,
+			sourceId: file.sourceId,
+			contentChunk:
+				file.extractedTextPreview ||
+				(file.status === "processing"
+					? "Document is still processing..."
+					: "No preview available."),
+			chunkType: "text",
+			textEmbeddingModel: "openai-vector-store",
+			metadata: {
+				filename: file.filename,
+				fileName: file.filename,
+				contentType: file.contentType,
+				size: file.size,
+				status: file.status,
+				openaiFileId: file.openaiFileId,
+				vectorStoreId: file.vectorStoreId,
+				r2Key: file.r2Key,
+				lastError: file.lastError
+			},
+			createdAt: file.createdAt,
+			updatedAt: file.updatedAt
+		}))
+
+		return { success: true, data: mapped }
+	} catch (error) {
+		console.error("Failed to list knowledge files:", error)
+		return { success: false, error: "Failed to list knowledge files" }
+	}
+}
+
+export async function getDocumentsForSource(sourceId: number) {
+	return listKnowledgeFiles(sourceId)
+}
+
+export async function checkKnowledgeFileStatus(fileId: number) {
+	try {
+		const parsedFileId = fileIdSchema.parse(fileId)
+		const { teamId, user } = await requireTeam()
+
+		const [file] = await db_ws
+			.select()
+			.from(knowledgeFiles)
+			.where(
+				and(
+					eq(knowledgeFiles.id, parsedFileId),
+					eq(knowledgeFiles.teamId, teamId)
+				)
+			)
+			.limit(1)
+
+		if (!file) {
+			return { success: false, error: "Knowledge file not found" }
+		}
+
+		if (!file.vectorStoreId || !file.openaiFileId) {
 			return {
 				success: false,
-				error: "Knowledge base source not found or unauthorized"
+				error: "File is missing vector store metadata"
 			}
 		}
 
-		// Get documents without the embedding vector (too large to send)
-		const documents = await db.execute(sql`
-			SELECT
-				id,
-				source_id,
-				content_chunk,
-				text_embedding_model,
-				metadata,
-				created_at,
-				updated_at,
-				user_id
-			FROM
-				knowledge_base_documents
-			WHERE
-				source_id = ${sourceId}
-				AND user_id = ${user.id}
-			ORDER BY
-				created_at DESC
-		`)
+		const statusInfo = await getVectorStoreFileStatus(
+			file.vectorStoreId,
+			file.openaiFileId
+		)
 
-		return { success: true, data: documents.rows }
-	} catch (error) {
-		console.error("Failed to get documents for source:", error)
-		return { success: false, error: "Failed to get documents for source" }
-	}
-}
+		let extractedTextPreview = file.extractedTextPreview
+		let status = file.status
+		let lastError: string | null = file.lastError
 
-// Perform vector similarity search
-export async function querySimilarDocuments(
-	queryEmbedding: number[],
-	options: {
-		limit?: number
-		threshold?: number
-		sourceId?: number
-	} = {}
-) {
-	const { limit = 5, threshold = 0.7, sourceId } = options
+		if (statusInfo.status === "completed") {
+			status = "ready"
+			lastError = null
 
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
+			if (!extractedTextPreview) {
+				const content = await retrieveVectorStoreFileContent(
+					file.vectorStoreId,
+					file.openaiFileId
+				)
+				const normalized = content.replace(/\s+/g, " ").trim()
+				extractedTextPreview = normalized.slice(0, 800)
+			}
+		} else if (
+			statusInfo.status === "failed" ||
+			statusInfo.status === "cancelled"
+		) {
+			status = "failed"
+			lastError = statusInfo.lastError?.message || "Processing failed"
 		}
 
-		// Convert embedding array to PostgreSQL format
-		const vectorValues = queryEmbedding.join(",")
+		await db_ws
+			.update(knowledgeFiles)
+			.set({
+				status,
+				lastError,
+				extractedTextPreview,
+				updatedAt: new Date()
+			})
+			.where(eq(knowledgeFiles.id, parsedFileId))
 
-		// Build the query with sourceId filter if provided
-		let query = sql`
-			SELECT
-				kd.id,
-				kd.source_id,
-				kd.content_chunk,
-				kd.metadata,
-				1 - (kd.text_embedding <=> ${sql.raw(`'[${vectorValues}]'::vector`)}) as similarity
-			FROM
-				knowledge_base_documents kd
-			WHERE
-				kd.user_id = ${user.id}
-				AND 1 - (kd.text_embedding <=> ${sql.raw(`'[${vectorValues}]'::vector`)}) > ${threshold}
-		`
-
-		if (sourceId) {
-			query = sql`
-				${query} AND kd.source_id = ${sourceId}
-			`
-		}
-
-		// Add ordering and limit
-		query = sql`
-			${query}
-			ORDER BY
-				similarity DESC
-			LIMIT ${limit}
-		`
-
-		const results = await db.execute<VectorQueryResult>(query)
-
-		return { success: true, data: results.rows }
-	} catch (error) {
-		console.error("Failed to query similar documents:", error)
-		return { success: false, error: "Failed to query similar documents" }
-	}
-}
-
-// Create pgvector extension and indexes
-export async function setupPgVector() {
-	try {
-		// Only allow authenticated admin users to run this
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
-
-		// Create pgvector extension if it doesn't exist
-		await db.execute(sql`CREATE EXTENSION IF NOT EXISTS vector;`)
-
-		// Create HNSW index for efficient vector search
-		await db.execute(sql`
-			CREATE INDEX IF NOT EXISTS knowledge_base_documents_embedding_idx
-			ON knowledge_base_documents
-			USING hnsw (text_embedding vector_cosine_ops)
-			WITH (m = 16, ef_construction = 64);
-		`)
-
-		return {
-			success: true,
-			message: "PgVector setup completed successfully"
-		}
-	} catch (error) {
-		console.error("Failed to setup pgvector:", error)
-		return { success: false, error: "Failed to setup pgvector" }
-	}
-}
-
-// Get document count statistics
-export async function getKnowledgeBaseStats() {
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
-
-		const sourceCountQuery = db
-			.select({ count: sql<number>`count(*)` })
-			.from(knowledgeBaseSources)
-			.where(eq(knowledgeBaseSources.userId, user.id))
-
-		const documentCountQuery = db
-			.select({ count: sql<number>`count(*)` })
-			.from(knowledgeBaseDocuments)
-			.where(eq(knowledgeBaseDocuments.userId, user.id))
-
-		const [sourceCount, documentCount] = await Promise.all([
-			sourceCountQuery,
-			documentCountQuery
-		])
+		await logAuditEvent({
+			teamId,
+			actorUserId: user.id,
+			action: "knowledge.file.status_checked",
+			entityType: "knowledge_file",
+			entityId: parsedFileId,
+			metadata: {
+				status: statusInfo.status
+			}
+		})
 
 		return {
 			success: true,
 			data: {
-				sourceCount: sourceCount[0]?.count || 0,
-				documentCount: documentCount[0]?.count || 0
+				status,
+				lastError,
+				extractedTextPreview
 			}
 		}
 	} catch (error) {
-		console.error("Failed to get knowledge base stats:", error)
-		return { success: false, error: "Failed to get knowledge base stats" }
+		console.error("Failed to check knowledge file status:", error)
+		return { success: false, error: "Failed to check file status" }
 	}
 }
 
-// Perform hybrid search with text query
+export async function getKnowledgeBaseStats() {
+	try {
+		const { teamId } = await requireTeam()
+
+		const [sourcesCount] = await db_ws
+			.select({ count: sql<number>`count(*)` })
+			.from(knowledgeSources)
+			.where(eq(knowledgeSources.teamId, teamId))
+
+		const [filesCount] = await db_ws
+			.select({ count: sql<number>`count(*)` })
+			.from(knowledgeFiles)
+			.where(eq(knowledgeFiles.teamId, teamId))
+
+		return {
+			success: true,
+			data: {
+				sourceCount: Number(sourcesCount?.count || 0),
+				documentCount: Number(filesCount?.count || 0)
+			}
+		}
+	} catch (error) {
+		console.error("Failed to get knowledge stats:", error)
+		return { success: false, error: "Failed to get knowledge stats" }
+	}
+}
+
 export async function performRAGQuery(
 	query: string,
 	options: {
 		limit?: number
-		threshold?: number
 		sourceId?: number
+		sourceIds?: number[]
+		threshold?: number
 	} = {}
-) {
-	const { limit = 5, threshold = 0.7, sourceId } = options
-
+): Promise<RAGQueryResult> {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const {
+			query: parsedQuery,
+			limit = 10,
+			sourceId,
+			sourceIds,
+			threshold
+		} = querySchema.parse({
+			query,
+			limit: options.limit,
+			sourceId: options.sourceId,
+			sourceIds: options.sourceIds,
+			threshold: options.threshold
+		})
 
-		// Import the query embedding function
-		const { generateQueryEmbedding } = await import(
-			"./knowledge-base-files"
-		)
-
-		// Generate embedding for the query
-		const queryEmbedding = await generateQueryEmbedding(query)
-
-		// Perform vector similarity search
-		const vectorSimilarityResults = await querySimilarDocuments(
-			queryEmbedding,
-			{
-				limit: Math.floor(limit * 0.7), // Use 70% of limit for vector search
-				threshold,
-				sourceId
-			}
-		)
-
-		// Fallback to text search to fill remaining slots
-		const remainingLimit =
-			limit -
-			(vectorSimilarityResults.success
-				? vectorSimilarityResults.data?.length || 0
-				: 0)
-
-		let hybridResults: Record<string, unknown>[] = []
-
-		if (vectorSimilarityResults.success && vectorSimilarityResults.data) {
-			// Add source information to vector results
-			hybridResults = await Promise.all(
-				vectorSimilarityResults.data.map(
-					async (doc: VectorQueryResult) => {
-						// Get source information
-						const sourceInfo = await db.execute(sql`
-						SELECT name, type
-						FROM knowledge_base_sources
-						WHERE id = ${doc.source_id} AND user_id = ${user.id}
-						LIMIT 1
-					`)
-
-						return {
-							...doc,
-							source_name: sourceInfo.rows[0]?.name || "Unknown",
-							source_type: sourceInfo.rows[0]?.type || "unknown"
-						}
-					}
+		const scopedSourceIds = Array.from(
+			new Set(
+				[
+					...(typeof sourceId === "number" ? [sourceId] : []),
+					...(Array.isArray(sourceIds) ? sourceIds : [])
+				].filter(
+					(value): value is number =>
+						Number.isInteger(value) && value > 0
 				)
 			)
-		}
+		)
+		const scopedSourceIdSet =
+			scopedSourceIds.length > 0 ? new Set(scopedSourceIds) : null
 
-		// If we need more results, do text search for remaining slots
-		if (remainingLimit > 0) {
-			// Get IDs already found to avoid duplicates
-			const existingIds = hybridResults.map((r) => r.id)
+		const { teamId } = await requireTeam()
+		const vectorStoreId = await getTeamVectorStoreId(teamId)
 
-			let textSearchQuery = sql`
-				SELECT
-					kd.id,
-					kd.source_id,
-					kd.content_chunk,
-					kd.metadata,
-					ks.name as source_name,
-					ks.type as source_type,
-					0.5 as similarity
-				FROM
-					knowledge_base_documents kd
-				JOIN
-					knowledge_base_sources ks ON kd.source_id = ks.id
-				WHERE
-					kd.user_id = ${user.id}
-					AND (
-						kd.content_chunk ILIKE ${`%${query}%`}
-						OR ks.name ILIKE ${`%${query}%`}
-					)
-			`
-
-			if (sourceId) {
-				textSearchQuery = sql`
-					${textSearchQuery} AND kd.source_id = ${sourceId}
-				`
+		if (!vectorStoreId) {
+			return {
+				success: true,
+				data: [],
+				query: parsedQuery,
+				searchType: "vector"
 			}
+		}
 
-			if (existingIds.length > 0) {
-				const idsPlaceholder = existingIds.map(() => "?").join(",")
-				textSearchQuery = sql`
-					${textSearchQuery} AND kd.id NOT IN (${sql.raw(existingIds.join(","))})
-				`
+		const searchResults = await searchVectorStore(
+			vectorStoreId,
+			parsedQuery,
+			limit
+		)
+
+		const filteredResults = searchResults.data.filter((result) =>
+			typeof threshold === "number" ? result.score >= threshold : true
+		)
+		const fileIds = filteredResults.map((result) => result.file_id)
+		if (fileIds.length === 0) {
+			return {
+				success: true,
+				data: [],
+				query: parsedQuery,
+				searchType: "vector"
 			}
-
-			// Add ordering and limit
-			textSearchQuery = sql`
-				${textSearchQuery}
-				ORDER BY
-					LENGTH(kd.content_chunk) ASC
-				LIMIT ${remainingLimit}
-			`
-
-			const textResults = await db.execute(textSearchQuery)
-			hybridResults = [...hybridResults, ...textResults.rows]
 		}
 
-		return {
-			success: true,
-			data: hybridResults,
-			query: query,
-			searchType: "hybrid" // Indicate this was a hybrid search
-		}
-	} catch (error) {
-		console.error("Failed to perform RAG query:", error)
-		return { success: false, error: "Failed to perform search" }
-	}
-}
-
-// Perform advanced RAG query with multiple strategies
-export async function performAdvancedRAGQuery(
-	query: string,
-	options: {
-		limit?: number
-		threshold?: number
-		sourceId?: number
-		images?: string[]
-		enableQueryRewriting?: boolean
-		enableHyde?: boolean
-		enableReranking?: boolean
-	} = {}
-) {
-	const {
-		limit = 5,
-		threshold = 0.7,
-		sourceId,
-		images,
-		enableQueryRewriting = true,
-		enableHyde = true,
-		enableReranking = true
-	} = options
-
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
-
-		// Import advanced functions
-		const { generateQueryEmbedding, generateMultimodalQueryEmbedding } =
-			await import("./knowledge-base-files")
-
-		// Step 1: Analyze query
-		const queryAnalysis = analyzeQuery(query, images)
-
-		// Step 2: Generate embeddings using multiple strategies
-		const embeddingStrategies: Array<{
-			type: string
-			embedding: number[]
-			weight: number
-		}> = []
-
-		// Primary embedding strategy
-		if (queryAnalysis.hasVisualContent) {
-			const multimodalEmbedding = await generateMultimodalQueryEmbedding(
-				query,
-				images
-			)
-			embeddingStrategies.push({
-				type: "multimodal",
-				embedding: multimodalEmbedding,
-				weight: 0.6
+		const files = await db_ws
+			.select({
+				file: knowledgeFiles,
+				source: knowledgeSources
 			})
-		} else {
-			const textEmbedding = await generateQueryEmbedding(query)
-			embeddingStrategies.push({
-				type: "text",
-				embedding: textEmbedding,
-				weight: 0.7
-			})
-		}
-
-		// Query rewriting strategy
-		if (enableQueryRewriting && queryAnalysis.complexity !== "simple") {
-			const rewrittenQueries = generateRewrittenQueries(
-				query,
-				queryAnalysis.queryType
+			.from(knowledgeFiles)
+			.innerJoin(
+				knowledgeSources,
+				eq(knowledgeSources.id, knowledgeFiles.sourceId)
 			)
-			for (const rewrittenQuery of rewrittenQueries.slice(0, 2)) {
-				const rewriteEmbedding =
-					await generateQueryEmbedding(rewrittenQuery)
-				embeddingStrategies.push({
-					type: "rewritten",
-					embedding: rewriteEmbedding,
-					weight: 0.2
-				})
+			.where(
+				and(
+					eq(knowledgeFiles.teamId, teamId),
+					inArray(knowledgeFiles.openaiFileId, fileIds)
+				)
+			)
+
+		const fileMap = new Map(
+			files.map((row) => [row.file.openaiFileId, row])
+		)
+
+		const mapped = filteredResults.flatMap((result): RAGSearchResult[] => {
+			const row = fileMap.get(result.file_id)
+			if (!row) return []
+			if (
+				scopedSourceIdSet &&
+				!scopedSourceIdSet.has(row.file.sourceId)
+			) {
+				return []
 			}
-		}
 
-		// Step 3: Retrieve documents using multiple strategies
-		const allResults: VectorQueryResult[] = []
+			const contentItems = Array.isArray(result.content)
+				? result.content
+				: []
+			const chunkContent = contentItems
+				.filter((item) => item.type === "text")
+				.map((item) => item.text)
+				.join("\n")
 
-		for (const strategy of embeddingStrategies) {
-			const strategyResults = await querySimilarDocuments(
-				strategy.embedding,
+			const contentChunk =
+				chunkContent || row.file.extractedTextPreview || ""
+
+			return [
 				{
-					limit: Math.ceil(limit * 2 * strategy.weight),
-					threshold: threshold * 0.8,
-					sourceId
+					id: row.file.id,
+					source_id: row.file.sourceId,
+					sourceId: row.file.sourceId,
+					content_chunk: contentChunk,
+					contentChunk,
+					metadata: {
+						filename: row.file.filename,
+						fileName: row.file.filename,
+						contentType: row.file.contentType,
+						size: row.file.size
+					},
+					source_name: row.source.name,
+					source_type: row.source.type,
+					similarity: result.score
 				}
-			)
-
-			if (strategyResults.success && strategyResults.data) {
-				// Add strategy metadata
-				const enrichedResults = strategyResults.data.map(
-					(doc: VectorQueryResult) => ({
-						...doc,
-						retrievalStrategy: strategy.type,
-						strategyWeight: strategy.weight
-					})
-				)
-				allResults.push(...enrichedResults)
-			}
-		}
-
-		// Step 4: Deduplicate results
-		const uniqueResults = deduplicateDocuments(allResults)
-
-		// Step 5: Rerank if enabled
-		let finalResults = uniqueResults
-		if (enableReranking && uniqueResults.length > limit) {
-			finalResults = await rerankerResults(query, uniqueResults, limit)
-		} else {
-			finalResults = uniqueResults
-				.sort((a, b) => b.similarity - a.similarity)
-				.slice(0, limit)
-		}
-
-		// Step 6: Add source information
-		const enrichedResults = await Promise.all(
-			finalResults.map(async (doc: VectorQueryResult) => {
-				const sourceInfo = await db.execute(sql`
-					SELECT name, type
-					FROM knowledge_base_sources
-					WHERE id = ${doc.sourceId} AND user_id = ${user.id}
-					LIMIT 1
-				`)
-
-				return {
-					...doc,
-					source_name: sourceInfo.rows[0]?.name || "Unknown",
-					source_type: sourceInfo.rows[0]?.type || "unknown"
-				}
-			})
-		)
+			]
+		})
 
 		return {
 			success: true,
-			data: enrichedResults,
-			query: query,
-			searchType: "advanced",
-			metadata: {
-				queryAnalysis,
-				strategiesUsed: embeddingStrategies.map((s) => s.type),
-				totalDocumentsRetrieved: allResults.length,
-				documentsAfterDeduplication: uniqueResults.length,
-				finalDocuments: finalResults.length,
-				rerankingEnabled: enableReranking
-			}
+			data: mapped,
+			query: parsedQuery,
+			searchType: "vector"
 		}
 	} catch (error) {
-		console.error("Failed to perform advanced RAG query:", error)
-		return { success: false, error: "Failed to perform advanced search" }
+		console.error("Failed to perform knowledge search:", error)
+		return { success: false, error: "Failed to perform knowledge search" }
 	}
 }
 
-// Query analysis helper
-function analyzeQuery(query: string, images?: string[]) {
-	const hasVisualContent = images && images.length > 0
-	const words = query.split(/\s+/).length
-	const hasMultipleConcepts =
-		(query.match(/\band\b|\bor\b/g) || []).length > 1
-
-	let complexity: "simple" | "moderate" | "complex"
-	if (words > 15 || hasMultipleConcepts) {
-		complexity = "complex"
-	} else if (words > 8) {
-		complexity = "moderate"
-	} else {
-		complexity = "simple"
-	}
-
-	let queryType: string
-	const lowercaseQuery = query.toLowerCase()
-	if (hasVisualContent) {
-		queryType = "multimodal"
-	} else if (
-		/\b(how to|how do|step|process|procedure)\b/.test(lowercaseQuery)
-	) {
-		queryType = "procedural"
-	} else if (
-		/\b(compare|difference|analysis|evaluate)\b/.test(lowercaseQuery)
-	) {
-		queryType = "analytical"
-	} else if (
-		/\b(explain|describe|what is|tell me about)\b/.test(lowercaseQuery)
-	) {
-		queryType = "contextual"
-	} else {
-		queryType = "factual"
-	}
-
-	return {
-		hasVisualContent,
-		complexity,
-		queryType
-	}
-}
-
-// Query rewriting helper
-function generateRewrittenQueries(query: string, queryType: string): string[] {
-	const rewriteStrategies: Record<string, string[]> = {
-		factual: [
-			`What are the key facts about ${extractMainConcept(query)}?`,
-			`Provide specific information regarding ${extractMainConcept(query)}`
-		],
-		analytical: [
-			`Compare and analyze ${extractMainConcept(query)}`,
-			`What are the advantages and disadvantages of ${extractMainConcept(query)}?`
-		],
-		contextual: [
-			`Explain thoroughly: ${extractMainConcept(query)}`,
-			`Provide comprehensive information about ${extractMainConcept(query)}`
-		],
-		procedural: [
-			`Step-by-step instructions for ${extractMainConcept(query)}`,
-			`How to implement ${extractMainConcept(query)}`
-		],
-		multimodal: [
-			`Visual and textual information about ${extractMainConcept(query)}`,
-			`Describe what is shown regarding ${extractMainConcept(query)}`
-		]
-	}
-
-	return rewriteStrategies[queryType] || rewriteStrategies.factual
-}
-
-// Extract main concept helper
-function extractMainConcept(query: string): string {
-	const stopWords = [
-		"what",
-		"how",
-		"when",
-		"where",
-		"why",
-		"is",
-		"are",
-		"the",
-		"a",
-		"an"
-	]
-	const words = query
-		.toLowerCase()
-		.split(/\s+/)
-		.filter((word) => !stopWords.includes(word))
-	return words.slice(0, 3).join(" ")
-}
-
-// Deduplication helper
-function deduplicateDocuments(docs: VectorQueryResult[]): VectorQueryResult[] {
-	const seen = new Map()
-	const result = []
-
-	for (const doc of docs) {
-		const key = `${doc.sourceId}-${doc.id}`
-		if (!seen.has(key) || seen.get(key).similarity < doc.similarity) {
-			seen.set(key, doc)
-		}
-	}
-
-	return Array.from(seen.values())
-}
-
-// Simple reranking implementation (placeholder for Voyage reranker)
-async function rerankerResults(
-	query: string,
-	docs: VectorQueryResult[],
-	limit: number
-): Promise<VectorQueryResult[]> {
-	// For now, implement simple semantic reranking
-	// TODO: Integrate Voyage reranker API
-
-	const queryWords = query.toLowerCase().split(/\s+/)
-
-	const scoredDocs = docs.map((doc) => {
-		const docWords = doc.contentChunk.toLowerCase().split(/\s+/)
-		const intersection = queryWords.filter((word) =>
-			docWords.includes(word)
-		)
-		const rerankScore =
-			intersection.length / Math.max(queryWords.length, docWords.length)
-
-		return {
-			...doc,
-			rerankScore,
-			reranked: true
-		}
-	})
-
-	return scoredDocs
-		.sort(
-			(a, b) =>
-				b.rerankScore + b.similarity - (a.rerankScore + a.similarity)
-		)
-		.slice(0, limit)
-}
-
-// Generate RAG response with context and citations
 export async function generateRAGResponse(
 	query: string,
 	options: {
@@ -821,47 +745,38 @@ export async function generateRAGResponse(
 		modelProvider?: "openai" | "anthropic" | "google"
 		modelName?: string
 		includeMetadata?: boolean
-		stream?: boolean
 	} = {}
 ) {
-	const {
-		limit = 5,
-		threshold = 0.7,
-		sourceId,
-		modelProvider = "openai",
-		modelName = "gpt-4o-mini",
-		includeMetadata = true,
-		stream = false
-	} = options
-
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
-
-		// Step 1: Retrieve relevant context using existing RAG query
+		const {
+			limit = 5,
+			threshold,
+			sourceId,
+			modelProvider = "openai",
+			modelName = "gpt-4o-mini",
+			includeMetadata = true
+		} = options
 		const contextResult = await performRAGQuery(query, {
 			limit,
 			threshold,
 			sourceId
 		})
 
-		if (!contextResult.success || !contextResult.data) {
+		if (!contextResult.success) {
 			return {
 				success: false,
 				error: "Failed to retrieve relevant context"
 			}
 		}
 
-		const contextDocuments = contextResult.data as VectorQueryResult[]
+		const contextDocuments = contextResult.data ?? []
 
 		if (contextDocuments.length === 0) {
 			return {
 				success: true,
 				data: {
 					answer: "I don't have enough information in the knowledge base to answer this question. Please try a different query or add more relevant documents.",
-					query: query,
+					query,
 					sources: [],
 					metadata: includeMetadata
 						? {
@@ -869,7 +784,7 @@ export async function generateRAGResponse(
 								modelName,
 								contextDocumentsUsed: 0,
 								searchType:
-									contextResult.searchType || "hybrid",
+									contextResult.searchType || "vector",
 								usage: null
 							}
 						: undefined
@@ -877,16 +792,13 @@ export async function generateRAGResponse(
 			}
 		}
 
-		// Step 2: Prepare context for LLM
 		const contextText = contextDocuments
 			.map((doc, index) => {
-				const sourceInfo = `Source: ${doc.source_name || "Unknown"} (${doc.source_type || "unknown"})`
-				const content = doc.content_chunk || doc.contentChunk || ""
-				return `[${index + 1}] ${sourceInfo}\n${content}`
+				const sourceInfo = `Source: ${doc.source_name} (${doc.source_type})`
+				return `[${index + 1}] ${sourceInfo}\n${doc.content_chunk}`
 			})
 			.join("\n\n")
 
-		// Step 3: Create system prompt for RAG
 		const systemPrompt = `You are an AI assistant helping users find information from their knowledge base.
 
 Your task is to answer the user's question based ONLY on the provided context documents. Follow these guidelines:
@@ -902,54 +814,40 @@ ${contextText}
 
 If the context doesn't contain relevant information to answer the question, respond with: "I don't have enough information in the knowledge base to answer this question. Please try a different query or add more relevant documents."`
 
-		const userPrompt = `Question: ${query}
+		const userPrompt = `Question: ${query}\n\nPlease provide a comprehensive answer based on the context documents above.`
 
-Please provide a comprehensive answer based on the context documents above.`
-
-		// Step 4: Generate response using Vercel AI SDK
 		let response: string
 		let usage: Record<string, unknown> | null = null
 
-		try {
-			// Import AI functions from helper
-			const { generateAIText } = await import("@/lib/ai-helpers")
+		const { generateAIText } = await import("@/lib/ai-helpers")
 
-			response = await generateAIText({
-				prompt: userPrompt,
-				system: systemPrompt,
-				category: "text",
-				task: "general",
-				maxTokens: 1000,
-				temperature: 0.1
-			})
+		response = await generateAIText({
+			prompt: userPrompt,
+			system: systemPrompt,
+			category: "text",
+			task: "general",
+			maxTokens: 1000,
+			temperature: 0.1
+		})
 
-			// Mock usage data since Vercel AI SDK doesn't expose this directly
-			usage = {
-				promptTokens: Math.ceil((systemPrompt + userPrompt).length / 4),
-				completionTokens: Math.ceil(response.length / 4),
-				totalTokens: Math.ceil(
-					(systemPrompt + userPrompt + response).length / 4
-				)
-			}
-		} catch (aiError) {
-			console.error("AI generation error:", aiError)
-			return {
-				success: false,
-				error: "Failed to generate response. Please check your API configuration."
-			}
+		usage = {
+			promptTokens: Math.ceil((systemPrompt + userPrompt).length / 4),
+			completionTokens: Math.ceil(response.length / 4),
+			totalTokens: Math.ceil(
+				(systemPrompt + userPrompt + response).length / 4
+			)
 		}
 
-		// Step 5: Prepare response with metadata
 		const ragResponse = {
 			answer: response,
-			query: query,
+			query,
 			sources: contextDocuments.map((doc, index) => ({
 				id: doc.id,
-				sourceId: doc.source_id || doc.sourceId,
+				sourceId: doc.source_id,
 				sourceName: doc.source_name,
 				sourceType: doc.source_type,
-				similarity: doc.similarity,
-				contentPreview: `${String(doc.content_chunk || doc.contentChunk || "").substring(0, 200)}...`,
+				similarity: doc.similarity || 0,
+				contentPreview: `${doc.content_chunk.substring(0, 200)}...`,
 				citationIndex: index + 1,
 				metadata: doc.metadata
 			})),
@@ -958,244 +856,82 @@ Please provide a comprehensive answer based on the context documents above.`
 						modelProvider,
 						modelName,
 						contextDocumentsUsed: contextDocuments.length,
-						searchType: contextResult.searchType || "hybrid",
+						searchType: contextResult.searchType || "vector",
 						usage
 					}
 				: undefined
 		}
 
-		return {
-			success: true,
-			data: ragResponse
-		}
+		return { success: true, data: ragResponse }
 	} catch (error) {
 		console.error("Failed to generate RAG response:", error)
-		return {
-			success: false,
-			error: "Failed to generate response"
-		}
+		return { success: false, error: "Failed to generate response" }
 	}
 }
 
-// Generate streaming RAG response for real-time chat experience
-export async function generateStreamingRAGResponse(
+export async function performAdvancedRAGQuery(
 	query: string,
 	options: {
 		limit?: number
-		threshold?: number
 		sourceId?: number
-		modelProvider?: "openai" | "anthropic" | "google"
-		modelName?: string
-		includeMetadata?: boolean
+		threshold?: number
+		enableQueryRewriting?: boolean
+		enableHyde?: boolean
+		enableReranking?: boolean
 	} = {}
 ) {
-	const {
-		limit = 5,
-		threshold = 0.7,
-		sourceId,
-		modelProvider = "openai",
-		modelName = "gpt-4o-mini",
-		includeMetadata = true
-	} = options
+	const result = await performRAGQuery(query, options)
+	if (!result.success) {
+		return result
+	}
 
-	try {
-		const user = await currentUser()
-		if (!user) {
-			throw new Error("Unauthorized")
-		}
-
-		// Step 1: Retrieve relevant context
-		const contextResult = await performRAGQuery(query, {
-			limit,
-			threshold,
-			sourceId
-		})
-
-		if (!contextResult.success || !contextResult.data) {
-			throw new Error("Failed to retrieve relevant context")
-		}
-
-		const contextDocuments = contextResult.data as VectorQueryResult[]
-
-		if (contextDocuments.length === 0) {
-			throw new Error("No relevant documents found in knowledge base")
-		}
-
-		// Step 2: Prepare context for LLM
-		const contextText = contextDocuments
-			.map((doc, index) => {
-				const sourceInfo = `Source: ${doc.source_name || "Unknown"} (${doc.source_type || "unknown"})`
-				const content = doc.content_chunk || doc.contentChunk || ""
-				return `[${index + 1}] ${sourceInfo}\n${content}`
-			})
-			.join("\n\n")
-
-		const systemPrompt = `You are an AI assistant helping users find information from their knowledge base.
-
-Answer the user's question based ONLY on the provided context documents. Follow these guidelines:
-
-1. **Answer based on context**: Only use information from the provided context documents
-2. **Cite sources**: Reference specific sources using [1], [2], etc. format
-3. **Be accurate**: If the context doesn't contain enough information, say so
-4. **Be concise**: Provide clear, direct answers
-5. **Maintain context**: Synthesize related information from multiple sources
-
-Context Documents:
-${contextText}`
-
-		const userPrompt = `Question: ${query}
-
-Please provide a comprehensive answer based on the context documents above.`
-
-		// Step 3: Return streaming configuration for use with streamText
-		return {
-			success: true,
-			data: {
-				systemPrompt,
-				userPrompt,
-				contextDocuments,
-				searchMetadata: {
-					modelProvider,
-					modelName,
-					contextDocumentsUsed: contextDocuments.length,
-					searchType: contextResult.searchType || "hybrid"
-				}
-			}
-		}
-	} catch (error) {
-		console.error("Failed to prepare streaming RAG response:", error)
-		return {
-			success: false,
-			error:
-				error instanceof Error
-					? error.message
-					: "Failed to prepare response"
+	return {
+		...result,
+		searchType: "advanced",
+		metadata: {
+			queryAnalysis: {
+				hasVisualContent: false,
+				complexity: "simple",
+				queryType: "factual"
+			},
+			strategiesUsed: [
+				"vector_store",
+				options.enableQueryRewriting ? "rewritten" : null,
+				options.enableHyde ? "hyde" : null
+			].filter((strategy): strategy is string => Boolean(strategy)),
+			totalDocumentsRetrieved: result.data ? result.data.length : 0,
+			documentsAfterDeduplication: result.data ? result.data.length : 0,
+			finalDocuments: result.data ? result.data.length : 0,
+			rerankingEnabled: options.enableReranking ?? false
 		}
 	}
 }
 
-// Enhanced RAG query with preprocessing and multiple strategies
 export async function performEnhancedRAGQuery(
 	query: string,
 	options: {
 		limit?: number
-		threshold?: number
 		sourceId?: number
-		enableQueryExpansion?: boolean
-		enableSemanticReranking?: boolean
-		enableHybridSearch?: boolean
+		threshold?: number
 	} = {}
 ) {
-	const {
-		limit = 10,
-		threshold = 0.7,
-		sourceId,
-		enableQueryExpansion = true,
-		enableSemanticReranking = true,
-		enableHybridSearch = true
-	} = options
+	const result = await performRAGQuery(query, options)
+	if (!result.success) {
+		return result
+	}
 
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
+	return {
+		...result,
+		searchType: "enhanced",
+		metadata: {
+			strategiesUsed: ["vector_store"],
+			finalDocuments: result.data ? result.data.length : 0
 		}
-
-		// Step 1: Query preprocessing and expansion
-		let queries = [query]
-
-		if (enableQueryExpansion) {
-			const expandedQueries = await expandQuery(query)
-			queries = [...queries, ...expandedQueries.slice(0, 2)] // Add up to 2 expanded queries
-		}
-
-		// Step 2: Execute multiple search strategies
-		const allResults: VectorQueryResult[] = []
-
-		for (const currentQuery of queries) {
-			// Vector similarity search
-			const vectorResult = await performRAGQuery(currentQuery, {
-				limit: Math.ceil(limit / queries.length),
-				threshold,
-				sourceId
-			})
-
-			if (vectorResult.success && vectorResult.data) {
-				allResults.push(...(vectorResult.data as VectorQueryResult[]))
-			}
-		}
-
-		// Step 3: Deduplicate results
-		const deduplicatedResults = deduplicateDocuments(allResults)
-
-		// Step 4: Semantic reranking
-		let finalResults = deduplicatedResults
-		if (enableSemanticReranking && deduplicatedResults.length > 0) {
-			finalResults = await rerankerResults(
-				query,
-				deduplicatedResults,
-				limit
-			)
-		}
-
-		// Step 5: Apply final limit
-		const limitedResults = finalResults.slice(0, limit)
-
-		return {
-			success: true,
-			data: limitedResults,
-			query: query,
-			searchType: "enhanced",
-			metadata: {
-				originalQuery: query,
-				expandedQueries: queries.slice(1),
-				totalCandidates: allResults.length,
-				finalResults: limitedResults.length,
-				strategiesUsed: {
-					queryExpansion: enableQueryExpansion,
-					semanticReranking: enableSemanticReranking,
-					hybridSearch: enableHybridSearch
-				}
-			}
-		}
-	} catch (error) {
-		console.error("Failed to perform enhanced RAG query:", error)
-		return { success: false, error: "Failed to perform enhanced search" }
 	}
 }
 
-// Query expansion using AI to generate related queries
-async function expandQuery(query: string): Promise<string[]> {
-	try {
-		const { generateAIText } = await import("@/lib/ai-helpers")
-
-		const expansionPrompt = `Generate 3 alternative phrasings of this query that might help find relevant information:
-
-Original Query: "${query}"
-
-Requirements:
-1. Keep the same intent and meaning
-2. Use different vocabulary and phrasing
-3. Consider synonyms and related terms
-4. Focus on finding comprehensive information
-
-Return only the alternative queries, one per line, without numbering or formatting.`
-
-		const expandedText = await generateAIText({
-			prompt: expansionPrompt,
-			category: "text",
-			task: "general",
-			maxTokens: 200,
-			temperature: 0.5
-		})
-
-		return expandedText
-			.split("\n")
-			.map((line) => line.trim())
-			.filter((line) => line.length > 0 && line !== query)
-			.slice(0, 3)
-	} catch (error) {
-		console.error("Failed to expand query:", error)
-		return []
-	}
-}
+export const listKnowledgeSources = getKnowledgeBaseSources
+export const createKnowledgeSource = createKnowledgeBaseSource
+export const deleteKnowledgeSource = deleteKnowledgeBaseSource
+export const queryKnowledge = performRAGQuery
+export const getKnowledgeStats = getKnowledgeBaseStats

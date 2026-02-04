@@ -1,6 +1,6 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
+import { requireTeam } from "@/lib/auth/session"
 import { and, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm"
 
 import { db_ws } from "@/db"
@@ -68,15 +68,17 @@ export interface EnhancedCampaignData {
 	}
 }
 
+async function getCampaignContext() {
+	const { teamId, user } = await requireTeam()
+	return { teamId, userId: user.id }
+}
+
 // Get all campaigns with optional filtering
 export async function getCampaigns(filter: CampaignFilter = {}) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getCampaignContext()
 
-		const whereConditions: SQL[] = [eq(campaigns.userId, userId)]
+		const whereConditions: SQL[] = [eq(campaigns.teamId, teamId)]
 
 		if (filter.search) {
 			const searchPattern = `%${filter.search}%`
@@ -137,10 +139,7 @@ export async function getCampaigns(filter: CampaignFilter = {}) {
 // Get a single campaign by ID with detailed metrics
 export async function getCampaignById(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const campaignResult = await db_ws
 			.select({
@@ -156,7 +155,7 @@ export async function getCampaignById(campaignId: number) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
@@ -184,7 +183,7 @@ export async function getCampaignById(campaignId: number) {
 			.from(calls)
 			.leftJoin(leads, eq(leads.id, calls.leadId))
 			.where(
-				and(eq(calls.campaignId, campaignId), eq(calls.userId, userId))
+				and(eq(calls.campaignId, campaignId), eq(calls.teamId, teamId))
 			)
 
 		const metrics = metricsResult[0] || {
@@ -217,15 +216,14 @@ export async function createCampaign(campaignData: {
 	status?: CampaignStatus
 }) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, userId } = await getCampaignContext()
 
 		const newCampaign = await db_ws
 			.insert(campaigns)
 			.values({
 				...campaignData,
+				teamId,
+				createdByUserId: userId,
 				userId,
 				status: (campaignData.status || "draft") as CampaignStatus
 			})
@@ -254,10 +252,7 @@ export async function updateCampaign(
 	}
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const updatedCampaign = await db_ws
 			.update(campaigns)
@@ -266,7 +261,7 @@ export async function updateCampaign(
 				updatedAt: new Date()
 			})
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.returning()
 
@@ -292,15 +287,12 @@ export async function updateCampaign(
 // Delete a campaign
 export async function deleteCampaign(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const deletedCampaign = await db_ws
 			.delete(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.returning()
 
@@ -323,10 +315,7 @@ export async function createEnhancedCampaign(
 	campaignData: EnhancedCampaignData
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId, userId } = await getCampaignContext()
 
 		// Validate voice agent if provided
 		if (campaignData.voiceAgentId) {
@@ -336,7 +325,7 @@ export async function createEnhancedCampaign(
 				.where(
 					and(
 						eq(voiceAgents.id, campaignData.voiceAgentId),
-						eq(voiceAgents.userId, userId)
+						eq(voiceAgents.teamId, teamId)
 					)
 				)
 				.limit(1)
@@ -355,11 +344,13 @@ export async function createEnhancedCampaign(
 			.values({
 				name: campaignData.name,
 				description: campaignData.description,
+				teamId,
 				startDate: campaignData.startDate,
 				endDate: campaignData.endDate,
 				status: (campaignData.status || "draft") as CampaignStatus,
 				voiceAgentId: campaignData.voiceAgentId,
 				campaignSettings: campaignData.campaignSettings || {},
+				createdByUserId: userId,
 				userId
 			})
 			.returning()
@@ -381,17 +372,14 @@ export async function assignVoiceAgentToCampaign(
 	voiceAgentId: number
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getCampaignContext()
 
 		// Validate campaign ownership
 		const campaign = await db_ws
 			.select({ id: campaigns.id })
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
@@ -410,7 +398,7 @@ export async function assignVoiceAgentToCampaign(
 			.where(
 				and(
 					eq(voiceAgents.id, voiceAgentId),
-					eq(voiceAgents.userId, userId)
+					eq(voiceAgents.teamId, teamId)
 				)
 			)
 			.limit(1)
@@ -431,7 +419,7 @@ export async function assignVoiceAgentToCampaign(
 				updatedAt: new Date()
 			})
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.returning()
 
@@ -452,10 +440,7 @@ export async function configureCampaignSettings(
 	settings: EnhancedCampaignData["campaignSettings"]
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const updatedCampaign = await db_ws
 			.update(campaigns)
@@ -464,7 +449,7 @@ export async function configureCampaignSettings(
 				updatedAt: new Date()
 			})
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.returning()
 
@@ -492,10 +477,7 @@ export async function configureCampaignSettings(
 // Archive a campaign (soft delete)
 export async function archiveCampaign(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const [updatedCampaign] = await db_ws
 			.update(campaigns)
@@ -504,7 +486,7 @@ export async function archiveCampaign(campaignId: number) {
 				updatedAt: new Date()
 			})
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.returning()
 
@@ -522,10 +504,7 @@ export async function archiveCampaign(campaignId: number) {
 // Unarchive a campaign
 export async function unarchiveCampaign(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const [updatedCampaign] = await db_ws
 			.update(campaigns)
@@ -534,7 +513,7 @@ export async function unarchiveCampaign(campaignId: number) {
 				updatedAt: new Date()
 			})
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.returning()
 
@@ -552,10 +531,7 @@ export async function unarchiveCampaign(campaignId: number) {
 // Bulk archive campaigns
 export async function bulkArchiveCampaigns(campaignIds: number[]) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const result = await db_ws
 			.update(campaigns)
@@ -566,7 +542,7 @@ export async function bulkArchiveCampaigns(campaignIds: number[]) {
 			.where(
 				and(
 					sql`${campaigns.id} = ANY(${campaignIds})`,
-					eq(campaigns.userId, userId)
+					eq(campaigns.teamId, teamId)
 				)
 			)
 			.returning({ id: campaigns.id })
@@ -581,13 +557,10 @@ export async function bulkArchiveCampaigns(campaignIds: number[]) {
 // Get archived campaigns
 export async function getArchivedCampaigns(filter: CampaignFilter = {}) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const whereConditions: SQL[] = [
-			eq(campaigns.userId, userId),
+			eq(campaigns.teamId, teamId),
 			eq(campaigns.status, "archived")
 		]
 
@@ -635,10 +608,7 @@ export async function getArchivedCampaigns(filter: CampaignFilter = {}) {
 // Permanently delete an archived campaign and all related data
 export async function permanentlyDeleteCampaign(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId } = await getCampaignContext()
 
 		// Verify campaign is archived and belongs to user
 		const campaignCheck = await db_ws
@@ -647,7 +617,7 @@ export async function permanentlyDeleteCampaign(campaignId: number) {
 			.where(
 				and(
 					eq(campaigns.id, campaignId),
-					eq(campaigns.userId, userId),
+					eq(campaigns.teamId, teamId),
 					eq(campaigns.status, "archived")
 				)
 			)
@@ -668,7 +638,7 @@ export async function permanentlyDeleteCampaign(campaignId: number) {
 				.where(
 					and(
 						eq(calls.campaignId, campaignId),
-						eq(calls.userId, userId)
+						eq(calls.teamId, teamId)
 					)
 				)
 
@@ -678,7 +648,7 @@ export async function permanentlyDeleteCampaign(campaignId: number) {
 				.where(
 					and(
 						eq(campaigns.id, campaignId),
-						eq(campaigns.userId, userId)
+						eq(campaigns.teamId, teamId)
 					)
 				)
 		})
@@ -693,17 +663,14 @@ export async function permanentlyDeleteCampaign(campaignId: number) {
 // Duplicate a campaign with modified name
 export async function duplicateCampaign(campaignId: number, newName?: string) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId, userId } = await getCampaignContext()
 
 		// Get the original campaign
 		const originalResult = await db_ws
 			.select()
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
@@ -719,11 +686,13 @@ export async function duplicateCampaign(campaignId: number, newName?: string) {
 			description: original.description
 				? `${original.description} (Duplicated)`
 				: null,
+			teamId,
 			startDate: null, // Reset dates for new campaign
 			endDate: null,
 			status: "draft" as CampaignStatus, // Always start as draft
 			voiceAgentId: original.voiceAgentId,
 			campaignSettings: original.campaignSettings,
+			createdByUserId: userId,
 			userId: userId
 		}
 
@@ -746,17 +715,14 @@ export async function createCampaignTemplate(
 	templateDescription?: string
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId, userId } = await getCampaignContext()
 
 		// Get the original campaign
 		const originalResult = await db_ws
 			.select()
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
@@ -771,6 +737,7 @@ export async function createCampaignTemplate(
 			name: templateName,
 			description:
 				templateDescription || `Template based on ${original.name}`,
+			teamId,
 			startDate: null,
 			endDate: null,
 			status: "draft" as CampaignStatus,
@@ -781,6 +748,7 @@ export async function createCampaignTemplate(
 				isTemplate: true,
 				originalCampaignId: campaignId
 			},
+			createdByUserId: userId,
 			userId: userId
 		}
 
@@ -799,17 +767,14 @@ export async function createCampaignTemplate(
 // Get campaign templates for user
 export async function getCampaignTemplates() {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await getCampaignContext()
 
 		const templates = await db_ws
 			.select()
 			.from(campaigns)
 			.where(
 				and(
-					eq(campaigns.userId, userId),
+					eq(campaigns.teamId, teamId),
 					sql`${campaigns.campaignSettings}->>'isTemplate' = 'true'`
 				)
 			)
@@ -833,10 +798,7 @@ export async function createCampaignFromTemplate(
 	}
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId, userId } = await getCampaignContext()
 
 		// Get the template
 		const templateResult = await db_ws
@@ -845,7 +807,7 @@ export async function createCampaignFromTemplate(
 			.where(
 				and(
 					eq(campaigns.id, templateId),
-					eq(campaigns.userId, userId),
+					eq(campaigns.teamId, teamId),
 					sql`${campaigns.campaignSettings}->>'isTemplate' = 'true'`
 				)
 			)
@@ -861,6 +823,7 @@ export async function createCampaignFromTemplate(
 		const newCampaignData = {
 			name: campaignData.name,
 			description: campaignData.description || template.description,
+			teamId,
 			startDate: campaignData.startDate || null,
 			endDate: campaignData.endDate || null,
 			status: "draft" as CampaignStatus,
@@ -872,6 +835,7 @@ export async function createCampaignFromTemplate(
 				originalCampaignId: undefined,
 				createdFromTemplate: templateId
 			},
+			createdByUserId: userId,
 			userId: userId
 		}
 

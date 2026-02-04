@@ -58,12 +58,10 @@ export function useKeyboardShortcuts({
 // Predefined shortcuts for communication features
 export const createCommunicationShortcuts = ({
 	onCall,
-	onEmail,
 	onText,
 	onAppointment
 }: {
 	onCall: () => void
-	onEmail: () => void
 	onText: () => void
 	onAppointment: () => void
 }): KeyboardShortcut[] => [
@@ -72,12 +70,6 @@ export const createCommunicationShortcuts = ({
 		ctrlKey: true,
 		action: onCall,
 		description: "Schedule a call (Ctrl+C)"
-	},
-	{
-		key: "e",
-		ctrlKey: true,
-		action: onEmail,
-		description: "Send email (Ctrl+E)"
 	},
 	{
 		key: "t",

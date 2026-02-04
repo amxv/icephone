@@ -273,7 +273,7 @@ export function VoicePreview({
 									variant="outline"
 									className="text-xs px-2 py-1 text-muted-foreground"
 								>
-									{voicePreset.vapiProvider}
+									OpenAI
 								</Badge>
 							</div>
 						</div>

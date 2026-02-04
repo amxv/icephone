@@ -3,15 +3,16 @@ import { headers } from "next/headers"
 import { and, eq, lte, sql } from "drizzle-orm"
 
 import { db_ws } from "@/db"
-import { campaigns, campaignQueue } from "@/db/schema"
+import { campaigns, campaignLeads, campaignQueue } from "@/db/schema"
 import {
-	processNextQueueBatch,
+	processNextQueueBatchDirect,
 	processScheduledCampaigns
 } from "@/actions/campaigns/execution"
 
 // Type for the request body
 interface ProcessCampaignRequest {
 	userId?: string
+	teamId?: string
 	campaignId?: number
 	maxCampaigns?: number
 	batchSize?: number
@@ -20,7 +21,7 @@ interface ProcessCampaignRequest {
 }
 
 // This endpoint handles automated campaign queue processing
-// Can be called by external cron services like Cloudflare Cron Triggers, GitHub Actions, or other schedulers
+// Can be called by external cron services like GitHub Actions, Vercel Cron, or other schedulers
 export async function POST(request: NextRequest) {
 	try {
 		// Validate the request is authorized (basic security)
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
 		const body = (await request.json()) as ProcessCampaignRequest
 		const {
 			userId,
+			teamId,
 			campaignId,
 			maxCampaigns = 10,
 			batchSize = 5,
@@ -44,6 +46,7 @@ export async function POST(request: NextRequest) {
 
 		console.log("🚀 Campaign processor triggered", {
 			userId,
+			teamId,
 			campaignId,
 			maxCampaigns,
 			batchSize,
@@ -65,17 +68,26 @@ export async function POST(request: NextRequest) {
 			}
 		}
 
-		let campaignsToProcess: Array<{ id: number; userId: string }> = []
+		let campaignsToProcess: Array<{
+			id: number
+			userId: string
+			teamId: string
+		}> = []
 
-		if (campaignId && userId) {
-			// Process specific campaign for specific user
+		if (campaignId) {
+			// Process specific campaign (optionally scoped to team/user)
 			const campaign = await db_ws
-				.select({ id: campaigns.id, userId: campaigns.userId })
+				.select({
+					id: campaigns.id,
+					userId: campaigns.userId,
+					teamId: campaigns.teamId
+				})
 				.from(campaigns)
 				.where(
 					and(
 						eq(campaigns.id, campaignId),
-						eq(campaigns.userId, userId),
+						teamId ? eq(campaigns.teamId, teamId) : sql`true`,
+						userId ? eq(campaigns.userId, userId) : sql`true`,
 						eq(campaigns.status, "running")
 					)
 				)
@@ -84,10 +96,32 @@ export async function POST(request: NextRequest) {
 			if (campaign.length > 0) {
 				campaignsToProcess = campaign
 			}
+		} else if (teamId) {
+			// Process all running campaigns for a specific team
+			const teamCampaigns = await db_ws
+				.select({
+					id: campaigns.id,
+					userId: campaigns.userId,
+					teamId: campaigns.teamId
+				})
+				.from(campaigns)
+				.where(
+					and(
+						eq(campaigns.teamId, teamId),
+						eq(campaigns.status, "running")
+					)
+				)
+				.limit(maxCampaigns)
+
+			campaignsToProcess = teamCampaigns
 		} else if (userId) {
-			// Process all running campaigns for a specific user
+			// Process all running campaigns for a specific user (backward compat)
 			const userCampaigns = await db_ws
-				.select({ id: campaigns.id, userId: campaigns.userId })
+				.select({
+					id: campaigns.id,
+					userId: campaigns.userId,
+					teamId: campaigns.teamId
+				})
 				.from(campaigns)
 				.where(
 					and(
@@ -101,7 +135,11 @@ export async function POST(request: NextRequest) {
 		} else {
 			// Process all running campaigns across all users (system-wide processing)
 			const runningCampaigns = await db_ws
-				.select({ id: campaigns.id, userId: campaigns.userId })
+				.select({
+					id: campaigns.id,
+					userId: campaigns.userId,
+					teamId: campaigns.teamId
+				})
 				.from(campaigns)
 				.where(eq(campaigns.status, "running"))
 				.limit(maxCampaigns)
@@ -133,7 +171,6 @@ export async function POST(request: NextRequest) {
 					.where(
 						and(
 							eq(campaignQueue.campaignId, campaign.id),
-							eq(campaignQueue.userId, campaign.userId),
 							eq(campaignQueue.status, "queued"),
 							forceProcessing
 								? sql`true`
@@ -159,6 +196,7 @@ export async function POST(request: NextRequest) {
 				// For now, we'll use a direct approach that doesn't require auth context
 				const result = await processQueueBatchDirect(
 					campaign.id,
+					campaign.teamId,
 					campaign.userId,
 					batchSize
 				)
@@ -232,6 +270,7 @@ export async function POST(request: NextRequest) {
 // Direct queue processing function that doesn't require auth context
 async function processQueueBatchDirect(
 	campaignId: number,
+	teamId: string,
 	userId: string,
 	batchSize: number = 5
 ) {
@@ -246,7 +285,7 @@ async function processQueueBatchDirect(
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), eq(campaigns.teamId, teamId))
 			)
 			.limit(1)
 
@@ -280,10 +319,14 @@ async function processQueueBatchDirect(
 				maxRetries: campaignQueue.maxRetries
 			})
 			.from(campaignQueue)
+			.innerJoin(
+				campaignLeads,
+				eq(campaignQueue.campaignLeadId, campaignLeads.id)
+			)
 			.where(
 				and(
 					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
+					eq(campaignLeads.teamId, teamId),
 					eq(campaignQueue.status, "queued"),
 					lte(campaignQueue.scheduledTime, new Date())
 				)
@@ -307,13 +350,13 @@ async function processQueueBatchDirect(
 			`📞 Processing ${queueEntries.length} calls for campaign ${campaignId}`
 		)
 
-		// Import the existing queue processing function
-		const { processNextQueueBatch } = await import(
-			"@/actions/campaigns/execution"
-		)
-
 		// Process the queue batch using existing infrastructure
-		const result = await processNextQueueBatch(campaignId, batchSize)
+		const result = await processNextQueueBatchDirect(
+			campaignId,
+			teamId,
+			userId,
+			batchSize
+		)
 
 		if (result.success && result.data) {
 			return {

@@ -5,11 +5,15 @@ import {
 	pauseCampaign,
 	resumeCampaign,
 	stopCampaign,
-	getCampaignExecutionStatus
+	getCampaignExecutionStatus,
+	scheduleCampaign,
+	triggerCampaignProcessing,
+	updateCampaign
 } from "@/actions/campaigns"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -30,7 +34,7 @@ import {
 	XCircleIcon,
 	AlertCircleIcon
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 
 interface CampaignControlsProps {
@@ -53,7 +57,12 @@ interface CampaignInfo {
 	status: CampaignStatus | null
 	startDate: Date | null
 	endDate: Date | null
+	campaignSettings?: Record<string, unknown> | null
 }
+
+type CampaignSettings = NonNullable<
+	Parameters<typeof updateCampaign>[1]["campaignSettings"]
+>
 
 export function CampaignControls({
 	campaignId,
@@ -62,6 +71,53 @@ export function CampaignControls({
 	const [campaign, setCampaign] = useState<CampaignInfo | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [actionLoading, setActionLoading] = useState(false)
+	const [scheduleLoading, setScheduleLoading] = useState(false)
+	const [processLoading, setProcessLoading] = useState(false)
+	const [settingsLoading, setSettingsLoading] = useState(false)
+	const [scheduledStart, setScheduledStart] = useState("")
+	const [maxCallsPerDay, setMaxCallsPerDay] = useState("")
+	const [callInterval, setCallInterval] = useState("")
+	const [maxAttempts, setMaxAttempts] = useState("")
+	const [targetLeads, setTargetLeads] = useState("")
+
+	const toDateTimeLocalValue = useCallback((value: Date | string | null) => {
+		if (!value) return ""
+		const date = new Date(value)
+		if (Number.isNaN(date.getTime())) return ""
+		const localDate = new Date(
+			date.getTime() - date.getTimezoneOffset() * 60 * 1000
+		)
+		return localDate.toISOString().slice(0, 16)
+	}, [])
+
+	const loadAdvancedSettings = useCallback((campaignInfo: CampaignInfo) => {
+		const settings = (campaignInfo.campaignSettings || {}) as {
+			callTiming?: { maxCallsPerDay?: number; callInterval?: number }
+			retryLogic?: { maxAttempts?: number }
+			goals?: { targetLeads?: number }
+		}
+
+		setMaxCallsPerDay(
+			typeof settings.callTiming?.maxCallsPerDay === "number"
+				? String(settings.callTiming.maxCallsPerDay)
+				: ""
+		)
+		setCallInterval(
+			typeof settings.callTiming?.callInterval === "number"
+				? String(settings.callTiming.callInterval)
+				: ""
+		)
+		setMaxAttempts(
+			typeof settings.retryLogic?.maxAttempts === "number"
+				? String(settings.retryLogic.maxAttempts)
+				: ""
+		)
+		setTargetLeads(
+			typeof settings.goals?.targetLeads === "number"
+				? String(settings.goals.targetLeads)
+				: ""
+		)
+	}, [])
 
 	useEffect(() => {
 		const fetchCampaignInfo = async () => {
@@ -71,6 +127,10 @@ export function CampaignControls({
 				)
 				if (result.success && result.data) {
 					setCampaign(result.data.campaign)
+					setScheduledStart(
+						toDateTimeLocalValue(result.data.campaign.startDate)
+					)
+					loadAdvancedSettings(result.data.campaign)
 				}
 			} catch (error) {
 				console.error("Error fetching campaign info:", error)
@@ -80,7 +140,7 @@ export function CampaignControls({
 		}
 
 		fetchCampaignInfo()
-	}, [campaignId])
+	}, [campaignId, loadAdvancedSettings, toDateTimeLocalValue])
 
 	const handleCampaignAction = async (
 		action: "start" | "pause" | "resume" | "stop"
@@ -123,6 +183,12 @@ export function CampaignControls({
 				)
 				if (refreshResult.success && refreshResult.data) {
 					setCampaign(refreshResult.data.campaign)
+					setScheduledStart(
+						toDateTimeLocalValue(
+							refreshResult.data.campaign.startDate
+						)
+					)
+					loadAdvancedSettings(refreshResult.data.campaign)
 				}
 				onStatusChange?.()
 			} else {
@@ -133,6 +199,153 @@ export function CampaignControls({
 			toast.error(`Failed to ${action} campaign`)
 		} finally {
 			setActionLoading(false)
+		}
+	}
+
+	const handleScheduleCampaign = async () => {
+		if (!campaign) return
+		if (!scheduledStart) {
+			toast.error("Pick a schedule time first")
+			return
+		}
+
+		const startTime = new Date(scheduledStart)
+		if (Number.isNaN(startTime.getTime())) {
+			toast.error("Invalid schedule time")
+			return
+		}
+
+		setScheduleLoading(true)
+		try {
+			const result = await scheduleCampaign(campaign.id, startTime)
+			if (!result.success) {
+				toast.error(result.error || "Failed to schedule campaign")
+				return
+			}
+
+			toast.success("Campaign scheduled")
+			const refreshResult = await getCampaignExecutionStatus(
+				parseInt(campaignId)
+			)
+			if (refreshResult.success && refreshResult.data) {
+				setCampaign(refreshResult.data.campaign)
+				setScheduledStart(
+					toDateTimeLocalValue(refreshResult.data.campaign.startDate)
+				)
+				loadAdvancedSettings(refreshResult.data.campaign)
+			}
+			onStatusChange?.()
+		} catch (error) {
+			console.error("Error scheduling campaign:", error)
+			toast.error("Failed to schedule campaign")
+		} finally {
+			setScheduleLoading(false)
+		}
+	}
+
+	const handleProcessNow = async () => {
+		if (!campaign) return
+		setProcessLoading(true)
+		try {
+			const result = await triggerCampaignProcessing(campaign.id)
+			if (!result.success) {
+				toast.error(result.error || "Failed to process campaign queue")
+				return
+			}
+			toast.success("Campaign queue processing triggered")
+			onStatusChange?.()
+		} catch (error) {
+			console.error("Error triggering campaign processing:", error)
+			toast.error("Failed to trigger campaign processing")
+		} finally {
+			setProcessLoading(false)
+		}
+	}
+
+	const handleSaveAdvancedSettings = async () => {
+		if (!campaign) return
+		setSettingsLoading(true)
+		try {
+			const currentSettings = (campaign.campaignSettings ||
+				{}) as Partial<CampaignSettings>
+			const callTiming = currentSettings.callTiming || {}
+			const retryLogic = currentSettings.retryLogic
+			const goals = currentSettings.goals || {}
+
+			const parsedMaxAttempts =
+				maxAttempts.trim().length > 0 ? Number(maxAttempts) : undefined
+			const nextRetryLogic: CampaignSettings["retryLogic"] =
+				parsedMaxAttempts !== undefined || retryLogic
+					? {
+							maxAttempts:
+								parsedMaxAttempts ??
+								(typeof retryLogic?.maxAttempts === "number"
+									? retryLogic.maxAttempts
+									: 1),
+							retryIntervals: Array.isArray(
+								retryLogic?.retryIntervals
+							)
+								? retryLogic.retryIntervals.filter(
+										(value): value is number =>
+											typeof value === "number" &&
+											Number.isFinite(value)
+									)
+								: [],
+							retryConditions: Array.isArray(
+								retryLogic?.retryConditions
+							)
+								? retryLogic.retryConditions.filter(
+										(value): value is string =>
+											typeof value === "string"
+									)
+								: []
+						}
+					: undefined
+
+			const nextSettings: CampaignSettings = {
+				...currentSettings,
+				callTiming: {
+					...callTiming,
+					maxCallsPerDay:
+						maxCallsPerDay.trim().length > 0
+							? Number(maxCallsPerDay)
+							: undefined,
+					callInterval:
+						callInterval.trim().length > 0
+							? Number(callInterval)
+							: undefined
+				},
+				retryLogic: nextRetryLogic,
+				goals: {
+					...goals,
+					targetLeads:
+						targetLeads.trim().length > 0
+							? Number(targetLeads)
+							: undefined
+				}
+			}
+
+			const result = await updateCampaign(campaign.id, {
+				campaignSettings: nextSettings
+			})
+			if (!result.success) {
+				toast.error(result.error || "Failed to save campaign settings")
+				return
+			}
+
+			toast.success("Campaign settings saved")
+			const refreshResult = await getCampaignExecutionStatus(
+				parseInt(campaignId)
+			)
+			if (refreshResult.success && refreshResult.data) {
+				setCampaign(refreshResult.data.campaign)
+				loadAdvancedSettings(refreshResult.data.campaign)
+			}
+		} catch (error) {
+			console.error("Error saving campaign settings:", error)
+			toast.error("Failed to save campaign settings")
+		} finally {
+			setSettingsLoading(false)
 		}
 	}
 
@@ -245,6 +458,14 @@ export function CampaignControls({
 	const canResume = campaign?.status === "paused"
 	const canStop =
 		campaign?.status === "running" || campaign?.status === "paused"
+	const canSchedule =
+		campaign?.status !== "completed" &&
+		campaign?.status !== "cancelled" &&
+		campaign?.status !== "archived"
+	const canProcessNow =
+		campaign?.status === "running" ||
+		campaign?.status === "paused" ||
+		campaign?.status === "scheduled"
 
 	if (loading) {
 		return (
@@ -282,7 +503,7 @@ export function CampaignControls({
 	return (
 		<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 			<CardContent className="p-4">
-				<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between gap-3">
 					<div className="flex items-center gap-3">
 						{statusConfig.icon}
 						{statusConfig.badge}
@@ -372,6 +593,129 @@ export function CampaignControls({
 								</AlertDialogContent>
 							</AlertDialog>
 						)}
+					</div>
+				</div>
+
+				<div className="mt-4 pt-4 border-t border-border/50 flex flex-col lg:flex-row lg:items-end justify-between gap-3">
+					<div className="space-y-1 w-full lg:max-w-sm">
+						<label
+							htmlFor="campaign-schedule-start"
+							className="text-xs font-medium text-muted-foreground"
+						>
+							Schedule Start
+						</label>
+						<Input
+							id="campaign-schedule-start"
+							type="datetime-local"
+							value={scheduledStart}
+							onChange={(event) =>
+								setScheduledStart(event.target.value)
+							}
+							disabled={!canSchedule || scheduleLoading}
+						/>
+					</div>
+					<div className="flex gap-2 w-full lg:w-auto">
+						<Button
+							variant="outline"
+							onClick={handleScheduleCampaign}
+							disabled={!canSchedule || scheduleLoading}
+							className="w-full lg:w-auto"
+						>
+							{scheduleLoading ? "Scheduling..." : "Schedule"}
+						</Button>
+						<Button
+							variant="outline"
+							onClick={handleProcessNow}
+							disabled={!canProcessNow || processLoading}
+							className="w-full lg:w-auto"
+						>
+							{processLoading ? "Processing..." : "Process Now"}
+						</Button>
+					</div>
+				</div>
+
+				<div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+					<p className="text-xs font-medium text-muted-foreground">
+						Advanced Campaign Settings
+					</p>
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+						<div className="space-y-1">
+							<label
+								htmlFor="campaign-max-calls-per-day"
+								className="text-xs text-muted-foreground"
+							>
+								Max Calls / Day
+							</label>
+							<Input
+								id="campaign-max-calls-per-day"
+								type="number"
+								min={1}
+								value={maxCallsPerDay}
+								onChange={(event) =>
+									setMaxCallsPerDay(event.target.value)
+								}
+							/>
+						</div>
+						<div className="space-y-1">
+							<label
+								htmlFor="campaign-call-interval"
+								className="text-xs text-muted-foreground"
+							>
+								Call Interval (min)
+							</label>
+							<Input
+								id="campaign-call-interval"
+								type="number"
+								min={1}
+								value={callInterval}
+								onChange={(event) =>
+									setCallInterval(event.target.value)
+								}
+							/>
+						</div>
+						<div className="space-y-1">
+							<label
+								htmlFor="campaign-max-retry-attempts"
+								className="text-xs text-muted-foreground"
+							>
+								Max Retry Attempts
+							</label>
+							<Input
+								id="campaign-max-retry-attempts"
+								type="number"
+								min={1}
+								value={maxAttempts}
+								onChange={(event) =>
+									setMaxAttempts(event.target.value)
+								}
+							/>
+						</div>
+						<div className="space-y-1">
+							<label
+								htmlFor="campaign-target-leads"
+								className="text-xs text-muted-foreground"
+							>
+								Target Leads
+							</label>
+							<Input
+								id="campaign-target-leads"
+								type="number"
+								min={1}
+								value={targetLeads}
+								onChange={(event) =>
+									setTargetLeads(event.target.value)
+								}
+							/>
+						</div>
+					</div>
+					<div className="flex justify-end">
+						<Button
+							variant="outline"
+							onClick={handleSaveAdvancedSettings}
+							disabled={settingsLoading}
+						>
+							{settingsLoading ? "Saving..." : "Save Settings"}
+						</Button>
 					</div>
 				</div>
 			</CardContent>

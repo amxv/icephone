@@ -1,8 +1,16 @@
 "use server"
 
-import { currentUser } from "@clerk/nextjs/server"
 import { db_ws as db } from "@/db"
-import { voiceSessions, voiceAgents, calls, leads } from "@/db/schema"
+import {
+	callRecordings,
+	calls,
+	leads,
+	voiceAgents,
+	voiceSessions
+} from "@/db/schema"
+import { logAuditEvent } from "@/lib/audit-log"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
 import { eq, and, desc, sql, gte, lte, count, avg, sum } from "drizzle-orm"
 import {
 	startOfDay,
@@ -13,6 +21,7 @@ import {
 	endOfMonth,
 	subDays
 } from "date-fns"
+import { z } from "zod"
 
 // Type definitions for analytics
 interface CallAnalytics {
@@ -24,6 +33,28 @@ interface CallAnalytics {
 	successfulCalls: number
 	failedCalls: number
 	successRate: number
+	pickupRate: number
+	outcomeBreakdown: Record<string, number>
+	dispositionBreakdown: Record<string, number>
+	directionBreakdown: {
+		incoming: number
+		outgoing: number
+		unknown: number
+	}
+	collectionSignals: {
+		intentToPay: number
+		promiseToPay: number
+		didNotPickUp: number
+	}
+	collectionRates: {
+		intentToPayRate: number
+		promiseToPayRate: number
+		didNotPickUpRate: number
+		connectedRate: number
+	}
+	recordingCount: number
+	recordingCoverageRate: number
+	recordingsByProvider: Record<string, number>
 	sentimentBreakdown: {
 		positive: number
 		negative: number
@@ -41,6 +72,10 @@ interface CallAnalytics {
 		calls: number
 		duration: number
 		cost: number
+	}>
+	hourlyCallVolume: Array<{
+		hour: string
+		calls: number
 	}>
 }
 
@@ -64,12 +99,41 @@ interface CallPerformanceMetrics {
 	conversionRate: number
 }
 
+const callTimeRangeSchema = z
+	.enum(["today", "week", "month", "quarter"])
+	.default("week")
+const costTimeRangeSchema = z
+	.enum(["today", "week", "month", "quarter"])
+	.default("month")
+const trendsTimeRangeSchema = z
+	.enum(["month", "quarter", "year"])
+	.default("quarter")
+const agentIdSchema = z.number().int().positive()
+const sessionIdSchema = z.string().trim().min(1)
+const limitSchema = z.number().int().min(1).max(100).default(20)
+
+async function logAnalyticsEvent(
+	teamId: string,
+	actorUserId: string,
+	action: string,
+	metadata?: Record<string, unknown>
+) {
+	await logAuditEvent({
+		teamId,
+		actorUserId,
+		action,
+		entityType: "analytics",
+		entityId: null,
+		metadata: metadata ?? {}
+	})
+}
+
 // Get comprehensive call analytics for user
 export async function getCallAnalytics(
-	timeRange: "today" | "week" | "month" | "quarter" = "week"
+	rawTimeRange: "today" | "week" | "month" | "quarter" = "week"
 ): Promise<CallAnalytics> {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
+	const timeRange = callTimeRangeSchema.parse(rawTimeRange)
 
 	// Calculate date range
 	const now = new Date()
@@ -98,53 +162,286 @@ export async function getCallAnalytics(
 			endDate = endOfWeek(now)
 	}
 
-	// Get basic call statistics from voice sessions (VAPI data)
-	const voiceSessionStats = await db
-		.select({
-			totalCalls: count(voiceSessions.id),
-			totalDuration: sum(voiceSessions.duration),
-			averageDuration: avg(voiceSessions.duration),
-			totalCost: sum(voiceSessions.cost),
-			averageCost: avg(voiceSessions.cost),
-			successfulCalls: count(
-				sql`CASE WHEN ${voiceSessions.status} = 'completed' THEN 1 END`
-			),
-			failedCalls: count(
-				sql`CASE WHEN ${voiceSessions.status} = 'failed' THEN 1 END`
-			)
-		})
-		.from(voiceSessions)
-		.where(
-			and(
-				eq(voiceSessions.userId, user.id),
-				gte(voiceSessions.startTime, startDate),
-				lte(voiceSessions.startTime, endDate)
-			)
+	const callDispositionExpr = sql<string>`
+		COALESCE(
+			NULLIF(${calls.metadata}->>'disposition', ''),
+			CASE
+				WHEN ${calls.status} IN ('no_answer', 'missed', 'busy', 'failed', 'voicemail') THEN 'did_not_pick_up'
+				WHEN ${calls.status} IN ('completed', 'answered') THEN 'connected'
+				ELSE 'other'
+			END
 		)
+	`
 
-	// Get legacy call statistics (from calls table)
-	const legacyCallStats = await db
-		.select({
-			totalCalls: count(calls.id),
-			totalDuration: sum(calls.duration),
-			averageDuration: avg(calls.duration),
-			successfulCalls: count(
-				sql`CASE WHEN ${calls.status} = 'completed' THEN 1 END`
+	const [
+		voiceSessionStats,
+		legacyCallStats,
+		callOutcomeStats,
+		sessionOutcomeStats,
+		callDispositionStats,
+		callDirectionStats,
+		sessionDirectionStats,
+		callHourlyStats,
+		sessionHourlyStats,
+		sentimentStats,
+		agentStats,
+		dailyVoiceStats,
+		dailyLegacyStats,
+		recordingCoverageStats,
+		recordingProviderStats
+	] = await Promise.all([
+		db
+			.select({
+				totalCalls: count(voiceSessions.id),
+				totalDuration: sum(voiceSessions.duration),
+				averageDuration: avg(voiceSessions.duration),
+				totalCost: sum(voiceSessions.cost),
+				averageCost: avg(voiceSessions.cost),
+				successfulCalls: count(
+					sql`CASE WHEN ${voiceSessions.status} = 'completed' THEN 1 END`
+				),
+				failedCalls: count(
+					sql`CASE WHEN ${voiceSessions.status} = 'failed' THEN 1 END`
+				)
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					teamScope(voiceAgents, teamId),
+					gte(voiceSessions.startTime, startDate),
+					lte(voiceSessions.startTime, endDate)
+				)
 			),
-			failedCalls: count(
-				sql`CASE WHEN ${calls.status} = 'failed' THEN 1 END`
+		db
+			.select({
+				totalCalls: count(calls.id),
+				totalDuration: sum(calls.duration),
+				averageDuration: avg(calls.duration),
+				totalCost: sum(calls.cost),
+				averageCost: avg(calls.cost),
+				successfulCalls: count(
+					sql`CASE WHEN ${calls.status} = 'completed' THEN 1 END`
+				),
+				failedCalls: count(
+					sql`CASE WHEN ${calls.status} = 'failed' THEN 1 END`
+				)
+			})
+			.from(calls)
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate)
+				)
+			),
+		db
+			.select({
+				status: calls.status,
+				count: count(calls.id)
+			})
+			.from(calls)
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate)
+				)
 			)
-		})
-		.from(calls)
-		.where(
-			and(
-				eq(calls.userId, user.id),
-				gte(calls.startTime, startDate),
-				lte(calls.startTime, endDate)
+			.groupBy(calls.status),
+		db
+			.select({
+				status: voiceSessions.status,
+				count: count(voiceSessions.id)
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					teamScope(voiceAgents, teamId),
+					gte(voiceSessions.startTime, startDate),
+					lte(voiceSessions.startTime, endDate)
+				)
 			)
-		)
+			.groupBy(voiceSessions.status),
+		db
+			.select({
+				disposition: callDispositionExpr.as("disposition"),
+				count: count(calls.id)
+			})
+			.from(calls)
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate)
+				)
+			)
+			.groupBy(callDispositionExpr),
+		db
+			.select({
+				direction: calls.direction,
+				count: count(calls.id)
+			})
+			.from(calls)
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate)
+				)
+			)
+			.groupBy(calls.direction),
+		db
+			.select({
+				direction: voiceSessions.direction,
+				count: count(voiceSessions.id)
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					teamScope(voiceAgents, teamId),
+					gte(voiceSessions.startTime, startDate),
+					lte(voiceSessions.startTime, endDate)
+				)
+			)
+			.groupBy(voiceSessions.direction),
+		db
+			.select({
+				hour: sql<number>`EXTRACT(HOUR FROM ${calls.startTime})`.as(
+					"hour"
+				),
+				count: count(calls.id)
+			})
+			.from(calls)
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate)
+				)
+			)
+			.groupBy(sql`EXTRACT(HOUR FROM ${calls.startTime})`),
+		db
+			.select({
+				hour: sql<number>`EXTRACT(HOUR FROM ${voiceSessions.startTime})`.as(
+					"hour"
+				),
+				count: count(voiceSessions.id)
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					teamScope(voiceAgents, teamId),
+					gte(voiceSessions.startTime, startDate),
+					lte(voiceSessions.startTime, endDate)
+				)
+			)
+			.groupBy(sql`EXTRACT(HOUR FROM ${voiceSessions.startTime})`),
+		db
+			.select({
+				sentiment: voiceSessions.sentiment,
+				count: count(voiceSessions.id)
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					teamScope(voiceAgents, teamId),
+					gte(voiceSessions.startTime, startDate),
+					lte(voiceSessions.startTime, endDate)
+				)
+			)
+			.groupBy(voiceSessions.sentiment),
+		db
+			.select({
+				agentId: voiceSessions.agentId,
+				agentName: voiceAgents.name,
+				callCount: count(voiceSessions.id),
+				averageDuration: avg(voiceSessions.duration),
+				successfulCalls: count(
+					sql`CASE WHEN ${voiceSessions.status} = 'completed' THEN 1 END`
+				),
+				totalCalls: count(voiceSessions.id)
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					teamScope(voiceAgents, teamId),
+					gte(voiceSessions.startTime, startDate),
+					lte(voiceSessions.startTime, endDate)
+				)
+			)
+			.groupBy(voiceSessions.agentId, voiceAgents.name)
+			.orderBy(desc(count(voiceSessions.id)))
+			.limit(5),
+		db
+			.select({
+				date: sql<string>`DATE(${voiceSessions.startTime})`,
+				calls: count(voiceSessions.id),
+				duration: sum(voiceSessions.duration),
+				cost: sum(voiceSessions.cost)
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.where(
+				and(
+					teamScope(voiceAgents, teamId),
+					gte(voiceSessions.startTime, startDate),
+					lte(voiceSessions.startTime, endDate)
+				)
+			)
+			.groupBy(sql`DATE(${voiceSessions.startTime})`)
+			.orderBy(sql`DATE(${voiceSessions.startTime})`),
+		db
+			.select({
+				date: sql<string>`DATE(${calls.startTime})`,
+				calls: count(calls.id),
+				duration: sum(calls.duration)
+			})
+			.from(calls)
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate)
+				)
+			)
+			.groupBy(sql`DATE(${calls.startTime})`)
+			.orderBy(sql`DATE(${calls.startTime})`),
+		db
+			.select({
+				recordingCount: count(calls.id)
+			})
+			.from(calls)
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate),
+					sql`${calls.recordingUrl} IS NOT NULL`
+				)
+			),
+		db
+			.select({
+				provider: callRecordings.provider,
+				count: sql<number>`COUNT(DISTINCT ${callRecordings.callId})`
+			})
+			.from(callRecordings)
+			.innerJoin(calls, eq(callRecordings.callId, calls.id))
+			.where(
+				and(
+					teamScope(calls, teamId),
+					gte(calls.startTime, startDate),
+					lte(calls.startTime, endDate)
+				)
+			)
+			.groupBy(callRecordings.provider)
+	])
 
-	// Combine statistics from both tables
 	const voiceStats = voiceSessionStats[0]
 	const legacyStats = legacyCallStats[0]
 
@@ -153,32 +450,145 @@ export async function getCallAnalytics(
 		totalDuration:
 			(Number(voiceStats.totalDuration) || 0) +
 			(Number(legacyStats.totalDuration) || 0),
-		averageDuration:
-			((Number(voiceStats.averageDuration) || 0) +
-				(Number(legacyStats.averageDuration) || 0)) /
-			2,
-		totalCost: Number(voiceStats.totalCost) || 0, // Only voice sessions have cost data
-		averageCost: Number(voiceStats.averageCost) || 0,
+		totalCost:
+			(Number(voiceStats.totalCost) || 0) +
+			(Number(legacyStats.totalCost) || 0),
 		successfulCalls:
 			voiceStats.successfulCalls + legacyStats.successfulCalls,
 		failedCalls: voiceStats.failedCalls + legacyStats.failedCalls
 	}
+	const averageDuration =
+		combinedStats.totalCalls > 0
+			? combinedStats.totalDuration / combinedStats.totalCalls
+			: 0
+	const averageCost =
+		combinedStats.totalCalls > 0
+			? combinedStats.totalCost / combinedStats.totalCalls
+			: 0
 
-	// Get sentiment breakdown
-	const sentimentStats = await db
-		.select({
-			sentiment: voiceSessions.sentiment,
-			count: count(voiceSessions.id)
-		})
-		.from(voiceSessions)
-		.where(
-			and(
-				eq(voiceSessions.userId, user.id),
-				gte(voiceSessions.startTime, startDate),
-				lte(voiceSessions.startTime, endDate)
-			)
-		)
-		.groupBy(voiceSessions.sentiment)
+	const outcomeBreakdown: Record<string, number> = {}
+	const accumulateOutcome = (
+		status: string | null | undefined,
+		countValue: number
+	) => {
+		const key = status ?? "unknown"
+		outcomeBreakdown[key] = (outcomeBreakdown[key] || 0) + countValue
+	}
+
+	for (const row of callOutcomeStats) {
+		accumulateOutcome(row.status, row.count)
+	}
+	for (const row of sessionOutcomeStats) {
+		accumulateOutcome(row.status, row.count)
+	}
+
+	const answeredCalls =
+		(outcomeBreakdown.completed || 0) + (outcomeBreakdown.answered || 0)
+
+	const dispositionBreakdown: Record<string, number> = {
+		intent_to_pay: 0,
+		promise_to_pay: 0,
+		did_not_pick_up: 0,
+		requested_callback: 0,
+		payment_completed: 0,
+		disputed: 0,
+		not_interested: 0,
+		connected: 0,
+		other: 0
+	}
+
+	for (const row of callDispositionStats) {
+		const key = row.disposition || "other"
+		if (Object.prototype.hasOwnProperty.call(dispositionBreakdown, key)) {
+			dispositionBreakdown[key] = row.count
+		} else {
+			dispositionBreakdown.other += row.count
+		}
+	}
+
+	const collectionSignals = {
+		intentToPay: dispositionBreakdown.intent_to_pay || 0,
+		promiseToPay: dispositionBreakdown.promise_to_pay || 0,
+		didNotPickUp: dispositionBreakdown.did_not_pick_up || 0
+	}
+	const collectionRates = {
+		intentToPayRate:
+			combinedStats.totalCalls > 0
+				? Math.round(
+						(collectionSignals.intentToPay /
+							combinedStats.totalCalls) *
+							100
+					)
+				: 0,
+		promiseToPayRate:
+			combinedStats.totalCalls > 0
+				? Math.round(
+						(collectionSignals.promiseToPay /
+							combinedStats.totalCalls) *
+							100
+					)
+				: 0,
+		didNotPickUpRate:
+			combinedStats.totalCalls > 0
+				? Math.round(
+						(collectionSignals.didNotPickUp /
+							combinedStats.totalCalls) *
+							100
+					)
+				: 0,
+		connectedRate:
+			combinedStats.totalCalls > 0
+				? Math.round(
+						((dispositionBreakdown.connected || 0) /
+							combinedStats.totalCalls) *
+							100
+					)
+				: 0
+	}
+
+	const recordingCount = recordingCoverageStats[0]?.recordingCount || 0
+	const recordingsByProvider = recordingProviderStats.reduce<
+		Record<string, number>
+	>((acc, row) => {
+		if (row.provider) {
+			acc[row.provider] = row.count
+		}
+		return acc
+	}, {})
+
+	const directionBreakdown = {
+		incoming: 0,
+		outgoing: 0,
+		unknown: 0
+	}
+
+	for (const row of callDirectionStats) {
+		if (row.direction === "incoming")
+			directionBreakdown.incoming += row.count
+		else if (row.direction === "outgoing")
+			directionBreakdown.outgoing += row.count
+		else directionBreakdown.unknown += row.count
+	}
+	for (const row of sessionDirectionStats) {
+		if (row.direction === "incoming")
+			directionBreakdown.incoming += row.count
+		else if (row.direction === "outgoing")
+			directionBreakdown.outgoing += row.count
+		else directionBreakdown.unknown += row.count
+	}
+
+	const hourlyMap = new Map<number, number>()
+	for (const row of callHourlyStats) {
+		hourlyMap.set(row.hour, (hourlyMap.get(row.hour) || 0) + row.count)
+	}
+	for (const row of sessionHourlyStats) {
+		hourlyMap.set(row.hour, (hourlyMap.get(row.hour) || 0) + row.count)
+	}
+
+	const hourlyCallVolume = Array.from({ length: 24 }, (_, hour) => ({
+		hour: `${hour.toString().padStart(2, "0")}:00`,
+		calls: hourlyMap.get(hour) || 0
+	}))
 
 	const sentimentBreakdown = {
 		positive: 0,
@@ -194,31 +604,6 @@ export async function getCallAnalytics(
 		else sentimentBreakdown.neutral = item.count
 	}
 
-	// Get top performing agents
-	const agentStats = await db
-		.select({
-			agentId: voiceSessions.agentId,
-			agentName: voiceAgents.name,
-			callCount: count(voiceSessions.id),
-			averageDuration: avg(voiceSessions.duration),
-			successfulCalls: count(
-				sql`CASE WHEN ${voiceSessions.status} = 'completed' THEN 1 END`
-			),
-			totalCalls: count(voiceSessions.id)
-		})
-		.from(voiceSessions)
-		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
-		.where(
-			and(
-				eq(voiceSessions.userId, user.id),
-				gte(voiceSessions.startTime, startDate),
-				lte(voiceSessions.startTime, endDate)
-			)
-		)
-		.groupBy(voiceSessions.agentId, voiceAgents.name)
-		.orderBy(desc(count(voiceSessions.id)))
-		.limit(5)
-
 	const topPerformingAgents = agentStats.map((agent) => ({
 		agentId: agent.agentId,
 		agentName: agent.agentName,
@@ -229,43 +614,6 @@ export async function getCallAnalytics(
 				? Math.round((agent.successfulCalls / agent.totalCalls) * 100)
 				: 0
 	}))
-
-	// Get daily call volume from voice sessions (VAPI data)
-	const dailyVoiceStats = await db
-		.select({
-			date: sql<string>`DATE(${voiceSessions.startTime})`,
-			calls: count(voiceSessions.id),
-			duration: sum(voiceSessions.duration),
-			cost: sum(voiceSessions.cost)
-		})
-		.from(voiceSessions)
-		.where(
-			and(
-				eq(voiceSessions.userId, user.id),
-				gte(voiceSessions.startTime, startDate),
-				lte(voiceSessions.startTime, endDate)
-			)
-		)
-		.groupBy(sql`DATE(${voiceSessions.startTime})`)
-		.orderBy(sql`DATE(${voiceSessions.startTime})`)
-
-	// Get daily call volume from legacy calls table
-	const dailyLegacyStats = await db
-		.select({
-			date: sql<string>`DATE(${calls.startTime})`,
-			calls: count(calls.id),
-			duration: sum(calls.duration)
-		})
-		.from(calls)
-		.where(
-			and(
-				eq(calls.userId, user.id),
-				gte(calls.startTime, startDate),
-				lte(calls.startTime, endDate)
-			)
-		)
-		.groupBy(sql`DATE(${calls.startTime})`)
-		.orderBy(sql`DATE(${calls.startTime})`)
 
 	// Combine daily stats from both sources
 	const dailyStatsMap = new Map<
@@ -305,12 +653,16 @@ export async function getCallAnalytics(
 		}))
 		.sort((a, b) => a.date.localeCompare(b.date))
 
+	await logAnalyticsEvent(teamId, user.id, "analytics.calls.summary.read", {
+		timeRange
+	})
+
 	return {
 		totalCalls: combinedStats.totalCalls,
 		totalDuration: combinedStats.totalDuration,
-		averageDuration: Math.round(combinedStats.averageDuration),
+		averageDuration: Math.round(averageDuration),
 		totalCost: combinedStats.totalCost,
-		averageCost: combinedStats.averageCost,
+		averageCost,
 		successfulCalls: combinedStats.successfulCalls,
 		failedCalls: combinedStats.failedCalls,
 		successRate:
@@ -321,26 +673,40 @@ export async function getCallAnalytics(
 							100
 					)
 				: 0,
+		pickupRate:
+			combinedStats.totalCalls > 0
+				? Math.round((answeredCalls / combinedStats.totalCalls) * 100)
+				: 0,
+		outcomeBreakdown,
+		dispositionBreakdown,
+		directionBreakdown,
+		collectionSignals,
+		collectionRates,
+		recordingCount,
+		recordingCoverageRate:
+			combinedStats.totalCalls > 0
+				? Math.round((recordingCount / combinedStats.totalCalls) * 100)
+				: 0,
+		recordingsByProvider,
 		sentimentBreakdown,
 		topPerformingAgents,
-		dailyCallVolume
+		dailyCallVolume,
+		hourlyCallVolume
 	}
 }
 
 // Get detailed performance metrics for a specific voice agent
 export async function getAgentPerformanceMetrics(
-	agentId: number
+	rawAgentId: number
 ): Promise<CallPerformanceMetrics> {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
+	const agentId = agentIdSchema.parse(rawAgentId)
 
 	// Get agent details
 	const agent = await db
 		.select()
 		.from(voiceAgents)
-		.where(
-			and(eq(voiceAgents.id, agentId), eq(voiceAgents.userId, user.id))
-		)
+		.where(and(eq(voiceAgents.id, agentId), teamScope(voiceAgents, teamId)))
 		.limit(1)
 
 	if (agent.length === 0) {
@@ -363,12 +729,7 @@ export async function getAgentPerformanceMetrics(
 			averageCost: avg(voiceSessions.cost)
 		})
 		.from(voiceSessions)
-		.where(
-			and(
-				eq(voiceSessions.agentId, agentId),
-				eq(voiceSessions.userId, user.id)
-			)
-		)
+		.where(eq(voiceSessions.agentId, agentId))
 
 	const stats = callStats[0]
 
@@ -379,12 +740,7 @@ export async function getAgentPerformanceMetrics(
 			count: count(voiceSessions.id)
 		})
 		.from(voiceSessions)
-		.where(
-			and(
-				eq(voiceSessions.agentId, agentId),
-				eq(voiceSessions.userId, user.id)
-			)
-		)
+		.where(eq(voiceSessions.agentId, agentId))
 		.groupBy(voiceSessions.sentiment)
 
 	const sentimentDistribution = {
@@ -411,16 +767,11 @@ export async function getAgentPerformanceMetrics(
 		})
 		.from(voiceSessions)
 		.leftJoin(leads, eq(voiceSessions.leadId, leads.id))
-		.where(
-			and(
-				eq(voiceSessions.agentId, agentId),
-				eq(voiceSessions.userId, user.id)
-			)
-		)
+		.where(eq(voiceSessions.agentId, agentId))
 
 	const leadData = leadStats[0]
 
-	return {
+	const result = {
 		agentId,
 		agentName: agent[0].name,
 		totalCalls: stats.totalCalls,
@@ -440,51 +791,122 @@ export async function getAgentPerformanceMetrics(
 					)
 				: 0
 	}
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.agent.metrics.read", {
+		agentId
+	})
+
+	return result
 }
 
 // Get recent call history with enhanced details
-export async function getRecentCalls(limit = 20) {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+export async function getRecentCalls(rawLimit = 20) {
+	const { teamId, user } = await requireTeam()
+	const limit = limitSchema.parse(rawLimit)
 
-	const recentCalls = await db
-		.select({
-			id: voiceSessions.id,
-			sessionId: voiceSessions.sessionId,
-			agentName: voiceAgents.name,
-			leadName: leads.name,
-			phoneNumber: voiceSessions.phoneNumber,
-			direction: voiceSessions.direction,
-			status: voiceSessions.status,
-			startTime: voiceSessions.startTime,
-			endTime: voiceSessions.endTime,
-			duration: voiceSessions.duration,
-			sentiment: voiceSessions.sentiment,
-			summary: voiceSessions.summary,
-			cost: voiceSessions.cost
-		})
-		.from(voiceSessions)
-		.leftJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
-		.leftJoin(leads, eq(voiceSessions.leadId, leads.id))
-		.where(eq(voiceSessions.userId, user.id))
-		.orderBy(desc(voiceSessions.startTime))
-		.limit(limit)
+	const [recentVoiceSessions, recentLegacyCalls] = await Promise.all([
+		db
+			.select({
+				recordType: sql<"voice_session">`'voice_session'`,
+				id: voiceSessions.id,
+				sessionId: voiceSessions.sessionId,
+				agentId: voiceSessions.agentId,
+				agentName: voiceAgents.name,
+				leadName: leads.name,
+				phoneNumber: voiceSessions.phoneNumber,
+				direction: voiceSessions.direction,
+				status: voiceSessions.status,
+				startTime: voiceSessions.startTime,
+				endTime: voiceSessions.endTime,
+				duration: voiceSessions.duration,
+				sentiment: voiceSessions.sentiment,
+				summary: voiceSessions.summary,
+				cost: voiceSessions.cost
+			})
+			.from(voiceSessions)
+			.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
+			.leftJoin(
+				leads,
+				and(
+					eq(voiceSessions.leadId, leads.id),
+					teamScope(leads, teamId)
+				)
+			)
+			.where(teamScope(voiceAgents, teamId))
+			.orderBy(desc(voiceSessions.startTime))
+			.limit(limit * 3),
+		db
+			.select({
+				recordType: sql<"call">`'call'`,
+				id: calls.id,
+				sessionId: calls.sessionId,
+				agentId: calls.agentId,
+				agentName: voiceAgents.name,
+				leadName: leads.name,
+				phoneNumber: leads.phone,
+				direction: calls.direction,
+				status: calls.status,
+				startTime: calls.startTime,
+				endTime: calls.endTime,
+				duration: calls.duration,
+				sentiment: calls.sentiment,
+				summary: calls.summary,
+				cost: calls.cost
+			})
+			.from(calls)
+			.leftJoin(
+				voiceAgents,
+				and(
+					eq(calls.agentId, voiceAgents.id),
+					teamScope(voiceAgents, teamId)
+				)
+			)
+			.leftJoin(
+				leads,
+				and(eq(calls.leadId, leads.id), teamScope(leads, teamId))
+			)
+			.where(teamScope(calls, teamId))
+			.orderBy(desc(calls.startTime))
+			.limit(limit * 3)
+	])
+
+	const merged = [...recentVoiceSessions, ...recentLegacyCalls].sort(
+		(a, b) => b.startTime.getTime() - a.startTime.getTime()
+	)
+	const seenSessionIds = new Set<string>()
+	const dedupedRecentCalls = merged.filter((row) => {
+		if (!row.sessionId) return true
+		if (seenSessionIds.has(row.sessionId)) return false
+		seenSessionIds.add(row.sessionId)
+		return true
+	})
+	const recentCalls = dedupedRecentCalls.slice(0, limit)
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.calls.recent.read", {
+		limit
+	})
 
 	return recentCalls
 }
 
 // Get call quality scoring based on various metrics
-export async function getCallQualityScore(sessionId: string) {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+export async function getCallQualityScore(rawSessionId: string) {
+	const { teamId, user } = await requireTeam()
+	const sessionId = sessionIdSchema.parse(rawSessionId)
 
 	const session = await db
-		.select()
+		.select({
+			duration: voiceSessions.duration,
+			status: voiceSessions.status,
+			sentiment: voiceSessions.sentiment,
+			leadId: voiceSessions.leadId
+		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
 				eq(voiceSessions.sessionId, sessionId),
-				eq(voiceSessions.userId, user.id)
+				teamScope(voiceAgents, teamId)
 			)
 		)
 		.limit(1)
@@ -598,7 +1020,7 @@ export async function getCallQualityScore(sessionId: string) {
 	// Normalize score to 0-100 range
 	qualityScore = Math.min(100, qualityScore)
 
-	return {
+	const result = {
 		sessionId,
 		qualityScore,
 		qualityGrade:
@@ -611,12 +1033,17 @@ export async function getCallQualityScore(sessionId: string) {
 						: "Poor",
 		factors
 	}
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.calls.quality.read", {
+		sessionId
+	})
+
+	return result
 }
 
 // Real-time call status update (for live dashboard)
 export async function getActiveCallsStatus() {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
 
 	const activeCalls = await db
 		.select({
@@ -631,11 +1058,13 @@ export async function getActiveCallsStatus() {
 		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				eq(voiceSessions.status, "active")
 			)
 		)
 		.orderBy(desc(voiceSessions.startTime))
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.calls.active.read")
 
 	return activeCalls.map((call) => ({
 		...call,
@@ -645,10 +1074,10 @@ export async function getActiveCallsStatus() {
 
 // Get comprehensive performance trends and predictions
 export async function getPerformanceTrends(
-	timeRange: "month" | "quarter" | "year" = "quarter"
+	rawTimeRange: "month" | "quarter" | "year" = "quarter"
 ) {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
+	const timeRange = trendsTimeRangeSchema.parse(rawTimeRange)
 
 	const now = new Date()
 	let startDate: Date
@@ -688,9 +1117,10 @@ export async function getPerformanceTrends(
 			`
 		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -743,7 +1173,7 @@ export async function getPerformanceTrends(
 		}
 	})
 
-	return {
+	const result = {
 		timeRange,
 		weeklyTrends: trends,
 		overallTrend: {
@@ -769,14 +1199,25 @@ export async function getPerformanceTrends(
 					: 0
 		}
 	}
+
+	await logAnalyticsEvent(
+		teamId,
+		user.id,
+		"analytics.performance.trends.read",
+		{
+			timeRange
+		}
+	)
+
+	return result
 }
 
 // Get cost breakdown and budget analytics
 export async function getCostAnalytics(
-	timeRange: "today" | "week" | "month" | "quarter" = "month"
+	rawTimeRange: "today" | "week" | "month" | "quarter" = "month"
 ) {
-	const user = await currentUser()
-	if (!user) throw new Error("Unauthorized")
+	const { teamId, user } = await requireTeam()
+	const timeRange = costTimeRangeSchema.parse(rawTimeRange)
 
 	const now = new Date()
 	let startDate: Date
@@ -815,7 +1256,7 @@ export async function getCostAnalytics(
 		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -832,9 +1273,10 @@ export async function getCostAnalytics(
 			averageCostPerCall: avg(voiceSessions.cost)
 		})
 		.from(voiceSessions)
+		.innerJoin(voiceAgents, eq(voiceSessions.agentId, voiceAgents.id))
 		.where(
 			and(
-				eq(voiceSessions.userId, user.id),
+				teamScope(voiceAgents, teamId),
 				gte(voiceSessions.startTime, startDate),
 				lte(voiceSessions.startTime, endDate)
 			)
@@ -855,7 +1297,7 @@ export async function getCostAnalytics(
 		0
 	)
 
-	return {
+	const result = {
 		timeRange,
 		summary: {
 			totalCost,
@@ -883,4 +1325,10 @@ export async function getCostAnalytics(
 			averageCostPerCall: Number(direction.averageCostPerCall) || 0
 		}))
 	}
+
+	await logAnalyticsEvent(teamId, user.id, "analytics.costs.read", {
+		timeRange
+	})
+
+	return result
 }

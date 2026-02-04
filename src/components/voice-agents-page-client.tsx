@@ -2,10 +2,9 @@
 
 import { SimpleAgentCreator } from "@/components/simple-agent-creator"
 import { EssentialSettings } from "@/components/essential-settings"
-import {
-	assignPhoneNumberToAgent,
-	updateVoiceAgentStatus
-} from "@/actions/voice-agents"
+import { VoiceAgentCustomizationDialog } from "@/components/voice-agent-customization-dialog"
+import { VoiceAgentTestCall } from "@/components/voice-agent-test-call"
+import { getVoiceAgents, updateVoiceAgentStatus } from "@/actions/voice-agents"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,17 +32,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger
 } from "@/components/ui/tooltip"
-import { VoiceCallWidget } from "@/components/voice-call-widget"
-import type {
-	PhoneNumber,
-	VoiceAgent,
-	VoiceAgentWithPhoneNumber,
-	VoiceAgentStatus
-} from "@/types"
+import { getOpenAIVoiceLabel } from "@/lib/openai/realtime-voice"
+import { getVoiceAgentCommandCenterTemplate } from "@/lib/voice-agent-command-center"
+import type { VoiceAgent, VoiceAgentStatus } from "@/types"
 import {
 	BotIcon,
 	InfoIcon,
-	PhoneIcon,
 	PlusIcon,
 	SettingsIcon,
 	VolumeXIcon,
@@ -51,14 +45,74 @@ import {
 	UserIcon,
 	CalendarIcon,
 	BarChartIcon,
-	EditIcon
+	EditIcon,
+	PhoneCallIcon,
+	WalletIcon
 } from "lucide-react"
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { toast } from "sonner"
 
 // Helper function to get role display information
-function getRoleInfo(prompt: string) {
-	const promptLower = prompt.toLowerCase()
+function getRoleInfo(agent: VoiceAgent) {
+	const template = getVoiceAgentCommandCenterTemplate(
+		agent.configuration?.command_center?.templateId
+	)
+	const mode = agent.configuration?.command_center?.mode
+	const promptLower = (agent.prompt || "").toLowerCase()
+
+	if (template) {
+		if (template.mode === "loan_repayment_collections") {
+			return {
+				role: template.label,
+				icon: WalletIcon,
+				color: "from-amber-500 to-amber-500/60",
+				description: template.description
+			}
+		}
+
+		if (template.mode === "outbound_cold_calling") {
+			return {
+				role: template.label,
+				icon: PhoneCallIcon,
+				color: "from-emerald-500 to-emerald-500/60",
+				description: template.description
+			}
+		}
+
+		return {
+			role: template.label,
+			icon: MessageSquareIcon,
+			color: "from-blue-500 to-blue-500/60",
+			description: template.description
+		}
+	}
+
+	if (mode === "loan_repayment_collections") {
+		return {
+			role: "Loan Repayment Collections",
+			icon: WalletIcon,
+			color: "from-amber-500 to-amber-500/60",
+			description: "Collects repayment commitments and outcomes"
+		}
+	}
+
+	if (mode === "outbound_cold_calling") {
+		return {
+			role: "Outbound Cold Calling",
+			icon: PhoneCallIcon,
+			color: "from-emerald-500 to-emerald-500/60",
+			description: "Runs outbound discovery and conversion calls"
+		}
+	}
+
+	if (mode === "support") {
+		return {
+			role: "Support Command Center",
+			icon: MessageSquareIcon,
+			color: "from-blue-500 to-blue-500/60",
+			description: "Handles support and knowledge-based questions"
+		}
+	}
 
 	if (
 		promptLower.includes("customer service") ||
@@ -106,31 +160,11 @@ function getRoleInfo(prompt: string) {
 function getVoiceDisplayName(
 	voice: { provider?: string; voice_id?: string } | null | undefined
 ) {
-	if (!voice || !voice.voice_id) return "Standard Voice"
-
-	// Map common ElevenLabs voice IDs to business-friendly names
-	const voiceMap: Record<string, string> = {
-		"21m00Tcm4TlvDq8ikWAM": "Professional",
-		AZnzlk1XvdvUeBnXmlld: "Warm",
-		EXAVITQu4vr4xnSDxMaL: "Friendly",
-		ErXwobaYiN019PkySvjV: "Confident",
-		MF3mGyEYCl7XYWbV9V6O: "Energetic",
-		TxGEqnHWrfWFTfGW9XjX: "Professional",
-		VR6AewLTigWG4xSOukaG: "Authoritative",
-		pNInz6obpgDQGcFmaJgB: "Clear"
-	}
-
-	return voiceMap[voice.voice_id] || "Professional"
+	return `${getOpenAIVoiceLabel(voice?.voice_id)} (OpenAI)`
 }
 
 // Page header component with gradient title
-function PageHeader({
-	phoneNumbers,
-	onAgentCreated
-}: {
-	phoneNumbers: PhoneNumber[]
-	onAgentCreated: () => void
-}) {
+function PageHeader({ onAgentCreated }: { onAgentCreated: () => void }) {
 	return (
 		<div className="flex items-center justify-between">
 			<div>
@@ -146,23 +180,19 @@ function PageHeader({
 // Business-focused voice agent display card
 function VoiceAgentCard({
 	agent,
-	phoneNumbers,
 	onAgentUpdated
 }: {
-	agent: VoiceAgentWithPhoneNumber
-	phoneNumbers: PhoneNumber[]
+	agent: VoiceAgent
 	onAgentUpdated?: () => void
 }) {
-	const [isTestCallOpen, setIsTestCallOpen] = useState(false)
-	const [isPhoneAssignOpen, setIsPhoneAssignOpen] = useState(false)
 	const [isStatusChangeOpen, setIsStatusChangeOpen] = useState(false)
-	const [selectedPhoneId, setSelectedPhoneId] = useState<string>("")
 	const [selectedStatus, setSelectedStatus] =
 		useState<VoiceAgentStatus>("active")
 	const [isUpdating, setIsUpdating] = useState(false)
 
-	const roleInfo = getRoleInfo(agent.prompt || "")
+	const roleInfo = getRoleInfo(agent)
 	const voiceDisplayName = getVoiceDisplayName(agent.voice)
+	const callsHandled = agent.metrics?.totalCalls || 0
 
 	const statusConfig = {
 		active: {
@@ -191,50 +221,6 @@ function VoiceAgentCard({
 		statusConfig[agent.status || "inactive"] || statusConfig.inactive
 	const StatusIcon = config.icon
 	const RoleIcon = roleInfo.icon
-
-	// Available phone numbers (not assigned to other agents)
-	const availablePhoneNumbers = phoneNumbers.filter(
-		(phone) =>
-			!phoneNumbers.some((p) =>
-				phoneNumbers.some(
-					(num) =>
-						num.id !== phone.id &&
-						// This would need to be checked against other agents
-						false // Placeholder - we'd need all agents to check this properly
-				)
-			)
-	)
-
-	const handlePhoneAssignment = async () => {
-		if (!selectedPhoneId) return
-
-		setIsUpdating(true)
-		try {
-			const phoneId =
-				selectedPhoneId === "unassign"
-					? null
-					: parseInt(selectedPhoneId)
-			const result = await assignPhoneNumberToAgent(agent.id, phoneId)
-
-			if (result.success) {
-				toast.success(
-					phoneId
-						? "Phone number assigned successfully"
-						: "Phone number unassigned successfully"
-				)
-				setIsPhoneAssignOpen(false)
-				setSelectedPhoneId("")
-				onAgentUpdated?.()
-			} else {
-				toast.error(result.error || "Failed to update phone assignment")
-			}
-		} catch (error) {
-			console.error("Error updating phone assignment:", error)
-			toast.error("Failed to update phone assignment")
-		} finally {
-			setIsUpdating(false)
-		}
-	}
 
 	const handleStatusChange = async () => {
 		setIsUpdating(true)
@@ -387,136 +373,6 @@ function VoiceAgentCard({
 			</CardHeader>
 			<CardContent>
 				<div className="space-y-4">
-					{/* Phone Number Assignment */}
-					<div className="flex items-center justify-between">
-						<div className="flex items-center gap-2">
-							<PhoneIcon className="h-4 w-4 text-muted-foreground" />
-							<span className="text-sm font-medium">
-								Phone Number
-							</span>
-						</div>
-						<div className="flex items-center gap-2">
-							{agent.phoneNumber ? (
-								<Badge
-									variant="outline"
-									className="gap-1 px-3 py-1"
-								>
-									<PhoneIcon className="h-3 w-3" />
-									{agent.phoneNumber.number}
-								</Badge>
-							) : (
-								<span className="text-muted-foreground text-sm">
-									Not assigned
-								</span>
-							)}
-							<Dialog
-								open={isPhoneAssignOpen}
-								onOpenChange={setIsPhoneAssignOpen}
-							>
-								<DialogTrigger asChild>
-									<Button
-										variant="outline"
-										size="sm"
-										className="rounded-lg text-xs"
-										onClick={() => {
-											setSelectedPhoneId(
-												agent.phoneNumber?.id.toString() ||
-													""
-											)
-											setIsPhoneAssignOpen(true)
-										}}
-									>
-										<EditIcon className="h-3 w-3 mr-1" />
-										{agent.phoneNumber
-											? "Change"
-											: "Assign"}
-									</Button>
-								</DialogTrigger>
-								<DialogContent className="sm:max-w-md p-6 border border-border bg-white shadow-lg rounded-3xl">
-									<DialogHeader className="pb-4">
-										<DialogTitle className="text-2xl font-medium tracking-tight">
-											{agent.phoneNumber
-												? "Change Phone Number"
-												: "Assign Phone Number"}
-										</DialogTitle>
-										<DialogDescription className="text-muted-foreground">
-											{agent.phoneNumber
-												? `Currently assigned to ${agent.phoneNumber.number}`
-												: `Assign a phone number to ${agent.name}`}
-										</DialogDescription>
-									</DialogHeader>
-
-									<div className="pt-2">
-										<Label className="text-sm font-medium">
-											Select Phone Number
-										</Label>
-										<Select
-											value={selectedPhoneId}
-											onValueChange={setSelectedPhoneId}
-										>
-											<SelectTrigger className="rounded-lg mt-1.5">
-												<SelectValue placeholder="Select a phone number" />
-											</SelectTrigger>
-											<SelectContent>
-												{agent.phoneNumber && (
-													<SelectItem value="unassign">
-														<div className="flex items-center gap-2">
-															<VolumeXIcon className="h-4 w-4" />
-															<span>
-																Unassign
-															</span>
-														</div>
-													</SelectItem>
-												)}
-												{phoneNumbers.map((phone) => (
-													<SelectItem
-														key={phone.id}
-														value={phone.id.toString()}
-													>
-														<div className="flex items-center gap-2">
-															<PhoneIcon className="h-4 w-4" />
-															<span>
-																{phone.number}
-															</span>
-															<span className="text-xs text-muted-foreground ml-auto">
-																{
-																	phone.friendlyName
-																}
-															</span>
-														</div>
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									</div>
-
-									<DialogFooter className="mt-6">
-										<Button
-											variant="outline"
-											onClick={() =>
-												setIsPhoneAssignOpen(false)
-											}
-											className="rounded-lg"
-										>
-											Cancel
-										</Button>
-										<Button
-											onClick={handlePhoneAssignment}
-											disabled={
-												isUpdating || !selectedPhoneId
-											}
-											className="bg-primary hover:bg-primary/90 rounded-lg"
-										>
-											{isUpdating
-												? "Updating..."
-												: "Update"}
-										</Button>
-									</DialogFooter>
-								</DialogContent>
-							</Dialog>
-						</div>
-					</div>
-
 					{/* Voice Configuration - Business Friendly */}
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
@@ -531,7 +387,7 @@ function VoiceAgentCard({
 						</div>
 					</div>
 
-					{/* Performance Metrics (placeholder for future implementation) */}
+					{/* Performance Metrics */}
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-2">
 							<BarChartIcon className="h-4 w-4 text-muted-foreground" />
@@ -540,12 +396,26 @@ function VoiceAgentCard({
 							</span>
 						</div>
 						<div className="text-sm text-muted-foreground">
-							0 calls handled
+							{callsHandled.toLocaleString()} calls handled
 						</div>
 					</div>
 
 					{/* Action Buttons */}
-					<div className="flex gap-2 pt-2">
+					<div className="flex flex-wrap gap-2 pt-2">
+						<VoiceAgentCustomizationDialog
+							agent={agent}
+							onUpdated={onAgentUpdated}
+							trigger={
+								<Button
+									variant="outline"
+									size="sm"
+									className="flex-1 rounded-2xl"
+								>
+									<SettingsIcon className="h-4 w-4 mr-2" />
+									Customize
+								</Button>
+							}
+						/>
 						<EssentialSettings
 							agent={agent}
 							onSettingsUpdated={onAgentUpdated}
@@ -560,45 +430,10 @@ function VoiceAgentCard({
 								</Button>
 							}
 						/>
-						<Dialog
-							open={isTestCallOpen}
-							onOpenChange={setIsTestCallOpen}
-						>
-							<DialogTrigger asChild>
-								<Button
-									variant="outline"
-									size="sm"
-									className="rounded-2xl"
-									disabled={agent.status !== "active"}
-								>
-									<PhoneIcon className="h-3 w-3 mr-1" />
-									Test Call
-								</Button>
-							</DialogTrigger>
-							<DialogContent className="max-w-md">
-								<DialogHeader>
-									<DialogTitle className="flex items-center gap-2">
-										<PhoneIcon className="h-5 w-5" />
-										Test Call: {agent.name}
-									</DialogTitle>
-								</DialogHeader>
-								<VoiceCallWidget
-									agent={agent}
-									onCallEnd={(duration) => {
-										toast.success(
-											`Test call completed in ${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, "0")}`
-										)
-										setIsTestCallOpen(false)
-									}}
-									onTranscript={(text, isAgent) => {
-										console.log(
-											`${isAgent ? "Agent" : "User"}: ${text}`
-										)
-									}}
-									className="w-full"
-								/>
-							</DialogContent>
-						</Dialog>
+						<VoiceAgentTestCall
+							agentId={agent.id}
+							agentName={agent.name}
+						/>
 					</div>
 				</div>
 			</CardContent>
@@ -609,12 +444,10 @@ function VoiceAgentCard({
 // Voice agents list section
 function VoiceAgentsSection({
 	agents,
-	phoneNumbers,
 	isLoading = false,
 	onAgentUpdated
 }: {
-	agents: VoiceAgentWithPhoneNumber[]
-	phoneNumbers: PhoneNumber[]
+	agents: VoiceAgent[]
 	isLoading?: boolean
 	onAgentUpdated?: () => void
 }) {
@@ -662,7 +495,6 @@ function VoiceAgentsSection({
 						<VoiceAgentCard
 							key={agent.id}
 							agent={agent}
-							phoneNumbers={phoneNumbers}
 							onAgentUpdated={onAgentUpdated}
 						/>
 					))}
@@ -704,33 +536,37 @@ function VoiceAgentsSection({
 
 // Main client component
 export function VoiceAgentsPageClient({
-	initialVoiceAgents,
-	phoneNumbers
+	initialVoiceAgents
 }: {
 	initialVoiceAgents: {
-		data: VoiceAgentWithPhoneNumber[] | null
+		data: VoiceAgent[] | null
 		success: boolean
 		error: string | null
 	}
-	phoneNumbers: PhoneNumber[]
 }) {
 	const [isLoading, setIsLoading] = useState(false)
 	const [agents, setAgents] = useState(initialVoiceAgents.data || [])
 
-	// Handle loading and error states
-	const phoneNumbersData = phoneNumbers || []
-
-	const handleAgentCreated = () => {
-		// Refresh the page to get the updated list
-		window.location.reload()
-	}
+	const refreshAgents = useCallback(async () => {
+		setIsLoading(true)
+		try {
+			const result = await getVoiceAgents()
+			if (result.success && result.data) {
+				setAgents(result.data)
+				return
+			}
+			toast.error(result.error || "Failed to refresh voice agents")
+		} catch (error) {
+			console.error("Failed to refresh voice agents:", error)
+			toast.error("Failed to refresh voice agents")
+		} finally {
+			setIsLoading(false)
+		}
+	}, [])
 
 	return (
 		<div className="space-y-6">
-			<PageHeader
-				phoneNumbers={phoneNumbersData}
-				onAgentCreated={handleAgentCreated}
-			/>
+			<PageHeader onAgentCreated={refreshAgents} />
 
 			{!initialVoiceAgents.success ? (
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
@@ -744,9 +580,8 @@ export function VoiceAgentsPageClient({
 			) : (
 				<VoiceAgentsSection
 					agents={agents}
-					phoneNumbers={phoneNumbersData}
 					isLoading={isLoading}
-					onAgentUpdated={handleAgentCreated}
+					onAgentUpdated={refreshAgents}
 				/>
 			)}
 		</div>

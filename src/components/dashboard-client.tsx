@@ -1,6 +1,5 @@
 "use client"
 
-import { useUser } from "@clerk/nextjs"
 import { useState, useEffect } from "react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -58,6 +57,7 @@ import type {
 	LeadSourceData,
 	AgentPerformanceData
 } from "@/actions/dashboard-analytics"
+import { useAuthUser } from "@/lib/auth/use-auth-user"
 
 interface DashboardClientProps {
 	initialData: {
@@ -77,7 +77,7 @@ const timeRangeOptions = [
 ]
 
 export default function DashboardClient({ initialData }: DashboardClientProps) {
-	const { user, isLoaded } = useUser()
+	const { user, isLoading: isSessionLoading } = useAuthUser()
 	const isMobile = useIsMobile()
 	const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d">("30d")
 	const [isLoading, setIsLoading] = useState(false)
@@ -102,7 +102,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 	// Fetch new data when time range changes
 	useEffect(() => {
 		async function fetchData() {
-			if (!isLoaded) return
+			if (isSessionLoading || !user) return
 			setIsLoading(true)
 			try {
 				const newData = await getDashboardData(timeRange)
@@ -115,7 +115,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 		}
 
 		fetchData()
-	}, [timeRange, isLoaded])
+	}, [timeRange, isSessionLoading, user])
 
 	// Calculate lead stats from funnel data
 	const leadStats = {
@@ -197,7 +197,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
-						{greeting}, {user?.firstName || "User"}
+						{greeting}, {user?.name?.split(" ")[0] || "User"}
 					</h1>
 				</div>
 				<div className="flex gap-2">

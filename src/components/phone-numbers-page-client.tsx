@@ -1,11 +1,24 @@
 "use client"
 
-import { AddPhoneNumberDialog } from "@/components/add-phone-number-dialog"
-import { AssignAgentDialog } from "@/components/assign-agent-dialog"
-import { PhoneNumberConfigDialog } from "@/components/phone-number-config-dialog"
+import {
+	createPhoneNumber,
+	setDefaultOutboundPhoneNumber,
+	updatePhoneNumber,
+	updatePhoneNumberStatus
+} from "@/actions/phone-numbers"
+import type { VoiceAgent } from "@/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle
+} from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
 	Select,
 	SelectContent,
@@ -13,741 +26,589 @@ import {
 	SelectTrigger,
 	SelectValue
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger
-} from "@/components/ui/tooltip"
-import type { PhoneNumber, VoiceAgent } from "@/types"
-import {
-	ClockIcon,
-	InfoIcon,
-	PhoneIcon,
-	PhoneIncomingIcon,
-	PhoneOutgoingIcon,
-	BotIcon,
-	RefreshCwIcon,
-	WifiIcon,
-	AlertCircleIcon,
-	CheckCircleIcon,
-	FilterIcon
-} from "lucide-react"
-import { useEffect, useState, useCallback } from "react"
-import {
-	syncVapiPhoneStatus,
-	testVapiPhoneConnectivity
-} from "@/actions/phone-numbers"
+import { PhoneCall } from "lucide-react"
+import { useMemo, useState, useTransition } from "react"
+import { toast } from "sonner"
 
-// Page header component with gradient title
-function PageHeader() {
-	return (
-		<div className="flex items-center justify-between">
-			<div>
-				<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
-					Phone Numbers
-				</h1>
-			</div>
-			<AddPhoneNumberDialog variant="outline" />
-		</div>
-	)
+type PhoneNumberRecord = {
+	id: number
+	provider: "mock" | "twilio" | "telnyx" | "vonage"
+	phoneNumber: string
+	label: string | null
+	status: "provisioning" | "active" | "inactive" | "released"
+	capabilities: {
+		voice?: boolean
+		sms?: boolean
+		mms?: boolean
+	} | null
+	isDefaultOutbound: boolean
+	assignedAgentId: number | null
+	assignedAgentName: string | null
+	updatedAt: Date
 }
 
-// VAPI status indicator component
-function VapiStatusIndicator({ phoneNumber }: { phoneNumber: PhoneNumber }) {
-	const isVapiNumber = phoneNumber.provider === "vapi"
-	const hasProviderSid = Boolean(phoneNumber.providerSid)
+type CreateFormState = {
+	provider: "twilio" | "telnyx" | "vonage" | "mock"
+	phoneNumber: string
+	label: string
+	status: "active" | "provisioning"
+	voice: boolean
+	sms: boolean
+	mms: boolean
+	isDefaultOutbound: boolean
+	assignedAgentId: string
+}
 
-	if (!isVapiNumber) {
-		return (
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Badge
-							variant="outline"
-							className="gap-1 bg-gray-100 text-gray-600 border-gray-200"
-						>
-							<WifiIcon className="h-3 w-3" />
-							Manual
-						</Badge>
-					</TooltipTrigger>
-					<TooltipContent>
-						<p>Manually configured number</p>
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+const INITIAL_FORM: CreateFormState = {
+	provider: "twilio",
+	phoneNumber: "",
+	label: "",
+	status: "active",
+	voice: true,
+	sms: false,
+	mms: false,
+	isDefaultOutbound: false,
+	assignedAgentId: "none"
+}
+
+export function PhoneNumbersPageClient({
+	initialPhoneNumbers,
+	voiceAgents
+}: {
+	initialPhoneNumbers: PhoneNumberRecord[]
+	voiceAgents: Array<Pick<VoiceAgent, "id" | "name" | "status">>
+}) {
+	const [phoneNumbers, setPhoneNumbers] =
+		useState<PhoneNumberRecord[]>(initialPhoneNumbers)
+	const [form, setForm] = useState<CreateFormState>(INITIAL_FORM)
+	const [isPending, startTransition] = useTransition()
+
+	const activeAgentOptions = useMemo(
+		() => voiceAgents.filter((agent) => agent.status === "active"),
+		[voiceAgents]
+	)
+
+	const stats = useMemo(() => {
+		const total = phoneNumbers.length
+		const active = phoneNumbers.filter(
+			(number) => number.status === "active"
+		).length
+		const assigned = phoneNumbers.filter(
+			(number) => number.assignedAgentId !== null
+		).length
+		const defaultOutbound = phoneNumbers.find(
+			(number) => number.isDefaultOutbound
 		)
-	}
+		return {
+			total,
+			active,
+			assigned,
+			defaultOutboundNumber: defaultOutbound?.phoneNumber || null
+		}
+	}, [phoneNumbers])
 
-	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Badge
-						variant="outline"
-						className={`gap-1 ${
-							hasProviderSid
-								? "bg-green-100 text-green-700 border-green-200"
-								: "bg-yellow-100 text-yellow-700 border-yellow-200"
-						}`}
-					>
-						{hasProviderSid ? (
-							<CheckCircleIcon className="h-3 w-3" />
-						) : (
-							<AlertCircleIcon className="h-3 w-3" />
-						)}
-						VAPI
-					</Badge>
-				</TooltipTrigger>
-				<TooltipContent>
-					<p>
-						{hasProviderSid
-							? "Connected to VAPI"
-							: "VAPI integration pending"}
-					</p>
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
-	)
-}
-
-// VAPI actions component
-function VapiActions({ phoneNumber }: { phoneNumber: PhoneNumber }) {
-	const [isSyncing, setIsSyncing] = useState(false)
-	const [isTesting, setIsTesting] = useState(false)
-
-	const handleSyncWithVapi = async () => {
-		if (!phoneNumber.providerSid) return
-
-		setIsSyncing(true)
-		try {
-			const result = await syncVapiPhoneStatus(phoneNumber.id)
-			if (result.success) {
-				console.log(
-					"Successfully synced with VAPI for number:",
-					phoneNumber.id
-				)
-				// Refresh the page to show updated data
-				window.location.reload()
+	const upsertPhoneNumberInState = (updated: PhoneNumberRecord) => {
+		setPhoneNumbers((current) => {
+			const next = current.map((number) =>
+				number.id === updated.id ? updated : number
+			)
+			if (!current.some((number) => number.id === updated.id)) {
+				next.unshift(updated)
 			}
-		} catch (error) {
-			console.error("Failed to sync with VAPI:", error)
-			alert("Failed to sync with VAPI. Please try again.")
-		} finally {
-			setIsSyncing(false)
-		}
-	}
-
-	const handleTestConnectivity = async () => {
-		if (!phoneNumber.providerSid) return
-
-		setIsTesting(true)
-		try {
-			const result = await testVapiPhoneConnectivity(phoneNumber.id)
-			if (result.success && result.connectivity) {
-				console.log("VAPI connectivity test successful:", result)
-				alert(
-					`VAPI connectivity test successful!\nPhone: ${result.connectivity.phoneNumber}\nStatus: ${result.connectivity.status}\nProvider: ${result.connectivity.provider}`
-				)
-			} else {
-				alert(
-					`VAPI connectivity test failed: ${result.error || "Unknown error"}`
-				)
-			}
-		} catch (error) {
-			console.error("Failed to test VAPI connectivity:", error)
-			alert("Failed to test VAPI connectivity. Please try again.")
-		} finally {
-			setIsTesting(false)
-		}
-	}
-
-	if (phoneNumber.provider !== "vapi" || !phoneNumber.providerSid) {
-		return null
-	}
-
-	return (
-		<div className="flex gap-1">
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={handleSyncWithVapi}
-							disabled={isSyncing}
-							className="h-8 w-8 p-0"
-						>
-							<RefreshCwIcon
-								className={`h-3 w-3 ${
-									isSyncing ? "animate-spin" : ""
-								}`}
-							/>
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>
-						<p>Sync with VAPI</p>
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
-
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={handleTestConnectivity}
-							disabled={isTesting}
-							className="h-8 w-8 p-0"
-						>
-							<WifiIcon
-								className={`h-3 w-3 ${
-									isTesting ? "animate-pulse" : ""
-								}`}
-							/>
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>
-						<p>Test VAPI connectivity</p>
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
-		</div>
-	)
-}
-
-// Enhanced phone number display with VAPI information
-function PhoneNumberDisplay({
-	phoneNumber,
-	voiceAgents,
-	onUpdate
-}: {
-	phoneNumber: PhoneNumber
-	voiceAgents?: VoiceAgent[]
-	onUpdate?: () => void
-}) {
-	const { number, friendlyName, status, isDefault, provider, providerSid } =
-		phoneNumber
-	const statusConfig = {
-		active: {
-			color: "bg-green-100 text-green-800 border-green-200",
-			label: "Active"
-		},
-		inactive: {
-			color: "bg-gray-100 text-gray-800 border-gray-200",
-			label: "Inactive"
-		},
-		pending: {
-			color: "bg-yellow-100 text-yellow-800 border-yellow-200",
-			label: "Pending"
-		},
-		suspended: {
-			color: "bg-red-100 text-red-800 border-red-200",
-			label: "Suspended"
-		}
-	}
-
-	const config = statusConfig[status] || statusConfig.inactive
-
-	// Find assigned voice agent
-	const assignedAgent = voiceAgents?.find(
-		(agent) => agent.phoneNumberId === phoneNumber.id
-	)
-
-	return (
-		<div className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 border border-border/50 rounded-2xl bg-card/30 mb-3">
-			<div className="flex items-center gap-3 mb-2 md:mb-0">
-				<div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-					<PhoneIcon className="h-5 w-5 text-primary" />
-				</div>
-				<div>
-					<div className="font-medium">{number}</div>
-					<div className="text-sm text-muted-foreground">
-						{friendlyName}
-					</div>
-					{/* Provider information */}
-					{provider && (
-						<div className="text-xs text-muted-foreground mt-1">
-							Provider: {provider}
-							{providerSid && (
-								<span className="ml-1 text-gray-400">
-									({providerSid.substring(0, 8)}...)
-								</span>
-							)}
-						</div>
-					)}
-				</div>
-				<div className="flex flex-col gap-2">
-					<div className="flex gap-2">
-						<Badge variant="outline" className={config.color}>
-							{config.label}
-						</Badge>
-						{isDefault && (
-							<Badge
-								variant="outline"
-								className="bg-blue-100 text-blue-800 border-blue-200"
-							>
-								Default
-							</Badge>
-						)}
-						<VapiStatusIndicator phoneNumber={phoneNumber} />
-					</div>
-				</div>
-			</div>
-
-			{/* Voice Agent Assignment */}
-			<div className="flex items-center gap-3 mb-2 md:mb-0">
-				<div className="flex items-center gap-2">
-					<BotIcon className="h-4 w-4 text-muted-foreground" />
-					<span className="text-sm font-medium">Agent:</span>
-				</div>
-				<div className="text-sm">
-					{assignedAgent ? (
-						<Badge
-							variant="outline"
-							className="gap-1 px-3 py-1 bg-green-50 text-green-700 border-green-200"
-						>
-							<BotIcon className="h-3 w-3" />
-							{assignedAgent.name}
-						</Badge>
-					) : (
-						<span className="text-muted-foreground">
-							Unassigned
-						</span>
-					)}
-				</div>
-			</div>
-
-			<div className="flex gap-2 w-full md:w-auto items-center">
-				<VapiActions phoneNumber={phoneNumber} />
-				<AssignAgentDialog
-					phoneNumber={phoneNumber}
-					voiceAgents={voiceAgents || []}
-					onSuccess={onUpdate}
-				/>
-				<PhoneNumberConfigDialog
-					phoneNumber={phoneNumber}
-					voiceAgents={voiceAgents}
-					onSuccess={onUpdate}
-				/>
-			</div>
-		</div>
-	)
-}
-
-// Define filter types
-interface PhoneNumberFilters {
-	provider?: string
-	status?: string
-	vapiConnected?: boolean
-}
-
-// Enhanced filtering component
-function PhoneNumberFilters({
-	onFilterChange
-}: {
-	onFilterChange: (filters: PhoneNumberFilters) => void
-}) {
-	const [provider, setProvider] = useState<string>("all")
-	const [status, setStatus] = useState<string>("all")
-	const [vapiConnected, setVapiConnected] = useState<string>("all")
-
-	const handleFilterChange = useCallback(() => {
-		onFilterChange({
-			provider: provider === "all" ? undefined : provider,
-			status: status === "all" ? undefined : status,
-			vapiConnected:
-				vapiConnected === "all"
-					? undefined
-					: vapiConnected === "connected"
+			return next
 		})
-	}, [provider, status, vapiConnected, onFilterChange])
+	}
 
-	useEffect(() => {
-		handleFilterChange()
-	}, [handleFilterChange])
+	const handleCreate = () => {
+		startTransition(async () => {
+			const result = await createPhoneNumber({
+				provider: form.provider,
+				phoneNumber: form.phoneNumber,
+				label: form.label || null,
+				status: form.status,
+				isDefaultOutbound: form.isDefaultOutbound,
+				capabilities: {
+					voice: form.voice,
+					sms: form.sms,
+					mms: form.mms
+				},
+				assignedAgentId:
+					form.assignedAgentId === "none"
+						? null
+						: Number(form.assignedAgentId)
+			})
 
-	return (
-		<Card className="rounded-2xl border border-border bg-card/40 backdrop-blur-sm shadow-sm mb-4">
-			<CardContent className="p-4">
-				<div className="flex items-center gap-4">
-					<div className="flex items-center gap-2">
-						<FilterIcon className="h-4 w-4 text-muted-foreground" />
-						<span className="text-sm font-medium">Filters:</span>
-					</div>
-
-					<Select value={provider} onValueChange={setProvider}>
-						<SelectTrigger className="w-[140px] h-8 text-sm">
-							<SelectValue placeholder="Provider" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Providers</SelectItem>
-							<SelectItem value="vapi">VAPI</SelectItem>
-							<SelectItem value="twilio">Twilio</SelectItem>
-							<SelectItem value="vonage">Vonage</SelectItem>
-							<SelectItem value="manual">Manual</SelectItem>
-						</SelectContent>
-					</Select>
-
-					<Select value={status} onValueChange={setStatus}>
-						<SelectTrigger className="w-[120px] h-8 text-sm">
-							<SelectValue placeholder="Status" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Status</SelectItem>
-							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="inactive">Inactive</SelectItem>
-							<SelectItem value="pending">Pending</SelectItem>
-							<SelectItem value="suspended">Suspended</SelectItem>
-						</SelectContent>
-					</Select>
-
-					<Select
-						value={vapiConnected}
-						onValueChange={setVapiConnected}
-					>
-						<SelectTrigger className="w-[150px] h-8 text-sm">
-							<SelectValue placeholder="VAPI Status" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All VAPI</SelectItem>
-							<SelectItem value="connected">
-								VAPI Connected
-							</SelectItem>
-							<SelectItem value="disconnected">
-								Not Connected
-							</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-			</CardContent>
-		</Card>
-	)
-}
-
-// Inbound numbers section with enhanced filtering
-function InboundNumbersSection({
-	phoneNumbers,
-	voiceAgents,
-	onUpdate,
-	filters
-}: {
-	phoneNumbers: PhoneNumber[]
-	voiceAgents?: VoiceAgent[]
-	onUpdate?: () => void
-	filters: PhoneNumberFilters
-}) {
-	const filteredNumbers = phoneNumbers.filter((number) => {
-		if (filters.provider && number.provider !== filters.provider) {
-			return false
-		}
-		if (filters.status && number.status !== filters.status) {
-			return false
-		}
-		if (typeof filters.vapiConnected === "boolean") {
-			const hasVapiConnection =
-				number.provider === "vapi" && Boolean(number.providerSid)
-			if (filters.vapiConnected !== hasVapiConnection) {
-				return false
+			if (!result.success || !result.data) {
+				toast.error(result.error || "Failed to add phone number")
+				return
 			}
-		}
-		return true
-	})
 
-	return (
-		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-			<CardHeader className="pb-3">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<PhoneIncomingIcon className="h-5 w-5 text-green-600" />
-						<CardTitle>
-							Inbound Numbers ({filteredNumbers.length})
-						</CardTitle>
-					</div>
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<InfoIcon className="h-4 w-4 text-muted-foreground cursor-help" />
-							</TooltipTrigger>
-							<TooltipContent>
-								<p className="max-w-xs">
-									Inbound numbers are used for customers to
-									call your business. Incoming calls will be
-									automatically handled by your AI voice
-									agent.
-								</p>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				</div>
-			</CardHeader>
-			<CardContent>
-				<div className="space-y-4">
-					{filteredNumbers.length > 0 ? (
-						filteredNumbers.map((phoneNumber) => (
-							<PhoneNumberDisplay
-								key={phoneNumber.id}
-								phoneNumber={phoneNumber}
-								voiceAgents={voiceAgents}
-								onUpdate={onUpdate}
-							/>
-						))
-					) : (
-						<div className="text-center py-8 text-muted-foreground">
-							<PhoneIncomingIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-							<p>No inbound numbers match your filters</p>
-							<p className="text-sm">
-								Try adjusting your filter settings
-							</p>
-						</div>
-					)}
-				</div>
-			</CardContent>
-		</Card>
-	)
-}
+			upsertPhoneNumberInState({
+				...result.data,
+				assignedAgentName:
+					activeAgentOptions.find(
+						(agent) => agent.id === result.data?.assignedAgentId
+					)?.name || null
+			})
+			setForm(INITIAL_FORM)
+			toast.success("Phone number added")
+		})
+	}
 
-// Outbound numbers section with enhanced filtering
-function OutboundNumbersSection({
-	phoneNumbers,
-	voiceAgents,
-	onUpdate,
-	filters
-}: {
-	phoneNumbers: PhoneNumber[]
-	voiceAgents?: VoiceAgent[]
-	onUpdate?: () => void
-	filters: PhoneNumberFilters
-}) {
-	const [callerId, setCallerId] = useState("default")
-	const [scheduleEnabled, setScheduleEnabled] = useState(true)
-
-	const filteredNumbers = phoneNumbers.filter((number) => {
-		if (filters.provider && number.provider !== filters.provider) {
-			return false
-		}
-		if (filters.status && number.status !== filters.status) {
-			return false
-		}
-		if (typeof filters.vapiConnected === "boolean") {
-			const hasVapiConnection =
-				number.provider === "vapi" && Boolean(number.providerSid)
-			if (filters.vapiConnected !== hasVapiConnection) {
-				return false
+	const handleSetDefault = (id: number) => {
+		startTransition(async () => {
+			const result = await setDefaultOutboundPhoneNumber({ id })
+			if (!result.success || !result.data) {
+				toast.error(result.error || "Failed to set default number")
+				return
 			}
-		}
-		return true
-	})
+
+			setPhoneNumbers((current) =>
+				current.map((number) => ({
+					...number,
+					isDefaultOutbound: number.id === id
+				}))
+			)
+			toast.success("Default outbound number updated")
+		})
+	}
+
+	const handleStatusChange = (
+		id: number,
+		status: "provisioning" | "active" | "inactive" | "released"
+	) => {
+		startTransition(async () => {
+			const result = await updatePhoneNumberStatus({ id, status })
+			if (!result.success || !result.data) {
+				toast.error(result.error || "Failed to update status")
+				return
+			}
+
+			setPhoneNumbers((current) =>
+				current.map((number) =>
+					number.id === id
+						? {
+								...number,
+								status: result.data.status,
+								isDefaultOutbound: result.data.isDefaultOutbound
+							}
+						: number
+				)
+			)
+			toast.success("Phone number status updated")
+		})
+	}
+
+	const handleAssignAgent = (id: number, assignedAgentId: string) => {
+		startTransition(async () => {
+			const result = await updatePhoneNumber({
+				id,
+				assignedAgentId:
+					assignedAgentId === "none" ? null : Number(assignedAgentId)
+			})
+			if (!result.success || !result.data) {
+				toast.error(result.error || "Failed to assign agent")
+				return
+			}
+
+			const assignedName =
+				assignedAgentId === "none"
+					? null
+					: activeAgentOptions.find(
+							(agent) => agent.id === Number(assignedAgentId)
+						)?.name || null
+
+			setPhoneNumbers((current) =>
+				current.map((number) =>
+					number.id === id
+						? {
+								...number,
+								assignedAgentId:
+									result.data.assignedAgentId || null,
+								assignedAgentName: assignedName
+							}
+						: number
+				)
+			)
+			toast.success("Agent assignment updated")
+		})
+	}
 
 	return (
-		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
-			<CardHeader className="pb-3">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<PhoneOutgoingIcon className="h-5 w-5 text-blue-600" />
-						<CardTitle>
-							Outbound Numbers ({filteredNumbers.length})
-						</CardTitle>
-					</div>
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<InfoIcon className="h-4 w-4 text-muted-foreground cursor-help" />
-							</TooltipTrigger>
-							<TooltipContent>
-								<p className="max-w-xs">
-									Outbound numbers are used for your AI agents
-									to make outgoing calls to leads and
-									customers. This is what appears on their
-									caller ID.
-								</p>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+		<div className="container h-[calc(100vh-5rem)]">
+			<div className="flex flex-col gap-8 p-2 md:px-8 md:py-4 h-full">
+				<div>
+					<h1 className="text-4xl lg:text-3xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-foreground to-neutral-700 pb-2 pt-4">
+						Phone Numbers
+					</h1>
+					<p className="text-sm text-muted-foreground">
+						Manage provider numbers for outbound campaigns, inbound
+						support routing, and future PSTN telephony rollout.
+					</p>
 				</div>
-			</CardHeader>
-			<CardContent>
-				<div className="space-y-4">
-					{filteredNumbers.length > 0 ? (
-						filteredNumbers.map((phoneNumber) => (
-							<PhoneNumberDisplay
-								key={phoneNumber.id}
-								phoneNumber={phoneNumber}
-								voiceAgents={voiceAgents}
-								onUpdate={onUpdate}
-							/>
-						))
-					) : (
-						<div className="text-center py-8 text-muted-foreground">
-							<PhoneOutgoingIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-							<p>No outbound numbers match your filters</p>
-							<p className="text-sm">
-								Try adjusting your filter settings
+
+				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+						<CardContent className="pt-6">
+							<p className="text-xs text-muted-foreground">
+								Total
 							</p>
-						</div>
-					)}
+							<p className="text-2xl font-semibold">
+								{stats.total}
+							</p>
+						</CardContent>
+					</Card>
+					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+						<CardContent className="pt-6">
+							<p className="text-xs text-muted-foreground">
+								Active
+							</p>
+							<p className="text-2xl font-semibold">
+								{stats.active}
+							</p>
+						</CardContent>
+					</Card>
+					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+						<CardContent className="pt-6">
+							<p className="text-xs text-muted-foreground">
+								Assigned To Agents
+							</p>
+							<p className="text-2xl font-semibold">
+								{stats.assigned}
+							</p>
+						</CardContent>
+					</Card>
+					<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+						<CardContent className="pt-6">
+							<p className="text-xs text-muted-foreground">
+								Default Outbound
+							</p>
+							<p className="text-sm font-semibold mt-2 truncate">
+								{stats.defaultOutboundNumber || "Not set"}
+							</p>
+						</CardContent>
+					</Card>
+				</div>
 
-					<div className="p-4 border border-border/50 rounded-2xl bg-card/30">
-						<h3 className="text-base font-medium mb-4">
-							Outbound Settings
-						</h3>
-
-						<div className="grid gap-4">
-							<div className="flex flex-col space-y-1.5">
-								<div className="flex justify-between items-center">
-									<label
-										htmlFor="callerId"
-										className="text-sm font-medium"
-									>
-										Caller ID Name
-									</label>
-								</div>
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="text-base">
+							Add Phone Number
+						</CardTitle>
+						<CardDescription>
+							Add existing numbers from Twilio, Telnyx, Vonage, or
+							mock provider for local testing.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+							<div className="space-y-2">
+								<Label htmlFor="pn-provider">Provider</Label>
 								<Select
-									value={callerId}
-									onValueChange={setCallerId}
+									value={form.provider}
+									onValueChange={(value) =>
+										setForm((current) => ({
+											...current,
+											provider:
+												value as CreateFormState["provider"]
+										}))
+									}
 								>
-									<SelectTrigger
-										id="callerId"
-										className="rounded-lg"
-									>
-										<SelectValue placeholder="Select a caller ID to display" />
+									<SelectTrigger id="pn-provider">
+										<SelectValue />
 									</SelectTrigger>
-									<SelectContent position="popper">
-										<SelectItem value="default">
-											IcePhone Sales
+									<SelectContent>
+										<SelectItem value="twilio">
+											Twilio
 										</SelectItem>
-										<SelectItem value="company">
-											Your Company Name
+										<SelectItem value="telnyx">
+											Telnyx
 										</SelectItem>
-										<SelectItem value="local">
-											Local Area Match (Smart)
+										<SelectItem value="vonage">
+											Vonage
 										</SelectItem>
-										<SelectItem value="custom">
-											Custom Name
+										<SelectItem value="mock">
+											Mock
 										</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
 
-							<div className="flex items-center justify-between rounded-lg border p-4">
-								<div className="space-y-0.5">
-									<div className="flex items-center">
-										<ClockIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-										<label
-											htmlFor="scheduleToggle"
-											className="text-sm font-medium"
-										>
-											Respect Business Hours
-										</label>
-									</div>
-									<p className="text-sm text-muted-foreground">
-										Only make outbound calls during business
-										hours
-									</p>
-								</div>
-								<Switch
-									id="scheduleToggle"
-									checked={scheduleEnabled}
-									onCheckedChange={setScheduleEnabled}
+							<div className="space-y-2">
+								<Label htmlFor="pn-number">Phone Number</Label>
+								<Input
+									id="pn-number"
+									value={form.phoneNumber}
+									onChange={(event) =>
+										setForm((current) => ({
+											...current,
+											phoneNumber: event.target.value
+										}))
+									}
+									placeholder="+15551234567"
 								/>
 							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="pn-label">Label</Label>
+								<Input
+									id="pn-label"
+									value={form.label}
+									onChange={(event) =>
+										setForm((current) => ({
+											...current,
+											label: event.target.value
+										}))
+									}
+									placeholder="Support line"
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="pn-assigned-agent">
+									Assign Agent
+								</Label>
+								<Select
+									value={form.assignedAgentId}
+									onValueChange={(value) =>
+										setForm((current) => ({
+											...current,
+											assignedAgentId: value
+										}))
+									}
+								>
+									<SelectTrigger id="pn-assigned-agent">
+										<SelectValue placeholder="Unassigned" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">
+											Unassigned
+										</SelectItem>
+										{activeAgentOptions.map((agent) => (
+											<SelectItem
+												key={agent.id}
+												value={agent.id.toString()}
+											>
+												{agent.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
 						</div>
-					</div>
-				</div>
-			</CardContent>
-		</Card>
-	)
-}
 
-// Main Phone Numbers Page Client Component
-export function PhoneNumbersPageClient({
-	initialPhoneNumbers = [],
-	voiceAgents = []
-}: {
-	initialPhoneNumbers?: PhoneNumber[]
-	voiceAgents?: VoiceAgent[]
-}) {
-	const [phoneNumbers, setPhoneNumbers] =
-		useState<PhoneNumber[]>(initialPhoneNumbers)
-	const [filters, setFilters] = useState<PhoneNumberFilters>({})
+						<div className="flex flex-wrap items-center gap-6">
+							<div className="flex items-center gap-2">
+								<Checkbox
+									id="pn-cap-voice"
+									checked={form.voice}
+									onCheckedChange={(checked) =>
+										setForm((current) => ({
+											...current,
+											voice: checked === true
+										}))
+									}
+								/>
+								<Label htmlFor="pn-cap-voice">Voice</Label>
+							</div>
+							<div className="flex items-center gap-2">
+								<Checkbox
+									id="pn-cap-sms"
+									checked={form.sms}
+									onCheckedChange={(checked) =>
+										setForm((current) => ({
+											...current,
+											sms: checked === true
+										}))
+									}
+								/>
+								<Label htmlFor="pn-cap-sms">SMS</Label>
+							</div>
+							<div className="flex items-center gap-2">
+								<Checkbox
+									id="pn-cap-mms"
+									checked={form.mms}
+									onCheckedChange={(checked) =>
+										setForm((current) => ({
+											...current,
+											mms: checked === true
+										}))
+									}
+								/>
+								<Label htmlFor="pn-cap-mms">MMS</Label>
+							</div>
+							<div className="flex items-center gap-2">
+								<Checkbox
+									id="pn-default"
+									checked={form.isDefaultOutbound}
+									onCheckedChange={(checked) =>
+										setForm((current) => ({
+											...current,
+											isDefaultOutbound: checked === true
+										}))
+									}
+								/>
+								<Label htmlFor="pn-default">
+									Set as default outbound
+								</Label>
+							</div>
 
-	// Filter numbers by type
-	const inboundNumbers = phoneNumbers.filter(
-		(num) => num.type === "inbound" || num.type === "both"
-	)
-	const outboundNumbers = phoneNumbers.filter(
-		(num) => num.type === "outbound" || num.type === "both"
-	)
+							<Button
+								onClick={handleCreate}
+								disabled={isPending || !form.phoneNumber.trim()}
+								className="rounded-2xl"
+							>
+								Add Number
+							</Button>
+						</div>
+					</CardContent>
+				</Card>
 
-	const handleUpdate = () => {
-		// Refresh the page to get updated data
-		window.location.reload()
-	}
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="text-base">
+							Numbers Directory
+						</CardTitle>
+						<CardDescription>
+							Configure status, default outbound routing, and
+							agent assignment.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						{phoneNumbers.length === 0 ? (
+							<p className="text-sm text-muted-foreground">
+								No phone numbers yet. Add your first provider
+								number above.
+							</p>
+						) : (
+							phoneNumbers.map((number) => (
+								<div
+									key={number.id}
+									className="rounded-2xl border border-border/60 p-4"
+								>
+									<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+										<div>
+											<div className="flex items-center gap-2">
+												<PhoneCall className="h-4 w-4 text-muted-foreground" />
+												<p className="font-medium">
+													{number.phoneNumber}
+												</p>
+												{number.label && (
+													<Badge variant="outline">
+														{number.label}
+													</Badge>
+												)}
+												{number.isDefaultOutbound && (
+													<Badge className="bg-primary/90">
+														Default Outbound
+													</Badge>
+												)}
+											</div>
+											<p className="text-xs text-muted-foreground mt-1 uppercase">
+												{number.provider}
+											</p>
+											<div className="mt-2 flex items-center gap-2">
+												{number.capabilities?.voice && (
+													<Badge variant="secondary">
+														Voice
+													</Badge>
+												)}
+												{number.capabilities?.sms && (
+													<Badge variant="secondary">
+														SMS
+													</Badge>
+												)}
+												{number.capabilities?.mms && (
+													<Badge variant="secondary">
+														MMS
+													</Badge>
+												)}
+											</div>
+										</div>
 
-	return (
-		<>
-			<PageHeader />
+										<div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:w-[640px]">
+											<Select
+												value={number.status}
+												onValueChange={(value) =>
+													handleStatusChange(
+														number.id,
+														value as PhoneNumberRecord["status"]
+													)
+												}
+											>
+												<SelectTrigger>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="active">
+														Active
+													</SelectItem>
+													<SelectItem value="inactive">
+														Inactive
+													</SelectItem>
+													<SelectItem value="provisioning">
+														Provisioning
+													</SelectItem>
+													<SelectItem value="released">
+														Released
+													</SelectItem>
+												</SelectContent>
+											</Select>
 
-			<PhoneNumberFilters onFilterChange={setFilters} />
+											<Select
+												value={
+													number.assignedAgentId
+														? number.assignedAgentId.toString()
+														: "none"
+												}
+												onValueChange={(value) =>
+													handleAssignAgent(
+														number.id,
+														value
+													)
+												}
+											>
+												<SelectTrigger>
+													<SelectValue placeholder="Unassigned" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="none">
+														Unassigned
+													</SelectItem>
+													{activeAgentOptions.map(
+														(agent) => (
+															<SelectItem
+																key={agent.id}
+																value={agent.id.toString()}
+															>
+																{agent.name}
+															</SelectItem>
+														)
+													)}
+												</SelectContent>
+											</Select>
 
-			<Tabs defaultValue="all" className="mb-6">
-				<TabsList className="rounded-full bg-muted/80 shadow-inner">
-					<TabsTrigger
-						value="all"
-						className="px-6 text-base font-medium rounded-full"
-					>
-						All Numbers
-					</TabsTrigger>
-					<TabsTrigger
-						value="inbound"
-						className="px-6 text-base font-medium rounded-full"
-					>
-						Inbound
-					</TabsTrigger>
-					<TabsTrigger
-						value="outbound"
-						className="px-6 text-base font-medium rounded-full"
-					>
-						Outbound
-					</TabsTrigger>
-				</TabsList>
-
-				<TabsContent value="all" className="space-y-6 mt-6">
-					<InboundNumbersSection
-						phoneNumbers={inboundNumbers}
-						voiceAgents={voiceAgents}
-						onUpdate={handleUpdate}
-						filters={filters}
-					/>
-					<OutboundNumbersSection
-						phoneNumbers={outboundNumbers}
-						voiceAgents={voiceAgents}
-						onUpdate={handleUpdate}
-						filters={filters}
-					/>
-				</TabsContent>
-
-				<TabsContent value="inbound" className="mt-6">
-					<InboundNumbersSection
-						phoneNumbers={inboundNumbers}
-						voiceAgents={voiceAgents}
-						onUpdate={handleUpdate}
-						filters={filters}
-					/>
-				</TabsContent>
-
-				<TabsContent value="outbound" className="mt-6">
-					<OutboundNumbersSection
-						phoneNumbers={outboundNumbers}
-						voiceAgents={voiceAgents}
-						onUpdate={handleUpdate}
-						filters={filters}
-					/>
-				</TabsContent>
-			</Tabs>
-		</>
+											<Button
+												variant="outline"
+												onClick={() =>
+													handleSetDefault(number.id)
+												}
+												disabled={
+													isPending ||
+													number.isDefaultOutbound ||
+													number.status !== "active"
+												}
+											>
+												Set Default
+											</Button>
+										</div>
+									</div>
+								</div>
+							))
+						)}
+					</CardContent>
+				</Card>
+			</div>
+		</div>
 	)
 }

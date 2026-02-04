@@ -49,7 +49,7 @@ export default function KnowledgeBaseSourcesList({
 					Add your first knowledge source to get started
 				</p>
 				<Button variant="outline" asChild>
-					<Link href="/admin/knowledge-base?tab=add">Add Source</Link>
+					<Link href="/knowledge">Add Source</Link>
 				</Button>
 			</div>
 		)
@@ -119,7 +119,7 @@ export default function KnowledgeBaseSourcesList({
 									<DropdownMenuContent align="end">
 										<DropdownMenuItem asChild>
 											<Link
-												href={`/admin/knowledge-base/${source.id}`}
+												href={`/knowledge/${source.id}`}
 											>
 												View Documents
 											</Link>
@@ -155,9 +155,7 @@ export default function KnowledgeBaseSourcesList({
 					<CardFooter>
 						<div className="flex justify-between items-center w-full">
 							<Button variant="outline" size="sm" asChild>
-								<Link
-									href={`/admin/knowledge-base/${source.id}`}
-								>
+								<Link href={`/knowledge/${source.id}`}>
 									View Documents
 								</Link>
 							</Button>

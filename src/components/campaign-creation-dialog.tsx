@@ -32,7 +32,7 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import type { VoiceAgentWithPhoneNumber } from "@/types"
+import type { VoiceAgent } from "@/types"
 import {
 	ArrowLeftIcon,
 	ArrowRightIcon,
@@ -153,9 +153,7 @@ export function CampaignCreationDialog({
 	const [open, setOpen] = useState(false)
 	const [currentStep, setCurrentStep] = useState("template")
 	const [isLoading, setIsLoading] = useState(false)
-	const [voiceAgents, setVoiceAgents] = useState<VoiceAgentWithPhoneNumber[]>(
-		[]
-	)
+	const [voiceAgents, setVoiceAgents] = useState<VoiceAgent[]>([])
 	const [agentsLoading, setAgentsLoading] = useState(false)
 	// Type for campaign template data (matches database schema)
 	type CampaignTemplate = {
@@ -563,20 +561,24 @@ export function CampaignCreationDialog({
 							}
 							className="w-full"
 						>
-							<TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto">
+							<TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto overflow-hidden">
 								<TabsTrigger
 									value="scratch"
-									className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+									className="min-w-0 inline-flex items-center justify-center rounded-lg px-2 sm:px-3 py-2.5 text-xs sm:text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
 								>
-									<PlusIcon className="h-4 w-4 mr-2" />
-									Start from Scratch
+									<PlusIcon className="hidden sm:block h-4 w-4 mr-2" />
+									<span className="truncate">
+										Start from Scratch
+									</span>
 								</TabsTrigger>
 								<TabsTrigger
 									value="template"
-									className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+									className="min-w-0 inline-flex items-center justify-center rounded-lg px-2 sm:px-3 py-2.5 text-xs sm:text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
 								>
-									<BookTemplateIcon className="h-4 w-4 mr-2" />
-									Use Template
+									<BookTemplateIcon className="hidden sm:block h-4 w-4 mr-2" />
+									<span className="truncate">
+										Use Template
+									</span>
 								</TabsTrigger>
 							</TabsList>
 
@@ -842,16 +844,6 @@ export function CampaignCreationDialog({
 											<div className="flex items-center gap-2">
 												<BotIcon className="h-4 w-4" />
 												{agent.name}
-												{agent.phoneNumber && (
-													<span className="text-xs text-muted-foreground">
-														(
-														{
-															agent.phoneNumber
-																.number
-														}
-														)
-													</span>
-												)}
 											</div>
 										</SelectItem>
 									))}
@@ -1335,7 +1327,7 @@ export function CampaignCreationDialog({
 					</Button>
 				)}
 			</DialogTrigger>
-			<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+			<DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<PhoneIcon className="h-5 w-5" />
@@ -1348,41 +1340,51 @@ export function CampaignCreationDialog({
 				</DialogHeader>
 
 				{/* Step indicator */}
-				<div className="flex items-center justify-center space-x-2 py-4">
-					{Object.entries(STEP_LABELS).map(([key, label], index) => {
-						const isActive = key === currentStep
-						const steps = Object.keys(STEP_LABELS)
-						const isCompleted = steps.indexOf(currentStep) > index
+				<div className="overflow-x-auto py-4">
+					<div className="mx-auto flex min-w-max items-center justify-center space-x-2 px-1">
+						{Object.entries(STEP_LABELS).map(
+							([key, label], index) => {
+								const isActive = key === currentStep
+								const steps = Object.keys(STEP_LABELS)
+								const isCompleted =
+									steps.indexOf(currentStep) > index
 
-						return (
-							<div key={key} className="flex items-center">
-								<div
-									className={`
-									w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium
-									${
-										isActive
-											? "bg-primary text-primary-foreground"
-											: isCompleted
-												? "bg-green-500 text-white"
-												: "bg-muted text-muted-foreground"
-									}
-								`}
-								>
-									{isCompleted ? (
-										<CheckIcon className="h-4 w-4" />
-									) : (
-										index + 1
-									)}
-								</div>
-								{index <
-									Object.keys(STEP_LABELS).length - 1 && (
+								return (
 									<div
-										className={`w-8 h-0.5 mx-2 ${isCompleted ? "bg-green-500" : "bg-muted"}`}
-									/>
-								)}
-							</div>
-						)
-					})}
+										key={key}
+										className="flex items-center"
+									>
+										<div
+											className={`
+										w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-medium
+										${
+											isActive
+												? "bg-primary text-primary-foreground"
+												: isCompleted
+													? "bg-green-500 text-white"
+													: "bg-muted text-muted-foreground"
+										}
+									`}
+											aria-label={`Step ${index + 1}: ${label}`}
+										>
+											{isCompleted ? (
+												<CheckIcon className="h-4 w-4" />
+											) : (
+												index + 1
+											)}
+										</div>
+										{index <
+											Object.keys(STEP_LABELS).length -
+												1 && (
+											<div
+												className={`w-5 sm:w-8 h-0.5 mx-1 sm:mx-2 ${isCompleted ? "bg-green-500" : "bg-muted"}`}
+											/>
+										)}
+									</div>
+								)
+							}
+						)}
+					</div>
 				</div>
 
 				<form onSubmit={onSubmit} className="space-y-6">

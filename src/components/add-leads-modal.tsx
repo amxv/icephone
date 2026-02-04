@@ -5,6 +5,7 @@ import {
 	processCSVImport,
 	type CSVImportResult
 } from "@/actions/campaigns"
+import { importLeadsFromCRM } from "@/actions/crm-integrations"
 import { Button } from "@/components/ui/button"
 import {
 	Dialog,
@@ -22,6 +23,7 @@ import {
 	FileTextIcon,
 	UploadCloudIcon,
 	UserPlusIcon,
+	DatabaseIcon,
 	AlertCircleIcon,
 	CheckCircleIcon
 } from "lucide-react"
@@ -64,6 +66,17 @@ export function AddLeadsModal({
 	const [isLoading, setIsLoading] = useState(false)
 	const [csvImportResult, setCsvImportResult] =
 		useState<CSVImportResult | null>(null)
+	const [crmProvider, setCrmProvider] = useState<
+		"hubspot" | "salesforce" | "gohighlevel" | "pipedrive"
+	>("hubspot")
+	const [crmQuery, setCrmQuery] = useState("")
+	const [crmLimit, setCrmLimit] = useState(25)
+	const [crmImportResult, setCrmImportResult] = useState<{
+		createdCount: number
+		updatedCount: number
+		assignedCount: number
+		totalProcessed: number
+	} | null>(null)
 
 	const resetForm = () => {
 		setLeadName("")
@@ -73,6 +86,9 @@ export function AddLeadsModal({
 		setCsvFile(null)
 		setUploadedFiles([])
 		setCsvImportResult(null)
+		setCrmQuery("")
+		setCrmLimit(25)
+		setCrmImportResult(null)
 	}
 
 	const handleFiles = (fileList: FileList) => {
@@ -181,6 +197,36 @@ export function AddLeadsModal({
 		}
 	}
 
+	const handleImportFromCRM = async () => {
+		setIsLoading(true)
+		setCrmImportResult(null)
+		try {
+			const result = await importLeadsFromCRM({
+				provider: crmProvider,
+				campaignId: parseInt(campaignId),
+				query: crmQuery.trim() || null,
+				limit: crmLimit,
+				autoAssignToCampaign: true
+			})
+
+			if (!result.success || !result.data) {
+				toast.error(result.error || "Failed to import CRM leads")
+				return
+			}
+
+			setCrmImportResult(result.data)
+			onLeadsAdded?.()
+			toast.success(
+				`Imported ${result.data.totalProcessed} leads from ${crmProvider}`
+			)
+		} catch (error) {
+			console.error("Error importing CRM leads:", error)
+			toast.error("Failed to import CRM leads")
+		} finally {
+			setIsLoading(false)
+		}
+	}
+
 	const renderImportResults = () => {
 		if (!csvImportResult) return null
 
@@ -282,7 +328,7 @@ export function AddLeadsModal({
 						onValueChange={setActiveTab}
 						className="w-full"
 					>
-						<TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto">
+						<TabsList className="grid w-full grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 mb-6 h-auto">
 							<TabsTrigger
 								value="single"
 								className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
@@ -296,6 +342,13 @@ export function AddLeadsModal({
 							>
 								<UploadCloudIcon className="h-4 w-4 mr-2" />{" "}
 								Upload CSV
+							</TabsTrigger>
+							<TabsTrigger
+								value="crm"
+								className="inline-flex items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm hover:bg-slate-200/70 data-[state=active]:hover:bg-white transition-all h-10"
+							>
+								<DatabaseIcon className="h-4 w-4 mr-2" /> CRM
+								Import
 							</TabsTrigger>
 						</TabsList>
 						<TabsContent value="single">
@@ -462,6 +515,108 @@ export function AddLeadsModal({
 									{isLoading ? "Processing..." : "Import CSV"}
 								</Button>
 							</DialogFooter>
+						</TabsContent>
+						<TabsContent value="crm">
+							<div className="space-y-4">
+								<div>
+									<Label htmlFor="crm-provider">
+										CRM Provider
+									</Label>
+									<select
+										id="crm-provider"
+										className="mt-1.5 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+										value={crmProvider}
+										onChange={(event) =>
+											setCrmProvider(
+												event.target.value as
+													| "hubspot"
+													| "salesforce"
+													| "gohighlevel"
+													| "pipedrive"
+											)
+										}
+										disabled={isLoading}
+									>
+										<option value="hubspot">HubSpot</option>
+										<option value="salesforce">
+											Salesforce
+										</option>
+										<option value="gohighlevel">
+											GoHighLevel
+										</option>
+										<option value="pipedrive">
+											Pipedrive
+										</option>
+									</select>
+								</div>
+								<div>
+									<Label htmlFor="crm-query">
+										Search Query (Optional)
+									</Label>
+									<Input
+										id="crm-query"
+										value={crmQuery}
+										onChange={(event) =>
+											setCrmQuery(event.target.value)
+										}
+										placeholder="Name, email, or keyword"
+										className="rounded-lg mt-1.5"
+										disabled={isLoading}
+									/>
+								</div>
+								<div>
+									<Label htmlFor="crm-limit">
+										Records to Fetch
+									</Label>
+									<Input
+										id="crm-limit"
+										type="number"
+										min={1}
+										max={100}
+										value={crmLimit}
+										onChange={(event) =>
+											setCrmLimit(
+												Math.max(
+													1,
+													Math.min(
+														100,
+														Number(
+															event.target
+																.value || 25
+														)
+													)
+												)
+											)
+										}
+										className="rounded-lg mt-1.5"
+										disabled={isLoading}
+									/>
+								</div>
+								<Button
+									onClick={handleImportFromCRM}
+									className="w-full rounded-full"
+									disabled={isLoading}
+								>
+									{isLoading
+										? "Importing from CRM..."
+										: "Import from CRM"}
+								</Button>
+								{crmImportResult && (
+									<Alert className="border-green-200 bg-green-50">
+										<CheckCircleIcon className="h-4 w-4 text-green-600" />
+										<AlertDescription className="text-green-800">
+											Imported{" "}
+											{crmImportResult.totalProcessed}{" "}
+											leads (
+											{crmImportResult.createdCount} new,{" "}
+											{crmImportResult.updatedCount}{" "}
+											updated ) and assigned{" "}
+											{crmImportResult.assignedCount} to
+											the campaign.
+										</AlertDescription>
+									</Alert>
+								)}
+							</div>
 						</TabsContent>
 					</Tabs>
 				</div>

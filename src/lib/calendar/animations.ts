@@ -1,4 +1,4 @@
-import type { Variants } from "framer-motion"
+import type { Transition, Variants } from "framer-motion"
 
 // Fade in animation
 export const fadeIn: Variants = {
@@ -43,7 +43,7 @@ export const pop: Variants = {
 }
 
 // Shared transition settings
-export const transition = {
+export const transition: Transition = {
 	type: "spring",
 	stiffness: 200,
 	damping: 20

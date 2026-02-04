@@ -1,9 +1,15 @@
 "use client"
 
 import { getCallQueue, cancelQueuedCall } from "@/actions/lead-communication"
+import {
+	cancelCallQueueEntries,
+	processCallQueueNow,
+	retryCallQueueEntries
+} from "@/actions/call-queue-ops"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
 	Dialog,
 	DialogContent,
@@ -24,11 +30,8 @@ import { format } from "date-fns"
 import {
 	ClockIcon,
 	PhoneCallIcon,
-	PhoneIcon,
 	AlertCircleIcon,
 	XIcon,
-	PlayIcon,
-	PauseIcon,
 	RefreshCcwIcon,
 	Trash2Icon
 } from "lucide-react"
@@ -344,10 +347,14 @@ export function CallQueuePageClient() {
 	const [loading, setLoading] = useState(true)
 	const [queueData, setQueueData] = useState<CallQueueEntry[]>([])
 	const [error, setError] = useState<string | null>(null)
+	const [selectedIds, setSelectedIds] = useState<number[]>([])
 	const [selectedEntry, setSelectedEntry] = useState<CallQueueEntry | null>(
 		null
 	)
 	const [isMobile, setIsMobile] = useState(false)
+	const [isProcessingNow, setIsProcessingNow] = useState(false)
+	const [isBulkRetrying, setIsBulkRetrying] = useState(false)
+	const [isBulkCancelling, setIsBulkCancelling] = useState(false)
 
 	// Handle window resize
 	useEffect(() => {
@@ -368,6 +375,11 @@ export function CallQueuePageClient() {
 
 			if (result.success && result.data) {
 				setQueueData(result.data)
+				setSelectedIds((prev) =>
+					prev.filter((id) =>
+						result.data?.some((entry) => entry.id === id)
+					)
+				)
 				setError(null)
 			} else {
 				setError(result.error || "Failed to fetch call queue data")
@@ -430,6 +442,147 @@ export function CallQueuePageClient() {
 	// Handle closing the details panel
 	const handleClosePanel = () => {
 		setSelectedEntry(null)
+	}
+
+	const toggleSelection = (queueId: number, checked: boolean | string) => {
+		if (!checked) {
+			setSelectedIds((prev) => prev.filter((id) => id !== queueId))
+			return
+		}
+		setSelectedIds((prev) =>
+			prev.includes(queueId) ? prev : [...prev, queueId]
+		)
+	}
+
+	const toggleSelectAll = (checked: boolean | string) => {
+		if (!checked) {
+			setSelectedIds([])
+			return
+		}
+		setSelectedIds(queueData.map((entry) => entry.id))
+	}
+
+	const selectedEntries = queueData.filter((entry) =>
+		selectedIds.includes(entry.id)
+	)
+	const canRetrySelected = selectedEntries.some(
+		(entry) => entry.status === "failed" || entry.status === "cancelled"
+	)
+	const canCancelSelected = selectedEntries.some(
+		(entry) =>
+			entry.status === "pending" ||
+			entry.status === "queued" ||
+			entry.status === "calling"
+	)
+
+	const handleProcessNow = async () => {
+		setIsProcessingNow(true)
+		try {
+			const result = await processCallQueueNow({
+				batchSize: 20,
+				forceProcessing: true
+			})
+
+			if (!result.success) {
+				toast({
+					title: "Processing Failed",
+					description:
+						result.error || "Unable to process call queue now.",
+					variant: "destructive"
+				})
+				return
+			}
+
+			toast({
+				title: "Queue Processing Triggered",
+				description:
+					result.data?.message ||
+					`Processed ${result.data?.processed || 0} entries.`
+			})
+			await fetchQueueData()
+		} catch (error) {
+			console.error("Error processing call queue:", error)
+			toast({
+				title: "Processing Failed",
+				description:
+					"An unexpected error occurred while processing queue.",
+				variant: "destructive"
+			})
+		} finally {
+			setIsProcessingNow(false)
+		}
+	}
+
+	const handleRetryEntries = async (queueIds: number[]) => {
+		if (!queueIds.length) return
+		setIsBulkRetrying(true)
+		try {
+			const result = await retryCallQueueEntries(queueIds)
+			if (!result.success) {
+				toast({
+					title: "Retry Failed",
+					description:
+						result.error ||
+						"Unable to retry selected queue entries.",
+					variant: "destructive"
+				})
+				return
+			}
+
+			toast({
+				title: "Entries Queued For Retry",
+				description: `Retried ${result.data?.retriedCount || 0} queue entries.`
+			})
+			await fetchQueueData()
+		} catch (error) {
+			console.error("Error retrying selected queue entries:", error)
+			toast({
+				title: "Retry Failed",
+				description:
+					"An unexpected error occurred while retrying entries.",
+				variant: "destructive"
+			})
+		} finally {
+			setIsBulkRetrying(false)
+		}
+	}
+
+	const handleRetrySelected = async () => {
+		await handleRetryEntries(selectedIds)
+	}
+
+	const handleCancelSelected = async () => {
+		if (!selectedIds.length) return
+		setIsBulkCancelling(true)
+		try {
+			const result = await cancelCallQueueEntries(selectedIds)
+			if (!result.success) {
+				toast({
+					title: "Cancel Failed",
+					description:
+						result.error ||
+						"Unable to cancel selected queue entries.",
+					variant: "destructive"
+				})
+				return
+			}
+
+			toast({
+				title: "Entries Cancelled",
+				description: `Cancelled ${result.data?.cancelledCount || 0} queue entries.`
+			})
+			await fetchQueueData()
+		} catch (error) {
+			console.error("Error cancelling selected queue entries:", error)
+			toast({
+				title: "Cancel Failed",
+				description:
+					"An unexpected error occurred while cancelling entries.",
+				variant: "destructive"
+			})
+		} finally {
+			setIsBulkCancelling(false)
+		}
 	}
 
 	return (
@@ -522,15 +675,63 @@ export function CallQueuePageClient() {
 												<h2 className="text-lg font-medium">
 													Queue Entries
 												</h2>
-												<Button
-													onClick={fetchQueueData}
-													variant="outline"
-													size="sm"
-													className="gap-2"
-												>
-													<RefreshCcwIcon className="h-4 w-4" />
-													Refresh
-												</Button>
+												<div className="flex gap-2 flex-wrap justify-end">
+													<Button
+														onClick={
+															handleProcessNow
+														}
+														variant="outline"
+														size="sm"
+														disabled={
+															isProcessingNow
+														}
+													>
+														{isProcessingNow
+															? "Processing..."
+															: "Process Now"}
+													</Button>
+													<Button
+														onClick={
+															handleRetrySelected
+														}
+														variant="outline"
+														size="sm"
+														disabled={
+															isBulkRetrying ||
+															!selectedIds.length ||
+															!canRetrySelected
+														}
+													>
+														{isBulkRetrying
+															? "Retrying..."
+															: "Retry Selected"}
+													</Button>
+													<Button
+														onClick={
+															handleCancelSelected
+														}
+														variant="outline"
+														size="sm"
+														disabled={
+															isBulkCancelling ||
+															!selectedIds.length ||
+															!canCancelSelected
+														}
+													>
+														{isBulkCancelling
+															? "Cancelling..."
+															: "Cancel Selected"}
+													</Button>
+													<Button
+														onClick={fetchQueueData}
+														variant="outline"
+														size="sm"
+														className="gap-2"
+													>
+														<RefreshCcwIcon className="h-4 w-4" />
+														Refresh
+													</Button>
+												</div>
 											</div>
 
 											{/* Table */}
@@ -538,6 +739,20 @@ export function CallQueuePageClient() {
 												<Table>
 													<TableHeader className="bg-muted">
 														<TableRow>
+															<TableHead className="pl-4 w-[40px]">
+																<Checkbox
+																	checked={
+																		queueData.length >
+																			0 &&
+																		selectedIds.length ===
+																			queueData.length
+																	}
+																	onCheckedChange={
+																		toggleSelectAll
+																	}
+																	aria-label="Select all queue entries"
+																/>
+															</TableHead>
 															<TableHead className="pl-6">
 																Lead
 															</TableHead>
@@ -572,6 +787,27 @@ export function CallQueuePageClient() {
 																		)
 																	}
 																>
+																	<TableCell className="pl-4">
+																		<Checkbox
+																			checked={selectedIds.includes(
+																				entry.id
+																			)}
+																			onCheckedChange={(
+																				checked
+																			) =>
+																				toggleSelection(
+																					entry.id,
+																					checked
+																				)
+																			}
+																			onClick={(
+																				e
+																			) =>
+																				e.stopPropagation()
+																			}
+																			aria-label={`Select queue entry ${entry.id}`}
+																		/>
+																	</TableCell>
 																	<TableCell className="pl-6">
 																		<div>
 																			<div className="font-medium">
@@ -640,26 +876,52 @@ export function CallQueuePageClient() {
 																		)}
 																	</TableCell>
 																	<TableCell className="pr-6">
-																		{(entry.status ===
-																			"pending" ||
-																			entry.status ===
-																				"queued") && (
-																			<Button
-																				variant="outline"
-																				size="sm"
-																				onClick={(
-																					e
-																				) => {
-																					e.stopPropagation()
-																					handleCancelCall(
-																						entry.id
-																					)
-																				}}
-																				className="h-8 w-8 p-0"
-																			>
-																				<Trash2Icon className="h-4 w-4" />
-																			</Button>
-																		)}
+																		<div className="flex gap-2">
+																			{(entry.status ===
+																				"failed" ||
+																				entry.status ===
+																					"cancelled") && (
+																				<Button
+																					variant="outline"
+																					size="sm"
+																					onClick={async (
+																						e
+																					) => {
+																						e.stopPropagation()
+																						await handleRetryEntries(
+																							[
+																								entry.id
+																							]
+																						)
+																					}}
+																					className="h-8 px-2"
+																				>
+																					Retry
+																				</Button>
+																			)}
+																			{(entry.status ===
+																				"pending" ||
+																				entry.status ===
+																					"queued" ||
+																				entry.status ===
+																					"calling") && (
+																				<Button
+																					variant="outline"
+																					size="sm"
+																					onClick={(
+																						e
+																					) => {
+																						e.stopPropagation()
+																						handleCancelCall(
+																							entry.id
+																						)
+																					}}
+																					className="h-8 w-8 p-0"
+																				>
+																					<Trash2Icon className="h-4 w-4" />
+																				</Button>
+																			)}
+																		</div>
 																	</TableCell>
 																</TableRow>
 															)

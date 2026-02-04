@@ -2,7 +2,8 @@
 
 // import { Logo, LogoIcon } from "@/components/app-sidebar"
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar"
-import { SignedIn, UserButton } from "@clerk/nextjs"
+import { UserMenu } from "@/components/auth/user-menu"
+import { useAuthUser } from "@/lib/auth/use-auth-user"
 import { motion } from "framer-motion"
 import {
 	BarChart,
@@ -12,10 +13,7 @@ import {
 	Funnel,
 	Headset,
 	LayoutDashboard,
-	Mail,
 	Megaphone,
-	MessagesSquare,
-	Phone,
 	PhoneCall,
 	Settings,
 	Users
@@ -25,6 +23,7 @@ import { Logo as ZueLogo } from "./logo"
 
 export function SidebarNav() {
 	const [open, setOpen] = useState(false)
+	const { user } = useAuthUser()
 
 	const links = [
 		{
@@ -62,6 +61,13 @@ export function SidebarNav() {
 				<Headset className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
 			)
 		},
+		{
+			label: "Phone Numbers",
+			href: "/phone-numbers",
+			icon: (
+				<PhoneCall className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+			)
+		},
 
 		{
 			label: "Voice Agents",
@@ -71,31 +77,10 @@ export function SidebarNav() {
 			)
 		},
 		{
-			label: "Chats",
-			href: "/chats",
-			icon: (
-				<MessagesSquare className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-			)
-		},
-		{
-			label: "Emails",
-			href: "/emails",
-			icon: (
-				<Mail className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-			)
-		},
-		{
 			label: "Campaigns",
 			href: "/campaigns",
 			icon: (
 				<Megaphone className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-			)
-		},
-		{
-			label: "Phone Numbers",
-			href: "/phone-numbers",
-			icon: (
-				<Phone className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
 			)
 		},
 		{
@@ -136,7 +121,7 @@ export function SidebarNav() {
 					</div>
 				</div>
 				<div className="flex items-center mb-2">
-					<SignedIn>
+					{user && (
 						<div className="flex items-center justify-center gap-28">
 							<ZueLogo lightMode={true} width={45} height={37} />
 							{open && (
@@ -149,17 +134,11 @@ export function SidebarNav() {
 										ease: "easeInOut"
 									}}
 								>
-									<UserButton
-										appearance={{
-											elements: {
-												userButtonAvatarBox: "h-7 w-7"
-											}
-										}}
-									/>
+									<UserMenu />
 								</motion.div>
 							)}
 						</div>
-					</SignedIn>
+					)}
 				</div>
 			</SidebarBody>
 		</Sidebar>

@@ -4,15 +4,7 @@ import { Resend } from "resend"
 async function getResendClient(): Promise<Resend> {
 	let apiKey: string | undefined
 
-	// Try to get from Cloudflare context first (for production)
-	try {
-		const { getCloudflareContext } = await import("@opennextjs/cloudflare")
-		const { env } = getCloudflareContext()
-		apiKey = env.RESEND_API_KEY
-	} catch {
-		// Fallback to process.env for development
-		apiKey = process.env.RESEND_API_KEY
-	}
+	apiKey = process.env.RESEND_API_KEY
 
 	if (!apiKey) {
 		throw new Error("RESEND_API_KEY is not configured")

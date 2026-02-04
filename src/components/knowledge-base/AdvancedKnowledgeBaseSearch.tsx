@@ -95,7 +95,11 @@ export default function AdvancedKnowledgeBaseSearch() {
 
 			if (result.success && result.data) {
 				setResults(result.data as AdvancedSearchResult[])
-				setMetadata(result.metadata as SearchMetadata)
+				setMetadata(
+					result.metadata
+						? (result.metadata as unknown as SearchMetadata)
+						: null
+				)
 				setHasSearched(true)
 
 				toast({

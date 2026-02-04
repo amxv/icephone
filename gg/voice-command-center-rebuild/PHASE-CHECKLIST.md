@@ -1,0 +1,408 @@
+# Phase Checklist + Commit Discipline
+
+**Rule:** Every phase ends with a commit. Update `PROGRESS.md` before committing.
+
+---
+
+## Commit Naming Convention
+Use: `phase-<n>: <short description>`
+Examples:
+- `phase-0: remove chat/email/phone numbers`
+- `phase-1: better-auth + teams`
+
+---
+
+## Phase Checklist
+
+### Phase 0 — Cleanup
+- [x] Remove chat/email/phone numbers/VAPI/Cloudflare artifacts
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-0: cleanup`
+
+### Phase 1 — Auth + Tenancy
+- [x] Better Auth wired (server + client + middleware)
+- [x] Team‑scoped auth helpers
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-1: auth + teams`
+
+### Phase 2 — Schema + Data Layer
+- [x] Drizzle schema implemented
+- [x] Base DB helpers (team scope, audit)
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-2: schema + data layer`
+
+### Phase 3 — Leads + Pipeline
+- [x] Lead CRUD + status
+- [x] Pipeline drag/drop wired
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-3: leads + pipeline`
+
+### Phase 4 — Voice Agents + Calls
+- [x] OpenAI Realtime session API
+- [x] Calls storage + transcript capture
+- [x] Agents CRUD
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-4: voice + calls`
+
+### Phase 5 — Campaigns + Call Queue
+- [x] Campaign CRUD
+- [x] Campaign leads + queue
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-5: campaigns + queue`
+
+### Phase 6 — Knowledge Base
+- [x] R2 upload + OpenAI vector store
+- [x] Knowledge sources/files
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-6: knowledge base`
+
+### Phase 7 — Appointments (Cal.com)
+- [x] Cal.com integration
+- [x] Appointments UI wired
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-7: appointments`
+
+### Phase 8 — Analytics + Admin
+- [x] Analytics queries
+- [x] Admin stats + audit logs
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-8: analytics + admin`
+
+### Phase 9 — Quality Pass (Typecheck + Lint)
+- [x] Fix typecheck errors
+- [x] Fix lint/format errors
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-9: quality pass`
+
+### Phase 10 — Realtime Tools (Cal.com + Scheduling)
+- [x] Add Cal.com tool for Realtime agent
+- [x] Wire tool handling into voice session route
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-10: realtime tools`
+
+### Phase 11 — Async Campaign Scheduling Infra
+- [x] Map current scheduling/mass-calling flow
+- [x] Add async infra scaffolding (queues/workers, status)
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-11: async scheduling`
+
+### Phase 12 — Codebase Optimization
+- [x] Performance/structure pass
+- [x] Identify backend optimizations for campaigns/queue/analytics
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-12: optimization`
+
+### Phase 13 — Campaigns & Call Queue Gap Analysis
+- [x] Review campaigns + call queue for product gaps
+- [x] Document async scheduling gaps (business hours, retries, throttling, concurrency)
+- [x] Address critical gaps (backend scaffolding)
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-13: campaign gaps`
+
+### Phase 14 — Voice Agent Customization (Voice + Instructions)
+- [x] Add voice selection + custom instructions fields
+- [x] Wire to Realtime session prompt/tooling
+- [x] Enforce model `gpt-realtime-mini-2025-12-15`
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-14: agent customization`
+
+### Phase 15 — Analytics Expansion (Calls + KPIs)
+- [x] Backend metrics for call KPIs (pickup rate, outcomes, etc)
+- [x] Analytics dashboard UI (analytics screen)
+- [x] Analytics UI expansion
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-15: analytics expansion`
+
+### Phase 16 — Codebase Cleanup (No Lint/TS Bypass)
+- [x] Remove @ts-nocheck/@ts-ignore/eslint-disable
+- [x] Replace with proper types/logic
+- [x] Resolve TODOs and incomplete logic surfaced during cleanup
+- [x] Enforce OpenAI-only voice providers and remove non-OpenAI voice usage
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-16: codebase cleanup`
+
+### Phase 17 — CRM Product Gap Analysis (Leads/Pipeline/Appointments)
+- [x] Identify CRM gaps and add missing logic
+- [x] Strengthen campaign/call-queue async processing infrastructure
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-17: crm gaps`
+
+### Phase 18 — Final QA + PR
+- [x] Run `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
+- [x] Open PR on completion
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-18: final qa`
+
+### Phase 19 — UX/Performance Hardening
+- [x] Replace full-page reload flows in voice-agent management with in-place data refresh
+- [x] Keep list state synchronized after create/update actions
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-19: ux hardening`
+
+### Phase 20 — Analytics Deep Dive + Call Dispositions
+- [x] Audit analytics coverage for user/team/campaign level (calls, outcomes, productivity, quality)
+- [x] Add explicit disposition tracking for collections/support outcomes (`intent_to_pay`, `promise_to_pay`, `did_not_pick_up`)
+- [x] Add automatic call categorization + auto-notes scaffolding from call outcomes/transcripts
+- [x] Expand analytics dashboard sections for disposition and follow-up metrics
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-20: analytics deep dive`
+
+### Phase 21 — Realtime KB Tooling
+- [x] Add knowledge-base lookup tools for OpenAI Realtime agent (parallel to scheduling tools)
+- [x] Wire tool execution so agent can query KB and answer with grounded context/citations
+- [x] Validate support workflows where agent answers from KB
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-21: realtime kb tools`
+
+### Phase 22 — Voice Agent Command Center Modes + Templates
+- [x] Add configurable operating modes for `support`, `outbound cold calling`, and `loan repayment collections`
+- [x] Add at least 3 additional templates/use-cases as quick starts
+- [x] Ensure templates drive prompt/personality/script defaults and remain user-customizable
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-22: command center templates`
+
+### Phase 23 — CRM Integrations Research + Design
+- [x] Pick 4 high-priority CRMs (`HubSpot`, `Salesforce`, `GoHighLevel`, `Pipedrive`) and document API/auth/data-mapping strategy
+- [x] Define lead import, campaign switcher sync, and call outcome/disposition/notes sync contracts
+- [x] Document rollout plan and risk constraints
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-23: crm research`
+
+### Phase 24 — CRM Integrations Implementation
+- [x] Implement integrations for selected CRMs (team-scoped credentials + sync jobs/actions)
+- [x] Implement lead import into campaign switcher
+- [x] Implement call data + notes + disposition sync back to CRM records
+- [x] Validate support/outbound/loan-collections command-center workflows with CRM sync paths
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-24: crm integrations`
+
+### Phase 25 — Telephony + Recording Research
+- [x] Research telephony provider options and integration patterns for future call execution
+- [x] Research OpenAI Realtime capabilities/limits for recordings/voice artifacts
+- [x] Produce findings in markdown (`gg/voice-command-center-rebuild/telephony-recording-research.md`)
+- [x] Add recommended backend architecture path for rollout
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-25: telephony research`
+
+### Phase 26 — Sidebar Feature Gap Pass (CRM Product Completeness)
+- [x] Review Leads, Pipelines, Campaigns, Calls, Appointments, Knowledge Base, Analytics for product gaps
+- [x] Add/close high-impact gaps for support, outbound sales, and loan repayment collections
+- [x] Document new follow-up phases as needed
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-26: sidebar product gaps`
+
+### Phase 27 — Backend Optimization Pass II
+- [x] Profile and optimize campaign queue + CRM sync throughput
+- [x] Optimize analytics aggregation bottlenecks identified during CRM rollout
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-27: backend optimization`
+
+### Phase 28 — Voice Agent Performance Data Completeness
+- [x] Replace remaining voice-agent card performance placeholder with real per-agent call totals
+- [x] Add backend aggregation for per-agent call totals in `getVoiceAgents`
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-28: agent performance data`
+
+### Phase 29 — Final Validation + PR Sync II
+- [x] Run `bun run typecheck` and `bun run lint`
+- [x] Update planning docs after Phase 28
+- [x] Commit: `phase-29: validation sync`
+
+### Phase 30 — Advanced Settings Gap Closure (Knowledge Base Scope)
+- [x] Replace disabled “knowledge base coming soon” section in advanced agent settings with working source-scoping UI
+- [x] Load team KB sources and persist `knowledge_base.sourceIds` from advanced settings
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-30: advanced kb settings`
+
+### Phase 31 — Telephony Readiness Research Refresh (Twilio/Vonage/Telnyx)
+- [x] Re-read `gg/voice-command-center-rebuild/telephony-recording-research.md` and align implementation assumptions
+- [x] Validate latest official API docs (Twilio, Vonage, Telnyx) via `webctx` and capture integration-critical endpoints/events
+- [x] Record concrete provider capability matrix and rollout constraints in planning docs
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-31: telephony refresh`
+
+### Phase 32 — Telephony Domain + Provider Adapters Foundation
+- [x] Add backend telephony domain scaffolding (provider abstraction, execution contracts, normalized call-event shape)
+- [x] Add first-class provider adapters for Twilio/Vonage/Telnyx (config + request/signature helper surfaces)
+- [x] Wire call-queue processor to provider abstraction while preserving mock fallback mode
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-32: telephony foundation`
+
+### Phase 33 — Recording Infrastructure (Backend + UI Readiness)
+- [x] Add recording persistence model and APIs (recording metadata + provider links + storage pointers)
+- [x] Add recording lifecycle plumbing from telephony execution/webhooks into call records
+- [x] Expose recording data in UI call details/analytics surfaces
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-33: recording readiness`
+
+### Phase 34 — Telephony Webhook Ingestion + Security
+- [x] Implement provider webhook endpoints for Twilio/Vonage/Telnyx
+- [x] Add signature verification + normalized event ingestion + idempotency guards
+- [x] Persist webhook events for audit/debug replay
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-34: webhook ingestion`
+
+### Phase 35 — Backend Rewrite Gap Audit II
+- [x] Deep-scan backend for stale/legacy code paths that conflict with rewrite vision
+- [x] Remove or rewrite incomplete/duplicate implementations surfaced during telephony integration prep
+- [x] Document newly discovered product/tech debt as follow-up phases if needed
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-35: backend gap audit`
+
+### Phase 36 — End-to-End Validation + PR Final Sync
+- [x] Run `bun install`, `bun run typecheck`, `bun run lint`
+- [x] Ensure planning docs reflect completion state for phases 31-35
+- [x] Update PR title/body/checklist for telephony + recording readiness scope
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-36: final sync`
+
+### Phase 37 — Phone Numbers UI Integration
+- [x] Add team-scoped phone numbers domain (schema + CRUD actions + default outbound assignment)
+- [x] Build `/phone-numbers` page with provider-aware UI and onboarding content for telephony setup
+- [x] Add sidebar navigation entry for phone numbers management
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-37: phone numbers ui integration`
+
+### Phase 38 — Outbound Caller ID Routing Integration
+- [x] Resolve outbound caller ID from team phone numbers by provider + optional assigned agent
+- [x] Pass resolved caller ID through telephony execution contracts and provider adapters
+- [x] Persist selected outbound number into call/telephony metadata for audit and debugging
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-38: outbound caller id routing`
+
+### Phase 39 — Auto Provider Routing From Team Numbers
+- [x] Auto-select execution provider from active team phone numbers when env provider is not forced
+- [x] Preserve `CALL_EXECUTION_PROVIDER` as explicit override path for controlled rollouts
+- [x] Keep agent-assigned/default-number fallback ordering deterministic
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-39: auto provider routing`
+
+### Phase 40 — Scheduled Caller ID Selection
+- [x] Add caller ID selection in call scheduling UI using active team phone numbers
+- [x] Persist selected outbound number/provider metadata in queue + communication logs
+- [x] Respect explicit queued caller ID during queue processing before fallback routing
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-40: scheduled caller id selection`
+
+### Phase 41 — Campaign Metrics Data Accuracy
+- [x] Remove mock campaign list metrics and source values from backend data
+- [x] Add campaign-level call completion + average duration aggregation in `getCampaigns`
+- [x] Populate campaigns UI rows with real leads-contacted/calls-completed/duration/voice-agent values
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-41: campaign metrics accuracy`
+
+### Phase 42 — Campaign Voice Config Persistence Safety
+- [x] Fix campaign voice-config save path so existing campaign settings are preserved (no overwrite regression)
+- [x] Ensure voice-configuration updates merge with existing retry/timing/goal settings
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-42: voice config merge`
+
+### Phase 43 — Campaign Caller ID Routing Controls
+- [x] Add campaign-level outbound caller ID selection to campaign voice configuration UI
+- [x] Persist selected outbound number in campaign voice configuration settings
+- [x] Propagate campaign-level caller ID selection into generated `call_queue` entries for mass calling
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-43: campaign caller id controls`
+
+### Phase 44 — Communication Timeline Integrity For Queue Calls
+- [x] Ensure campaign-generated queue calls create `communication_logs` entries (not only manual scheduled calls)
+- [x] Synchronize communication log status/details when queue processor updates queue entry outcomes
+- [x] Keep lead communication timelines consistent across manual and campaign queue call flows
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-44: queue communication sync`
+
+### Phase 45 — Analytics Collections Rate Expansion
+- [x] Add backend collection-rate metrics (`intent_to_pay`, `promise_to_pay`, `did_not_pick_up`, `connected`) in call analytics payload
+- [x] Surface these rates in analytics UI alongside raw collection signal counts
+- [x] Preserve existing pickup/outcome/disposition analytics without regressions
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-45: analytics collection rates`
+
+### Phase 46 — Analytics Cost/Duration Accuracy Fix
+- [x] Eliminate blended-metric math error for average call duration (use weighted totals, not average-of-averages)
+- [x] Include legacy call costs in total/average cost analytics calculations
+- [x] Keep analytics payload compatibility for existing dashboard components
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-46: analytics accuracy`
+
+### Phase 47 — Settings Completeness (Dense Mode + Account + Notifications)
+- [x] Replace display-tab dense-mode placeholder with functional setting
+- [x] Implement global compact table density behavior via settings-driven document attribute
+- [x] Replace account/notification placeholder tabs with functional controls (session sign-out + persisted notification toggles)
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-47: settings completeness`
+
+### Phase 48 — Admin Placeholder Cleanup (Agent Customization)
+- [x] Remove unfinished A/B testing placeholder tab from admin agent customization dialog
+- [x] Keep active tabs fully functional without exposing incomplete UI paths
+- [x] Re-run quality gates after cleanup
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-48: admin placeholder cleanup`
+
+### Phase 49 — Analytics Recent Calls Data Integrity
+- [x] Include actual `agentId` in `getRecentCalls` payload instead of inferring from session row id
+- [x] Fix analytics page mapping to use real agent identifiers in recent call items
+- [x] Align analytics dashboard recent-call typing with nullable agent IDs
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-49: analytics recent-call ids`
+
+### Phase 50 — Settings Input Hardening
+- [x] Validate/sanitize persisted `tableRowsPerPage` values against supported options
+- [x] Normalize rows-per-page writes to prevent invalid local storage state drift
+- [x] Re-run quality gates after settings hardening
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-50: settings input hardening`
+
+### Phase 51 — Analytics Recent Calls Coverage Expansion
+- [x] Expand recent-call analytics source to include both realtime sessions and persisted call records
+- [x] Merge/sort mixed call sources by `startTime` and dedupe by shared `sessionId`
+- [x] Preserve existing analytics dashboard payload shape while increasing coverage
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-51: analytics recent-call coverage`
+
+### Phase 52 — Telephony Provider Spec Conformance Audit
+- [x] Re-audit Twilio/Telnyx/Vonage webhook + status handling against official provider docs using WebContext
+- [x] Fix Twilio signature verification for JSON callbacks (`bodySHA256`) and keep form signature validation behavior
+- [x] Expand lifecycle status normalization for documented provider statuses (e.g. `started`, `answered`, `unanswered`, `timeout`, `rejected`)
+- [x] Prevent recording callbacks from overwriting call lifecycle state in webhook ingestion
+- [x] Align Twilio call creation callback event parameters with API guidance (explicit `StatusCallbackEvent` entries)
+- [x] Run `bun run typecheck` and `bun run lint`
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-52: telephony spec conformance audit`
+
+### Phase 53 — Next.js 16 Framework Upgrade
+- [x] Review official Next.js 16 migration guide + breaking changes docs
+- [x] Upgrade `next` to v16 and align React/React DOM + React type packages
+- [x] Migrate deprecated `middleware` convention to `proxy`
+- [x] Update Next config for v16 stable options (`reactCompiler` top-level)
+- [x] Remove redundant Turbopack CLI flags from scripts (Turbopack is default in v16)
+- [x] Update dynamic route handler params typing for async request APIs
+- [x] Run `bun run typecheck` and `bun run lint`
+- [x] Attempt `bun run build` (document Node runtime blocker if environment is < 20.9)
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-53: nextjs 16 upgrade`
+
+### Phase 54 — Large-File Refactor Program (Batch 1)
+- [x] Discover and list all files over 500 LOC across the repository
+- [x] Create tracker document for oversized-file refactor progress
+- [x] Refactor selected oversized files into smaller modules without behavior changes:
+  `src/types.ts`, `src/lib/crm/integration-service.ts`, `src/hooks/use-realtime-voice-session.ts`
+- [x] Re-run `bun run typecheck` and `bun run lint`
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-54: large-file refactor batch 1`
+
+### Phase 55 — Frontend Gap Closure (Integrations + Queue Ops + Campaign Controls)
+- [x] Fix campaign voice-configuration save blocking when parent `voiceAgentId` prop is absent
+- [x] Add campaign scheduling/process-now controls and post-create campaign settings edit surface
+- [x] Add settings integrations UI for Cal.com + CRM + telephony provider onboarding (Twilio/Telnyx/Vonage)
+- [x] Wire telephony providers to team-scoped integration credentials/settings (not env-only)
+- [x] Add call queue operational controls (process-now, retry selected, cancel selected, bulk selection)
+- [x] Run `bun run typecheck` and `bun run lint`
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-55: close frontend gaps for integrations and queue ops`
+
+### Phase 56 — Large-File Refactor Program (Batch 2+)
+- [ ] Continue reducing all remaining `src/**` files over 500 LOC to under threshold
+- [ ] Preserve behavior and API contracts while extracting modules/helpers
+- [ ] Keep tracker (`LARGE-FILE-REFACTOR-TRACKER.md`) updated per file
+- [ ] Re-run quality gates after each batch

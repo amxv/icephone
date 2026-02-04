@@ -1,12 +1,16 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-	experimental: {
-		reactCompiler: true
-	}
+	images: {
+		unoptimized: true,
+		remotePatterns: [
+			{
+				protocol: "https",
+				hostname: "*.r2.cloudflarestorage.com"
+			}
+		]
+	},
+	reactCompiler: true
 }
 
 export default nextConfig
-
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare"
-initOpenNextCloudflareForDev()

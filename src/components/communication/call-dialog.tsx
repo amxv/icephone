@@ -26,6 +26,7 @@ import {
 	scheduleCall,
 	getAvailableVoiceAgents
 } from "@/actions/lead-communication"
+import { getPhoneNumbers } from "@/actions/phone-numbers"
 
 interface CallDialogProps {
 	open: boolean
@@ -40,6 +41,15 @@ interface VoiceAgent {
 	name: string
 	description: string | null
 	status: string | null
+}
+
+interface TeamPhoneNumber {
+	id: number
+	phoneNumber: string
+	provider: "mock" | "twilio" | "telnyx" | "vonage"
+	label: string | null
+	status: "provisioning" | "active" | "inactive" | "released"
+	isDefaultOutbound: boolean
 }
 
 // Helper function to format date for datetime-local input
@@ -66,19 +76,41 @@ export function CallDialog({
 	const [scheduledTime, setScheduledTime] = useState("")
 	const [phoneNumber, setPhoneNumber] = useState(leadPhone || "")
 	const [voiceAgents, setVoiceAgents] = useState<VoiceAgent[]>([])
+	const [teamPhoneNumbers, setTeamPhoneNumbers] = useState<TeamPhoneNumber[]>(
+		[]
+	)
+	const [selectedOutboundPhoneNumberId, setSelectedOutboundPhoneNumberId] =
+		useState<string>("auto")
 	const [isImmediate, setIsImmediate] = useState(true)
 
 	// Fetch available voice agents when dialog opens
 	useEffect(() => {
 		if (open) {
 			const fetchAgents = async () => {
-				const result = await getAvailableVoiceAgents()
-				if (result.success) {
-					setVoiceAgents(result.data)
+				const [agentsResult, numbersResult] = await Promise.all([
+					getAvailableVoiceAgents(),
+					getPhoneNumbers()
+				])
+				if (agentsResult.success) {
+					setVoiceAgents(agentsResult.data)
 					// Auto-select first agent if available
-					if (result.data.length > 0) {
-						setSelectedAgent(result.data[0].id.toString())
+					if (agentsResult.data.length > 0) {
+						setSelectedAgent(agentsResult.data[0].id.toString())
 					}
+				}
+
+				if (numbersResult.success && numbersResult.data) {
+					const activeNumbers = numbersResult.data.filter(
+						(number) => number.status === "active"
+					)
+					setTeamPhoneNumbers(activeNumbers)
+					const defaultNumber =
+						activeNumbers.find(
+							(number) => number.isDefaultOutbound
+						) || null
+					setSelectedOutboundPhoneNumberId(
+						defaultNumber ? defaultNumber.id.toString() : "auto"
+					)
 				}
 			}
 			fetchAgents()
@@ -97,6 +129,10 @@ export function CallDialog({
 				priority: Number(priority),
 				phoneNumber:
 					phoneNumber !== leadPhone ? phoneNumber : undefined,
+				outboundPhoneNumberId:
+					selectedOutboundPhoneNumberId !== "auto"
+						? Number(selectedOutboundPhoneNumberId)
+						: undefined,
 				scheduledTime:
 					!isImmediate && scheduledTime
 						? new Date(scheduledTime)
@@ -114,6 +150,7 @@ export function CallDialog({
 				setPriority("0")
 				setScheduledTime("")
 				setPhoneNumber(leadPhone || "")
+				setSelectedOutboundPhoneNumberId("auto")
 				setIsImmediate(true)
 			} else {
 				toast.error(result.error)
@@ -254,6 +291,47 @@ export function CallDialog({
 									Using lead's default phone number
 								</p>
 							)}
+						</div>
+
+						{/* Outbound Caller ID */}
+						<div>
+							<Label htmlFor="outbound-phone-number">
+								Outbound Caller ID
+							</Label>
+							<Select
+								value={selectedOutboundPhoneNumberId}
+								onValueChange={setSelectedOutboundPhoneNumberId}
+							>
+								<SelectTrigger
+									id="outbound-phone-number"
+									className="rounded-lg mt-1.5"
+								>
+									<SelectValue placeholder="Auto-select from team defaults" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="auto">
+										Auto-select from team routing
+									</SelectItem>
+									{teamPhoneNumbers.map((number) => (
+										<SelectItem
+											key={number.id}
+											value={number.id.toString()}
+										>
+											{number.phoneNumber}
+											{number.label
+												? ` • ${number.label}`
+												: ""}
+											{number.isDefaultOutbound
+												? " • Default"
+												: ""}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground mt-1">
+								Use Auto for provider/agent-aware routing or
+								pick a specific number.
+							</p>
 						</div>
 
 						{/* Call Instructions */}

@@ -1,19 +1,20 @@
 "use server"
 
-import { currentUser } from "@clerk/nextjs/server"
+import { requireTeam } from "@/lib/auth/session"
+import { createAppointment } from "@/actions/appointmentActions"
 import { db_ws } from "@/db"
 import {
 	callQueue,
-	emails,
 	textMessages,
 	appointments,
 	communicationLogs,
-	emailTemplates,
 	voiceAgents,
 	leads,
-	calls
+	calls,
+	teamPhoneNumbers
 } from "@/db/schema"
 import { eq, and, desc, sql } from "drizzle-orm"
+import { teamScope } from "@/lib/team-scope"
 import { revalidatePath } from "next/cache"
 
 // Types
@@ -24,13 +25,7 @@ interface ScheduleCallInput {
 	scheduledTime?: Date
 	priority?: number
 	phoneNumber?: string // Override lead's phone if needed
-}
-
-interface SendEmailInput {
-	leadId: number
-	subject: string
-	content: string
-	templateId?: number
+	outboundPhoneNumberId?: number // Selected team outbound caller ID
 }
 
 interface SendTextMessageInput {
@@ -50,7 +45,7 @@ interface ScheduleAppointmentInput {
 // Add to existing types
 interface CommunicationHistoryItem {
 	id: string
-	type: "call" | "email" | "text" | "appointment"
+	type: "call" | "text" | "appointment"
 	direction: "incoming" | "outgoing"
 	status: string
 	timestamp: Date
@@ -69,16 +64,13 @@ interface CommunicationHistoryItem {
 // Schedule a call for a lead
 export async function scheduleCall(input: ScheduleCallInput) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate lead exists and belongs to user
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, input.leadId), eq(leads.userId, user.id)))
+			.where(and(eq(leads.id, input.leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!lead.length) {
@@ -93,7 +85,7 @@ export async function scheduleCall(input: ScheduleCallInput) {
 				.where(
 					and(
 						eq(voiceAgents.id, input.voiceAgentId),
-						eq(voiceAgents.userId, user.id)
+						teamScope(voiceAgents, teamId)
 					)
 				)
 				.limit(1)
@@ -103,16 +95,58 @@ export async function scheduleCall(input: ScheduleCallInput) {
 			}
 		}
 
+		let outboundPhoneNumber: {
+			id: number
+			phoneNumber: string
+			provider: "mock" | "twilio" | "telnyx" | "vonage"
+		} | null = null
+
+		if (input.outboundPhoneNumberId) {
+			const selected = await db_ws
+				.select({
+					id: teamPhoneNumbers.id,
+					phoneNumber: teamPhoneNumbers.phoneNumber,
+					provider: teamPhoneNumbers.provider
+				})
+				.from(teamPhoneNumbers)
+				.where(
+					and(
+						eq(teamPhoneNumbers.id, input.outboundPhoneNumberId),
+						eq(teamPhoneNumbers.teamId, teamId),
+						eq(teamPhoneNumbers.status, "active")
+					)
+				)
+				.limit(1)
+
+			if (!selected.length) {
+				return {
+					success: false,
+					error: "Selected outbound phone number is not active or unavailable"
+				}
+			}
+
+			outboundPhoneNumber = selected[0]
+		}
+
 		// Create call queue entry
 		const [callQueueEntry] = await db_ws
 			.insert(callQueue)
 			.values({
 				leadId: input.leadId,
+				teamId,
 				voiceAgentId: input.voiceAgentId || null,
 				instructions: input.instructions || null,
 				scheduledTime: input.scheduledTime || null,
 				priority: input.priority || 0,
 				phoneNumber: input.phoneNumber || null,
+				metadata: {
+					callConfiguration: {
+						outboundPhoneNumberId: outboundPhoneNumber?.id || null,
+						outboundPhoneNumber:
+							outboundPhoneNumber?.phoneNumber || null,
+						outboundProvider: outboundPhoneNumber?.provider || null
+					}
+				},
 				status: "pending",
 				userId: user.id
 			})
@@ -126,7 +160,10 @@ export async function scheduleCall(input: ScheduleCallInput) {
 			status: "pending",
 			details: {
 				voiceAgentId: input.voiceAgentId,
-				phoneNumber: input.phoneNumber
+				phoneNumber: input.phoneNumber,
+				outboundPhoneNumberId: outboundPhoneNumber?.id,
+				outboundPhoneNumber: outboundPhoneNumber?.phoneNumber,
+				outboundProvider: outboundPhoneNumber?.provider
 			},
 			relatedRecordId: callQueueEntry.id,
 			relatedRecordType: "call_queue",
@@ -150,211 +187,16 @@ export async function scheduleCall(input: ScheduleCallInput) {
 	}
 }
 
-// Send email to a lead
-export async function sendEmail(input: SendEmailInput) {
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
-
-		// Validate lead exists and belongs to user
-		const lead = await db_ws
-			.select()
-			.from(leads)
-			.where(and(eq(leads.id, input.leadId), eq(leads.userId, user.id)))
-			.limit(1)
-
-		if (!lead.length) {
-			return { success: false, error: "Lead not found" }
-		}
-
-		if (!lead[0].email) {
-			return { success: false, error: "Lead has no email address" }
-		}
-
-		// Create email record with pending status
-		const [emailRecord] = await db_ws
-			.insert(emails)
-			.values({
-				leadId: input.leadId,
-				type: "outgoing",
-				subject: input.subject,
-				content: input.content,
-				sentAt: new Date(),
-				status: "pending",
-				userId: user.id
-			})
-			.returning()
-
-		// Get template for HTML generation if templateId provided
-		let templateData = null
-		if (input.templateId) {
-			const templateResult = await db_ws
-				.select()
-				.from(emailTemplates)
-				.where(
-					and(
-						eq(emailTemplates.id, input.templateId),
-						eq(emailTemplates.userId, user.id)
-					)
-				)
-				.limit(1)
-
-			if (templateResult.length > 0) {
-				templateData = templateResult[0]
-			}
-		}
-
-		// Send actual email using Resend service
-		try {
-			const { sendEmail: sendEmailService } = await import("@/lib/email")
-			const { generateFollowUpEmailTemplate } = await import(
-				"@/lib/email-templates"
-			)
-
-			// Generate HTML email content
-			const templateType =
-				templateData?.category === "appointment_reminder"
-					? "appointment_reminder"
-					: templateData?.category === "follow_up"
-						? "follow_up"
-						: "custom"
-
-			const emailHtml = generateFollowUpEmailTemplate(
-				lead[0].name,
-				input.content,
-				templateType as "follow_up" | "appointment_reminder" | "custom"
-			)
-
-			const emailResult = await sendEmailService({
-				to: [lead[0].email],
-				subject: input.subject,
-				html: emailHtml,
-				replyTo: "support@icephone.com"
-			})
-
-			if (emailResult.success) {
-				// Update email record with sent status
-				await db_ws
-					.update(emails)
-					.set({
-						status: "sent",
-						updatedAt: new Date()
-					})
-					.where(eq(emails.id, emailRecord.id))
-
-				// Update communication log with success
-				await db_ws.insert(communicationLogs).values({
-					leadId: input.leadId,
-					type: "outgoing",
-					method: "email",
-					status: "sent",
-					details: {
-						subject: input.subject,
-						content: input.content,
-						templateId: input.templateId
-					},
-					relatedRecordId: emailRecord.id,
-					relatedRecordType: "email",
-					userId: user.id
-				})
-
-				revalidatePath(`/leads/${input.leadId}`)
-				revalidatePath("/emails")
-
-				return {
-					success: true,
-					data: { ...emailRecord, status: "sent" },
-					message: "Email sent successfully"
-				}
-			}
-
-			// Update email record with failed status
-			await db_ws
-				.update(emails)
-				.set({
-					status: "failed",
-					updatedAt: new Date()
-				})
-				.where(eq(emails.id, emailRecord.id))
-
-			// Update communication log with failure
-			await db_ws.insert(communicationLogs).values({
-				leadId: input.leadId,
-				type: "outgoing",
-				method: "email",
-				status: "failed",
-				details: {
-					subject: input.subject,
-					content: input.content,
-					templateId: input.templateId,
-					errorMessage: emailResult.error || "Email sending failed"
-				},
-				relatedRecordId: emailRecord.id,
-				relatedRecordType: "email",
-				userId: user.id
-			})
-
-			return {
-				success: false,
-				error: `Failed to send email: ${emailResult.error}`
-			}
-		} catch (emailError) {
-			// Update email record with failed status
-			await db_ws
-				.update(emails)
-				.set({
-					status: "failed",
-					updatedAt: new Date()
-				})
-				.where(eq(emails.id, emailRecord.id))
-
-			// Log the communication failure
-			await db_ws.insert(communicationLogs).values({
-				leadId: input.leadId,
-				type: "outgoing",
-				method: "email",
-				status: "failed",
-				details: {
-					subject: input.subject,
-					content: input.content,
-					templateId: input.templateId,
-					errorMessage:
-						emailError instanceof Error
-							? emailError.message
-							: "Unknown error"
-				},
-				relatedRecordId: emailRecord.id,
-				relatedRecordType: "email",
-				userId: user.id
-			})
-
-			console.error("Error sending email via Resend:", emailError)
-			return {
-				success: false,
-				error: "Failed to send email via email service"
-			}
-		}
-	} catch (error) {
-		console.error("Error in sendEmail function:", error)
-		return { success: false, error: "Failed to send email" }
-	}
-}
-
 // Send text message to a lead
 export async function sendTextMessage(input: SendTextMessageInput) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate lead exists and belongs to user
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, input.leadId), eq(leads.userId, user.id)))
+			.where(and(eq(leads.id, input.leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!lead.length) {
@@ -408,16 +250,13 @@ export async function sendTextMessage(input: SendTextMessageInput) {
 // Schedule appointment with a lead
 export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized" }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate lead exists and belongs to user
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, input.leadId), eq(leads.userId, user.id)))
+			.where(and(eq(leads.id, input.leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!lead.length) {
@@ -439,20 +278,26 @@ export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 			}
 		}
 
-		// Create appointment record
-		const [appointmentRecord] = await db_ws
-			.insert(appointments)
-			.values({
-				leadId: input.leadId,
-				title: input.title,
-				description: input.description || null,
-				startTime: input.startTime,
-				endTime: input.endTime,
-				location: input.location || null,
-				completed: false,
-				userId: user.id
-			})
-			.returning()
+		const leadRecord = lead[0]
+
+		const appointmentResult = await createAppointment({
+			title: input.title,
+			startDate: input.startTime.toISOString(),
+			endDate: input.endTime.toISOString(),
+			description: input.description,
+			location: input.location,
+			leadId: input.leadId,
+			attendee: {
+				name: leadRecord.name || user.name || user.email || "Guest",
+				email: leadRecord.email || user.email,
+				phoneNumber: leadRecord.phone || undefined,
+				timeZone: "UTC"
+			}
+		})
+
+		if ("error" in appointmentResult) {
+			return { success: false, error: appointmentResult.error }
+		}
 
 		// Log the communication attempt
 		await db_ws.insert(communicationLogs).values({
@@ -465,7 +310,7 @@ export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 				content: input.description,
 				deliveryTime: input.startTime.toISOString()
 			},
-			relatedRecordId: appointmentRecord.id,
+			relatedRecordId: appointmentResult.id,
 			relatedRecordType: "appointment",
 			userId: user.id
 		})
@@ -475,7 +320,7 @@ export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 
 		return {
 			success: true,
-			data: appointmentRecord,
+			data: appointmentResult,
 			message: "Appointment scheduled successfully"
 		}
 	} catch (error) {
@@ -487,10 +332,7 @@ export async function scheduleAppointment(input: ScheduleAppointmentInput) {
 // Get available voice agents for a user
 export async function getAvailableVoiceAgents() {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized", data: [] }
-		}
+		const { teamId } = await requireTeam()
 
 		const agents = await db_ws
 			.select({
@@ -502,7 +344,7 @@ export async function getAvailableVoiceAgents() {
 			.from(voiceAgents)
 			.where(
 				and(
-					eq(voiceAgents.userId, user.id),
+					teamScope(voiceAgents, teamId),
 					eq(voiceAgents.status, "active")
 				)
 			)
@@ -515,36 +357,11 @@ export async function getAvailableVoiceAgents() {
 	}
 }
 
-// Get email templates for a user
-export async function getEmailTemplates() {
-	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, error: "Unauthorized", data: [] }
-		}
-
-		const templates = await db_ws
-			.select()
-			.from(emailTemplates)
-			.where(eq(emailTemplates.userId, user.id))
-			.orderBy(emailTemplates.name)
-
-		return { success: true, data: templates }
-	} catch (error) {
-		console.error("Error getting email templates:", error)
-		return {
-			success: false,
-			error: "Failed to get email templates",
-			data: []
-		}
-	}
-}
-
 // Get call queue status for a lead
 export async function getCallQueueStatus(leadId: number) {
 	try {
-		const user = await currentUser()
-		if (!user) {
+		const { teamId } = await requireTeam()
+		if (!teamId) {
 			return { success: false, error: "Unauthorized", data: null }
 		}
 
@@ -552,7 +369,7 @@ export async function getCallQueueStatus(leadId: number) {
 			.select()
 			.from(callQueue)
 			.where(
-				and(eq(callQueue.leadId, leadId), eq(callQueue.userId, user.id))
+				and(eq(callQueue.leadId, leadId), teamScope(callQueue, teamId))
 			)
 			.orderBy(desc(callQueue.createdAt))
 			.limit(1)
@@ -571,8 +388,8 @@ export async function getCallQueueStatus(leadId: number) {
 // Cancel a queued call
 export async function cancelQueuedCall(queueId: number) {
 	try {
-		const user = await currentUser()
-		if (!user) {
+		const { teamId, user } = await requireTeam()
+		if (!teamId || !user) {
 			return { success: false, error: "Unauthorized" }
 		}
 
@@ -583,9 +400,7 @@ export async function cancelQueuedCall(queueId: number) {
 				completedAt: new Date(),
 				updatedAt: new Date()
 			})
-			.where(
-				and(eq(callQueue.id, queueId), eq(callQueue.userId, user.id))
-			)
+			.where(and(eq(callQueue.id, queueId), teamScope(callQueue, teamId)))
 			.returning()
 
 		if (!updatedEntry) {
@@ -624,8 +439,8 @@ export async function cancelQueuedCall(queueId: number) {
 // Get all call queue entries for the current user
 export async function getCallQueue() {
 	try {
-		const user = await currentUser()
-		if (!user) {
+		const { teamId } = await requireTeam()
+		if (!teamId) {
 			return { success: false, error: "Unauthorized", data: null }
 		}
 
@@ -659,7 +474,7 @@ export async function getCallQueue() {
 			.from(callQueue)
 			.leftJoin(leads, eq(callQueue.leadId, leads.id))
 			.leftJoin(voiceAgents, eq(callQueue.voiceAgentId, voiceAgents.id))
-			.where(eq(callQueue.userId, user.id))
+			.where(teamScope(callQueue, teamId))
 			.orderBy(desc(callQueue.createdAt))
 
 		return { success: true, data: queueEntries }
@@ -680,16 +495,13 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 	error?: string
 }> {
 	try {
-		const user = await currentUser()
-		if (!user) {
-			return { success: false, data: [], error: "Unauthorized" }
-		}
+		const { teamId, user } = await requireTeam()
 
 		// Validate lead exists and belongs to user
 		const lead = await db_ws
 			.select()
 			.from(leads)
-			.where(and(eq(leads.id, leadId), eq(leads.userId, user.id)))
+			.where(and(eq(leads.id, leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!lead.length) {
@@ -709,12 +521,6 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 				notes: communicationLogs.notes,
 				createdAt: communicationLogs.createdAt,
 				// Additional data from related tables
-				emailSubject: sql<
-					string | null
-				>`CASE WHEN ${communicationLogs.relatedRecordType} = 'email' THEN ${emails.subject} END`,
-				emailContent: sql<
-					string | null
-				>`CASE WHEN ${communicationLogs.relatedRecordType} = 'email' THEN ${emails.content} END`,
 				textContent: sql<
 					string | null
 				>`CASE WHEN ${communicationLogs.relatedRecordType} = 'text_message' THEN ${textMessages.content} END`,
@@ -736,13 +542,6 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 				>`CASE WHEN ${communicationLogs.relatedRecordType} = 'call_queue' THEN ${callQueue.phoneNumber} END`
 			})
 			.from(communicationLogs)
-			.leftJoin(
-				emails,
-				and(
-					eq(communicationLogs.relatedRecordId, emails.id),
-					eq(communicationLogs.relatedRecordType, "email")
-				)
-			)
 			.leftJoin(
 				textMessages,
 				and(
@@ -786,11 +585,7 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 				const details = log.details as Record<string, unknown> | null
 				const item: CommunicationHistoryItem = {
 					id: `${log.method}-${log.id}`,
-					type: log.method as
-						| "call"
-						| "email"
-						| "text"
-						| "appointment",
+					type: log.method as "call" | "text" | "appointment",
 					direction: log.type as "incoming" | "outgoing",
 					status: log.status,
 					timestamp: log.createdAt,
@@ -799,12 +594,6 @@ export async function getCommunicationLogs(leadId: number): Promise<{
 
 				// Add method-specific data
 				switch (log.method) {
-					case "email":
-						item.subject =
-							log.emailSubject || (details?.subject as string)
-						item.content =
-							log.emailContent || (details?.content as string)
-						break
 					case "text":
 						item.content =
 							log.textContent || (details?.content as string)

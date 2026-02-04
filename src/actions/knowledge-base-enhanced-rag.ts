@@ -3,11 +3,8 @@
 import { db_ws as db } from "@/db"
 import { knowledgeBaseDocuments, knowledgeBaseSources } from "@/db/schema"
 import type { VectorQueryResult } from "@/types"
-import { currentUser } from "@clerk/nextjs/server"
+import { currentUser } from "@/lib/auth/session"
 import { and, asc, desc, eq, sql } from "drizzle-orm"
-
-// Import EmbeddingService for real Voyage API integration
-import { EmbeddingService } from "../../workers/document-ingestion/src/services/EmbeddingService"
 
 // Enhanced RAG Query System with Local Processing
 
@@ -359,16 +356,10 @@ async function generateRealQueryEmbedding(query: string): Promise<number[]> {
 			return generateMockQueryEmbedding(query)
 		}
 
-		// Initialize EmbeddingService with real API key
-		const embeddingService = new EmbeddingService(voyageApiKey)
-
-		// Generate real embedding using Voyage API
-		const embedding = await embeddingService.generateQueryEmbedding(
-			query,
-			"voyage-3"
+		console.warn(
+			"VOYAGE_API_KEY is set but Voyage integration is not wired. Using mock embedding."
 		)
-
-		return embedding
+		return generateMockQueryEmbedding(query)
 	} catch (error) {
 		console.error(
 			"Failed to generate real embedding, falling back to mock:",

@@ -60,6 +60,28 @@ interface CallAnalytics {
 	successfulCalls: number
 	failedCalls: number
 	successRate: number
+	pickupRate: number
+	outcomeBreakdown: Record<string, number>
+	dispositionBreakdown: Record<string, number>
+	directionBreakdown: {
+		incoming: number
+		outgoing: number
+		unknown: number
+	}
+	collectionSignals: {
+		intentToPay: number
+		promiseToPay: number
+		didNotPickUp: number
+	}
+	collectionRates: {
+		intentToPayRate: number
+		promiseToPayRate: number
+		didNotPickUpRate: number
+		connectedRate: number
+	}
+	recordingCount: number
+	recordingCoverageRate: number
+	recordingsByProvider: Record<string, number>
 	sentimentBreakdown: {
 		positive: number
 		negative: number
@@ -77,6 +99,10 @@ interface CallAnalytics {
 		calls: number
 		duration: number
 		cost: number
+	}>
+	hourlyCallVolume: Array<{
+		hour: string
+		calls: number
 	}>
 }
 
@@ -109,7 +135,7 @@ interface VoiceAgent {
 
 interface RecentCall {
 	id: string
-	agentId: number
+	agentId: number | null
 	phoneNumber: string | null
 	status: string
 	startTime: Date
@@ -208,6 +234,18 @@ const SENTIMENT_COLORS = {
 	neutral: "#6b7280"
 }
 
+const OUTCOME_COLORS: Record<string, string> = {
+	completed: "#22c55e",
+	answered: "#10b981",
+	failed: "#ef4444",
+	voicemail: "#f97316",
+	no_answer: "#f59e0b",
+	busy: "#facc15",
+	timeout: "#8b5cf6",
+	unknown: "#94a3b8",
+	active: "#38bdf8"
+}
+
 export default function AnalyticsDashboard({
 	initialAnalytics,
 	voiceAgents,
@@ -280,6 +318,36 @@ export default function AnalyticsDashboard({
 
 	const exportData = () => {
 		const csvData = [
+			["Voice Analytics Export"],
+			["Time Range", timeRange],
+			["Total Calls", initialAnalytics.totalCalls.toString()],
+			[
+				"Intent To Pay",
+				initialAnalytics.collectionSignals.intentToPay.toString()
+			],
+			[
+				"Promise To Pay",
+				initialAnalytics.collectionSignals.promiseToPay.toString()
+			],
+			[
+				"Did Not Pick Up",
+				initialAnalytics.collectionSignals.didNotPickUp.toString()
+			],
+			[
+				"Recording Coverage",
+				`${initialAnalytics.recordingCoverageRate.toString()}%`
+			],
+			[
+				"Calls With Recording",
+				initialAnalytics.recordingCount.toString()
+			],
+			[""],
+			["Disposition", "Count"],
+			...dispositionData.map((entry) => [
+				entry.name,
+				entry.value.toString()
+			]),
+			[""],
 			["Date", "Calls", "Duration (min)", "Cost"],
 			...initialAnalytics.dailyCallVolume.map((day) => [
 				day.date,
@@ -318,6 +386,45 @@ export default function AnalyticsDashboard({
 			name: "Negative",
 			value: initialAnalytics.sentimentBreakdown.negative,
 			color: SENTIMENT_COLORS.negative
+		}
+	].filter((item) => item.value > 0)
+
+	const formatOutcomeLabel = (value: string) =>
+		value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+
+	const outcomeData = Object.entries(initialAnalytics.outcomeBreakdown)
+		.map(([key, value]) => ({
+			key,
+			name: formatOutcomeLabel(key),
+			value,
+			color: OUTCOME_COLORS[key] ?? "#94a3b8"
+		}))
+		.filter((item) => item.value > 0)
+		.sort((a, b) => b.value - a.value)
+
+	const dispositionData = Object.entries(
+		initialAnalytics.dispositionBreakdown
+	)
+		.map(([key, value]) => ({
+			key,
+			name: formatOutcomeLabel(key),
+			value
+		}))
+		.filter((item) => item.value > 0)
+		.sort((a, b) => b.value - a.value)
+
+	const answeredCalls =
+		(initialAnalytics.outcomeBreakdown.completed || 0) +
+		(initialAnalytics.outcomeBreakdown.answered || 0)
+
+	const directionData = [
+		{
+			name: "Inbound",
+			value: initialAnalytics.directionBreakdown.incoming
+		},
+		{
+			name: "Outbound",
+			value: initialAnalytics.directionBreakdown.outgoing
 		}
 	].filter((item) => item.value > 0)
 
@@ -387,7 +494,7 @@ export default function AnalyticsDashboard({
 			</div>
 
 			{/* Enhanced Metrics Cards with Trends */}
-			<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+			<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
 				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 					<CardHeader className="pb-2">
 						<CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -426,10 +533,28 @@ export default function AnalyticsDashboard({
 					</CardHeader>
 					<CardContent>
 						<div className="text-2xl font-bold">
-							{Math.round(initialAnalytics.successRate * 100)}%
+							{Math.round(initialAnalytics.successRate)}%
 						</div>
 						<p className="text-xs text-muted-foreground">
 							{initialAnalytics.failedCalls} failed calls
+						</p>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+							<PhoneCall className="h-4 w-4" />
+							Pickup Rate
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="text-2xl font-bold">
+							{Math.round(initialAnalytics.pickupRate)}%
+						</div>
+						<p className="text-xs text-muted-foreground">
+							{answeredCalls} answered of{" "}
+							{initialAnalytics.totalCalls}
 						</p>
 					</CardContent>
 				</Card>
@@ -516,6 +641,154 @@ export default function AnalyticsDashboard({
 						<p className="text-xs text-muted-foreground">
 							{voiceAgents.length} total agents
 						</p>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+							<Activity className="h-4 w-4" />
+							Recording Coverage
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="text-2xl font-bold">
+							{Math.round(initialAnalytics.recordingCoverageRate)}
+							%
+						</div>
+						<p className="text-xs text-muted-foreground">
+							{initialAnalytics.recordingCount} calls with
+							recording
+						</p>
+						<div className="mt-2 flex flex-wrap gap-1">
+							{Object.entries(
+								initialAnalytics.recordingsByProvider
+							)
+								.slice(0, 3)
+								.map(([provider, count]) => (
+									<Badge
+										key={provider}
+										variant="outline"
+										className="text-[10px] uppercase"
+									>
+										{provider}: {count}
+									</Badge>
+								))}
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+
+			{/* Collections/Support Disposition Signals */}
+			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="text-base">
+							Collection Signals
+						</CardTitle>
+						<CardDescription>
+							High-value repayment/support outcomes in selected
+							period
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+							<div className="rounded-2xl border border-border/60 p-4">
+								<p className="text-xs text-muted-foreground">
+									Intent To Pay
+								</p>
+								<p className="text-2xl font-semibold">
+									{
+										initialAnalytics.collectionSignals
+											.intentToPay
+									}
+								</p>
+								<p className="text-xs text-muted-foreground mt-1">
+									{
+										initialAnalytics.collectionRates
+											.intentToPayRate
+									}
+									% of calls
+								</p>
+							</div>
+							<div className="rounded-2xl border border-border/60 p-4">
+								<p className="text-xs text-muted-foreground">
+									Promise To Pay
+								</p>
+								<p className="text-2xl font-semibold">
+									{
+										initialAnalytics.collectionSignals
+											.promiseToPay
+									}
+								</p>
+								<p className="text-xs text-muted-foreground mt-1">
+									{
+										initialAnalytics.collectionRates
+											.promiseToPayRate
+									}
+									% of calls
+								</p>
+							</div>
+							<div className="rounded-2xl border border-border/60 p-4">
+								<p className="text-xs text-muted-foreground">
+									Did Not Pick Up
+								</p>
+								<p className="text-2xl font-semibold">
+									{
+										initialAnalytics.collectionSignals
+											.didNotPickUp
+									}
+								</p>
+								<p className="text-xs text-muted-foreground mt-1">
+									{
+										initialAnalytics.collectionRates
+											.didNotPickUpRate
+									}
+									% of calls
+								</p>
+							</div>
+						</div>
+						<div className="mt-3 text-xs text-muted-foreground">
+							Connected disposition rate:{" "}
+							<span className="font-medium text-foreground">
+								{initialAnalytics.collectionRates.connectedRate}
+								%
+							</span>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="text-base">
+							Disposition Breakdown
+						</CardTitle>
+						<CardDescription>
+							Automatically categorized call outcomes
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{dispositionData.length === 0 ? (
+							<p className="text-sm text-muted-foreground">
+								No disposition data in this range yet.
+							</p>
+						) : (
+							<div className="space-y-2">
+								{dispositionData.slice(0, 8).map((item) => (
+									<div
+										key={item.key}
+										className="flex items-center justify-between rounded-xl border border-border/50 px-3 py-2"
+									>
+										<span className="text-sm">
+											{item.name}
+										</span>
+										<Badge variant="outline">
+											{item.value}
+										</Badge>
+									</div>
+								))}
+							</div>
+						)}
 					</CardContent>
 				</Card>
 			</div>
@@ -771,6 +1044,173 @@ export default function AnalyticsDashboard({
 								</div>
 							))}
 						</div>
+					</CardContent>
+				</Card>
+
+				{/* Call Outcomes */}
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<PhoneCall className="h-5 w-5 text-muted-foreground" />
+							Call Outcomes
+						</CardTitle>
+						<CardDescription>
+							Pickup and outcome distribution
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{outcomeData.length === 0 ? (
+							<p className="text-sm text-muted-foreground">
+								No outcome data available for this range.
+							</p>
+						) : (
+							<>
+								<div className="h-[260px] w-full">
+									<ResponsiveContainer
+										width="100%"
+										height="100%"
+									>
+										<PieChart>
+											<Pie
+												data={outcomeData}
+												cx="50%"
+												cy="50%"
+												innerRadius={55}
+												outerRadius={95}
+												paddingAngle={2}
+												dataKey="value"
+											>
+												{outcomeData.map((entry) => (
+													<Cell
+														key={entry.key}
+														fill={entry.color}
+													/>
+												))}
+											</Pie>
+											<Tooltip
+												content={({
+													active,
+													payload
+												}) => {
+													if (
+														active &&
+														payload &&
+														payload.length
+													) {
+														const data =
+															payload[0].payload
+														return (
+															<div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+																<p className="font-medium">
+																	{data.name}
+																</p>
+																<p
+																	style={{
+																		color: data.color
+																	}}
+																>
+																	Count:{" "}
+																	{data.value}
+																</p>
+															</div>
+														)
+													}
+													return null
+												}}
+											/>
+										</PieChart>
+									</ResponsiveContainer>
+								</div>
+
+								<div className="flex flex-wrap justify-center gap-2 mt-4">
+									{outcomeData.map((item) => (
+										<div
+											key={item.key}
+											className="flex items-center gap-2"
+										>
+											<div
+												className="w-3 h-3 rounded-full"
+												style={{
+													backgroundColor: item.color
+												}}
+											/>
+											<span className="text-sm text-muted-foreground">
+												{item.name} ({item.value})
+											</span>
+										</div>
+									))}
+								</div>
+
+								{directionData.length > 0 && (
+									<div className="flex flex-wrap justify-center gap-2 mt-4">
+										{directionData.map((item) => (
+											<Badge
+												key={item.name}
+												variant="outline"
+												className="rounded-full"
+											>
+												{item.name}: {item.value}
+											</Badge>
+										))}
+									</div>
+								)}
+							</>
+						)}
+					</CardContent>
+				</Card>
+
+				{/* Hourly Call Volume */}
+				<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<BarChart3 className="h-5 w-5 text-muted-foreground" />
+							Call Volume by Hour
+						</CardTitle>
+						<CardDescription>
+							When calls happen across the day
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<ChartContainer
+							className="h-[300px] w-full"
+							config={{}}
+						>
+							<BarChart data={initialAnalytics.hourlyCallVolume}>
+								<CartesianGrid strokeDasharray="3 3" />
+								<XAxis dataKey="hour" interval={3} />
+								<YAxis />
+								<ChartTooltip
+									content={({ active, payload }) => {
+										if (
+											active &&
+											payload &&
+											payload.length
+										) {
+											return (
+												<div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+													<p className="font-medium">
+														{
+															payload[0].payload
+																.hour
+														}
+													</p>
+													<p className="text-primary">
+														Calls:{" "}
+														{payload[0].value}
+													</p>
+												</div>
+											)
+										}
+										return null
+									}}
+								/>
+								<Bar
+									dataKey="calls"
+									fill="hsl(var(--primary))"
+									radius={[6, 6, 0, 0]}
+								/>
+							</BarChart>
+						</ChartContainer>
 					</CardContent>
 				</Card>
 

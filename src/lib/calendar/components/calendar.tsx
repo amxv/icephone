@@ -10,7 +10,7 @@ import { DragDropProvider } from "@/lib/calendar/contexts/drag-drop-context"
 import type { IEvent, IUser } from "@/lib/calendar/interfaces"
 import { getEvents } from "@/lib/calendar/requests"
 import type { TCalendarView } from "@/lib/calendar/types"
-import { useUser } from "@clerk/nextjs"
+import { useAuthUser } from "@/lib/auth/use-auth-user"
 
 // Server component that fetches data
 // export async function CalendarData() { // This seems unused now, data is fetched client-side
@@ -29,7 +29,7 @@ export function Calendar() {
 		events: IEvent[]
 		users: IUser[]
 	} | null>(null)
-	const { user: clerkUser, isLoaded: clerkUserIsLoaded } = useUser()
+	const { user, isLoading } = useAuthUser()
 
 	// Get saved view from localStorage or default to "agenda"
 	const [savedView, setSavedView] = useState<TCalendarView>("agenda")
@@ -38,16 +38,13 @@ export function Calendar() {
 		// Fetch the data
 		const fetchData = async () => {
 			const events = await getEvents()
-			// Construct users array from current Clerk user
+			// Construct users array from current auth user
 			const usersArray: IUser[] = []
-			if (clerkUserIsLoaded && clerkUser) {
+			if (!isLoading && user) {
 				usersArray.push({
-					id: clerkUser.id,
-					name:
-						clerkUser.firstName && clerkUser.lastName
-							? `${clerkUser.firstName} ${clerkUser.lastName}`
-							: clerkUser.username || "Current User",
-					picturePath: clerkUser.imageUrl
+					id: user.id,
+					name: user.name || user.email || "Current User",
+					picturePath: user.image || null
 				})
 			}
 			setData({ events, users: usersArray })
@@ -66,14 +63,14 @@ export function Calendar() {
 			console.error("Error reading from localStorage:", error)
 		}
 
-		if (clerkUserIsLoaded) {
-			// Only fetch data once clerk user is loaded
+		if (!isLoading) {
+			// Only fetch data once auth user is loaded
 			fetchData()
 		}
-	}, [clerkUser, clerkUserIsLoaded])
+	}, [user, isLoading])
 
-	// Show loading state if data is not loaded yet or clerk user is loading
-	if (!data || !clerkUserIsLoaded) {
+	// Show loading state if data is not loaded yet or auth user is loading
+	if (!data || isLoading) {
 		return (
 			<div className="w-full h-full flex items-center justify-center">
 				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground" />

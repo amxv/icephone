@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 /**
  * Cron job endpoint for automatic call queue processing
- * This should be called every minute via Cloudflare Workers Cron Triggers
- * or external cron services like GitHub Actions or Vercel Cron
+ * This should be called on a schedule via a cron service
  */
 export async function GET(request: NextRequest) {
 	try {

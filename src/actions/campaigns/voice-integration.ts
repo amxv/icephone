@@ -1,6 +1,7 @@
 "use server"
 
-import { auth } from "@clerk/nextjs/server"
+import { requireTeam } from "@/lib/auth/session"
+import { teamScope } from "@/lib/team-scope"
 import { and, eq, desc } from "drizzle-orm"
 
 import { db_ws } from "@/db"
@@ -19,6 +20,7 @@ type ExtendedCampaignSettings = CampaignSettingsType & {
 // Interface for campaign-specific voice configuration
 export interface CampaignVoiceConfiguration {
 	campaignSpecificPrompt?: string
+	outboundPhoneNumberId?: number | null
 	leadPersonalizationRules?: {
 		includeLeadName: boolean
 		includeLeadScore: boolean
@@ -71,17 +73,18 @@ export async function configureCampaignVoiceAgent(
 	voiceConfig: CampaignVoiceConfiguration
 ) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId } = await requireTeam()
 
 		// Verify campaign ownership
 		const campaign = await db_ws
-			.select({ id: campaigns.id, voiceAgentId: campaigns.voiceAgentId })
+			.select({
+				id: campaigns.id,
+				voiceAgentId: campaigns.voiceAgentId,
+				campaignSettings: campaigns.campaignSettings
+			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -96,8 +99,12 @@ export async function configureCampaignVoiceAgent(
 			}
 		}
 
-		// Update campaign settings with voice configuration
+		// Merge voice configuration into existing campaign settings to avoid
+		// dropping call timing, retry, goals, and other previously saved options.
+		const existingSettings = campaign[0].campaignSettings || {}
+
 		const updatedSettings: ExtendedCampaignSettings = {
+			...existingSettings,
 			voiceConfiguration: voiceConfig
 		}
 
@@ -108,7 +115,7 @@ export async function configureCampaignVoiceAgent(
 				updatedAt: new Date()
 			})
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 
 		return { success: true, data: voiceConfig }
@@ -126,10 +133,7 @@ export async function generateCampaignContextPrompt(
 	leadContext: LeadCallContext
 ): Promise<{ success: boolean; prompt?: string; error?: string }> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId } = await requireTeam()
 
 		// Get campaign and its voice configuration
 		const campaignResult = await db_ws
@@ -142,7 +146,7 @@ export async function generateCampaignContextPrompt(
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -170,7 +174,7 @@ export async function generateCampaignContextPrompt(
 				.where(
 					and(
 						eq(voiceAgents.id, campaign.voiceAgentId),
-						eq(voiceAgents.userId, userId)
+						teamScope(voiceAgents, teamId)
 					)
 				)
 				.limit(1)
@@ -320,10 +324,7 @@ export async function generateCampaignContextPrompt(
  */
 export async function getCampaignVoiceConfiguration(campaignId: number) {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false, data: null }
-		}
+		const { teamId } = await requireTeam()
 
 		const campaignResult = await db_ws
 			.select({
@@ -334,7 +335,7 @@ export async function getCampaignVoiceConfiguration(campaignId: number) {
 			})
 			.from(campaigns)
 			.where(
-				and(eq(campaigns.id, campaignId), eq(campaigns.userId, userId))
+				and(eq(campaigns.id, campaignId), teamScope(campaigns, teamId))
 			)
 			.limit(1)
 
@@ -372,10 +373,7 @@ export async function getLeadCallContext(
 	leadId: number
 ): Promise<{ success: boolean; data?: LeadCallContext; error?: string }> {
 	try {
-		const { userId } = await auth()
-		if (!userId) {
-			return { error: "Unauthorized", success: false }
-		}
+		const { teamId } = await requireTeam()
 
 		// Get lead information
 		const leadResult = await db_ws
@@ -388,7 +386,7 @@ export async function getLeadCallContext(
 				notes: leads.notes
 			})
 			.from(leads)
-			.where(and(eq(leads.id, leadId), eq(leads.userId, userId)))
+			.where(and(eq(leads.id, leadId), teamScope(leads, teamId)))
 			.limit(1)
 
 		if (!leadResult || leadResult.length === 0) {
@@ -405,7 +403,7 @@ export async function getLeadCallContext(
 				summary: calls.summary
 			})
 			.from(calls)
-			.where(and(eq(calls.leadId, leadId), eq(calls.userId, userId)))
+			.where(and(eq(calls.leadId, leadId), teamScope(calls, teamId)))
 			.orderBy(desc(calls.startTime))
 			.limit(3)
 
