@@ -93,7 +93,7 @@ export function EssentialSettings({
 	useEffect(() => {
 		if (open && agent.configuration) {
 			try {
-				// Extract settings from VAPI configuration (if it exists)
+				// Extract settings from voice agent configuration (if it exists)
 				const agentConfig = agent.configuration
 
 				setConfig({
@@ -158,8 +158,8 @@ export function EssentialSettings({
 	const handleSubmit = async () => {
 		setIsSubmitting(true)
 		try {
-			// Convert simplified config back to VAPI configuration format
-			const vapiConfig: Partial<VoiceAgentConfiguration> = {
+			// Convert simplified config back to voice agent configuration format
+			const voiceConfig: Partial<VoiceAgentConfiguration> = {
 				flow: {
 					...agent.configuration?.flow,
 					inactivity_handling: {
@@ -195,7 +195,7 @@ export function EssentialSettings({
 			const result = await updateVoiceAgent(agent.id, {
 				configuration: {
 					...agent.configuration,
-					...vapiConfig
+					...voiceConfig
 				}
 			})
 

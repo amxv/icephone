@@ -117,7 +117,7 @@ export async function getCalls(filter: CallFilter = {}) {
 			.leftJoin(leads, eq(calls.leadId, leads.id))
 			.where(callsCondition)
 
-		// Get data from voice sessions table (VAPI call data)
+		// Get data from voice sessions table (voice call data)
 		const voiceSessionsData = await db_ws
 			.select({
 				id: sql<string>`'voice_' || ${voiceSessions.id}`,

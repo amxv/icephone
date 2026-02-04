@@ -65,21 +65,19 @@ Use this packet as a strict, sequential roadmap:
 2. Execute **Phase 0 cleanup** (remove chat/email/phone numbers/VAPI/Cloudflare artifacts).
 3. Update `PROGRESS.md`, then commit and tag the phase.
 4. Move to Phase 1 and repeat.
-
+5. Commit each phase as you go.
+6. Complete all phases.
 ---
 
 ## Required Reference Docs (Must Read)
 These were provided by the user and contain the **correct API details** for external services:
 
-### In this repo
+### Please read these documents when relevant - these are up to date guides on implementing these external APIs and packages in nextjs/ts apps:
 - `gg/agent-outputs/codebase-researcher/openai-realtime-voice-api-implementation.md`
 - `gg/agent-outputs/codebase-researcher/better-auth-implementation.md`
 - `gg/agent-outputs/codebase-researcher/2026-02-04_05-12-16-rag-pipeline-research.md`
 - `gg/agent-outputs/codebase-researcher/cloudflare-r2-integration.md`
 - `gg/agent-outputs/codebase-researcher/resend-integration-guide.md`
-
-### If available elsewhere (optional but useful)
-- `/Users/ashray/code/amxv/voice-agent-demo/gg/agent-outputs/codebase-researcher/2025-11-21_19-01-53-openai-realtime-api-implementation-guide.md`
 
 ---
 
@@ -88,4 +86,3 @@ These were provided by the user and contain the **correct API details** for exte
 - Every server action is validated (Zod) and audited.
 - UI contracts from `02-ui-data-contracts.md` remain intact.
 - Commit after each phase.
-

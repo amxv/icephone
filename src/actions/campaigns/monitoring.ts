@@ -241,7 +241,7 @@ export async function getCampaignHealth(campaignId: number): Promise<{
 		if (stuckCallsCount > 10) {
 			healthScore -= 20
 			issues.push("Many stuck calls")
-			recommendations.push("Check VAPI integration and error handling")
+			recommendations.push("Check voice integration and error handling")
 		} else if (stuckCallsCount > 5) {
 			healthScore -= 10
 			issues.push("Some stuck calls")

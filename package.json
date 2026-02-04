@@ -25,10 +25,6 @@
 		"get-screenshot-paths": "find screenshots -type f -name \"*.png\" -exec stat -f \"%m %N\" {} \\; | sort -nr | head -n 2 | awk '{print $2}' | xargs realpath | awk 'NR==2 {print \"before path: \", $0} NR==1 {print \"after path: \", $0}'",
 		"prepare": "husky",
 		"fix": "pkill node || true && rm -rf .next && rm -rf node_modules && bun install && bun dev",
-		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-		"deploy": "bun check && opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-		"upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
-		"cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
 		"browser-mcp": "bunx @agentdeskai/browser-tools-server@latest"
 	},
 	"dependencies": {
@@ -42,7 +38,6 @@
 		"@hookform/resolvers": "^5.1.1",
 		"@langchain/textsplitters": "^0.1.0",
 		"@neondatabase/serverless": "^1.0.1",
-		"@opennextjs/cloudflare": "^1.3.1",
 		"@radix-ui/react-alert-dialog": "^1.1.14",
 		"@radix-ui/react-avatar": "^1.1.10",
 		"@radix-ui/react-checkbox": "^1.3.2",
@@ -64,8 +59,6 @@
 		"@radix-ui/react-tooltip": "^1.2.7",
 		"@tanstack/react-table": "^8.21.3",
 		"@useverk/drizzle-pgvector": "^1.0.11",
-		"@vapi-ai/server-sdk": "^0.8.1",
-		"@vapi-ai/web": "^2.3.6",
 		"ai": "^4.3.16",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
@@ -96,7 +89,6 @@
 		"tw-animate-css": "^1.3.4",
 		"vaul": "^1.1.2",
 		"voyageai": "^0.0.4",
-		"wrangler": "^4.20.5",
 		"zod": "^3.25.67"
 	},
 	"devDependencies": {

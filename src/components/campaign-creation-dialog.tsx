@@ -32,7 +32,7 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import type { VoiceAgentWithPhoneNumber } from "@/types"
+import type { VoiceAgent } from "@/types"
 import {
 	ArrowLeftIcon,
 	ArrowRightIcon,
@@ -153,9 +153,7 @@ export function CampaignCreationDialog({
 	const [open, setOpen] = useState(false)
 	const [currentStep, setCurrentStep] = useState("template")
 	const [isLoading, setIsLoading] = useState(false)
-	const [voiceAgents, setVoiceAgents] = useState<VoiceAgentWithPhoneNumber[]>(
-		[]
-	)
+	const [voiceAgents, setVoiceAgents] = useState<VoiceAgent[]>([])
 	const [agentsLoading, setAgentsLoading] = useState(false)
 	// Type for campaign template data (matches database schema)
 	type CampaignTemplate = {
@@ -842,16 +840,6 @@ export function CampaignCreationDialog({
 											<div className="flex items-center gap-2">
 												<BotIcon className="h-4 w-4" />
 												{agent.name}
-												{agent.phoneNumber && (
-													<span className="text-xs text-muted-foreground">
-														(
-														{
-															agent.phoneNumber
-																.number
-														}
-														)
-													</span>
-												)}
 											</div>
 										</SelectItem>
 									))}

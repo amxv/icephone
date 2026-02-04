@@ -186,91 +186,6 @@ export interface Call {
 	userId: string
 }
 
-// Phone Number types
-export type PhoneNumberType = "inbound" | "outbound" | "both"
-export type PhoneNumberStatus = "active" | "inactive" | "pending" | "suspended"
-
-export interface PhoneNumberCapabilities {
-	voice: boolean
-	sms: boolean
-	mms: boolean
-	fax: boolean
-}
-
-export interface PhoneNumberConfiguration {
-	routingRules?: {
-		businessHours?: {
-			enabled: boolean
-			timezone: string
-			schedule: {
-				[key: string]: { start: string; end: string } | null
-			}
-		}
-		voicemail?: {
-			enabled: boolean
-			greeting: string
-		}
-		fallback?: {
-			enabled: boolean
-			forwardTo: string
-		}
-	}
-	callerIdName?: string
-	recordCalls?: boolean
-}
-
-export interface PhoneNumber {
-	id: number
-	number: string // E.164 format
-	friendlyName: string
-	type: PhoneNumberType
-	status: PhoneNumberStatus
-	isDefault: boolean
-	provider: string | null
-	providerSid: string | null
-	capabilities: PhoneNumberCapabilities
-	configuration: PhoneNumberConfiguration
-	costPerMinute: string // decimal as string
-	createdAt: string | Date
-	updatedAt: string | Date
-	userId: string
-}
-
-export interface PhoneNumberUsage {
-	id: number
-	phoneNumberId: number
-	date: string | Date
-	inboundCalls: number
-	outboundCalls: number
-	totalMinutes: number
-	totalCost: string // decimal as string
-	createdAt: string | Date
-	userId: string
-}
-
-// API request types for phone numbers
-export interface PhoneNumberCreateRequest {
-	number: string
-	friendlyName: string
-	type: PhoneNumberType
-	status?: PhoneNumberStatus
-	isDefault?: boolean
-	provider?: string
-	providerSid?: string
-	capabilities?: PhoneNumberCapabilities
-	configuration?: PhoneNumberConfiguration
-	costPerMinute?: string
-}
-
-export interface PhoneNumberUpdateRequest {
-	friendlyName?: string
-	type?: PhoneNumberType
-	status?: PhoneNumberStatus
-	isDefault?: boolean
-	configuration?: PhoneNumberConfiguration
-	costPerMinute?: string
-}
-
 // Text message types
 export interface TextMessage {
 	id: number
@@ -510,34 +425,14 @@ export interface VoiceAgent {
 	prompt: string
 	voice: VoiceSettings
 	language: string | null
-	phoneNumberId: number | null
 	status: VoiceAgentStatus | null
 	configuration: VoiceAgentConfiguration | null
 	firstMessage: string | null
-	vapiAssistantId: string | null
 	createdAt: string | Date
 	updatedAt: string | Date
 	userId: string
-}
-
-// Partial phone number type for voice agent queries
-export interface VoiceAgentPhoneNumber {
-	id: number
-	number: string
-	friendlyName: string
-	type: PhoneNumberType
-	status: PhoneNumberStatus | null
-}
-
-// Voice agent with phone number for list views
-export interface VoiceAgentWithPhoneNumber extends VoiceAgent {
-	phoneNumber: {
-		id: number
-		number: string
-		friendlyName: string
-		type: PhoneNumberType
-		status: PhoneNumberStatus | null
-	} | null
+	agentRoleId?: number | null
+	voicePresetId?: number | null
 }
 
 export interface VoiceAgentFunction {
@@ -566,7 +461,7 @@ export interface VoiceAgentFunction {
 
 export interface VoiceSession {
 	id: number
-	sessionId: string // Vapi AI session ID
+	sessionId: string // Realtime session ID
 	agentId: number
 	leadId: number | null
 	phoneNumber: string | null
@@ -611,11 +506,9 @@ export interface VoiceAgentCreateRequest {
 	prompt: string
 	voice: VoiceSettings
 	language?: string
-	phoneNumberId?: number
 	status?: VoiceAgentStatus
 	configuration?: VoiceAgentConfiguration
 	firstMessage?: string
-	vapiAssistantId?: string
 }
 
 export interface VoiceAgentUpdateRequest {
@@ -624,7 +517,6 @@ export interface VoiceAgentUpdateRequest {
 	prompt?: string
 	voice?: VoiceSettings
 	language?: string
-	phoneNumberId?: number
 	status?: VoiceAgentStatus
 	configuration?: VoiceAgentConfiguration
 	firstMessage?: string
@@ -660,48 +552,4 @@ export interface VoiceSessionCreateRequest {
 		ip_address?: string
 		custom_data?: Record<string, unknown>
 	}
-}
-
-// Vapi AI Web SDK types
-export interface VapiClientOptions {
-	publicKey: string
-	endPoint?: string
-}
-
-export interface VapiAgentConfig {
-	name: string
-	prompt: string
-	voice: {
-		provider: string
-		voice_id: string
-	}
-	language?: string
-	functions?: VoiceAgentFunction[]
-}
-
-export interface VapiStartOptions {
-	agent: VapiAgentConfig
-	metadata?: Record<string, unknown>
-}
-
-// Event handler types
-export interface VapiEventHandlers {
-	onopen?: () => void
-	onready?: () => void
-	onsessionended?: () => void
-	onaudio?: (audio: Uint8Array) => void
-	onresponsetext?: (text: string, payload: { is_final?: boolean }) => void
-	ontranscript?: (text: string, payload: { is_final?: boolean }) => void
-	onfunction?: (
-		text: string,
-		payload: { name: string; params: object }
-	) => void
-	analyzer?: (analyzer: AnalyserNode) => void
-	useraudioready?: (data: {
-		analyser: AnalyserNode
-		stream: MediaStream
-	}) => void
-	onlatency?: (latency: number) => void
-	onclose?: (event: CloseEvent) => void
-	onerror?: (error: Event) => void
 }

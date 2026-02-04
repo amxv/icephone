@@ -20,7 +20,7 @@ interface ProcessCampaignRequest {
 }
 
 // This endpoint handles automated campaign queue processing
-// Can be called by external cron services like Cloudflare Cron Triggers, GitHub Actions, or other schedulers
+// Can be called by external cron services like GitHub Actions, Vercel Cron, or other schedulers
 export async function POST(request: NextRequest) {
 	try {
 		// Validate the request is authorized (basic security)

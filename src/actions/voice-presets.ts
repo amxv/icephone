@@ -166,29 +166,3 @@ export async function getAvailableLanguages(): Promise<string[]> {
 		throw new Error("Failed to get available languages")
 	}
 }
-
-/**
- * Convert voice preset configuration to VAPI voice configuration
- * @param voicePresetId - Voice preset ID
- * @returns VAPI voice configuration object
- */
-export async function getVapiVoiceConfig(voicePresetId: number) {
-	try {
-		const preset = await getVoicePreset(voicePresetId)
-		if (!preset) {
-			throw new Error("Voice preset not found")
-		}
-
-		return {
-			provider: preset.vapiProvider,
-			voiceId: preset.vapiVoiceId,
-			model: preset.vapiModel,
-			settings: {
-				// Add any provider-specific settings here
-			}
-		}
-	} catch (error) {
-		console.error("Failed to get VAPI voice config:", error)
-		throw new Error("Failed to get VAPI voice config")
-	}
-}

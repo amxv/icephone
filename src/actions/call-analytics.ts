@@ -98,7 +98,7 @@ export async function getCallAnalytics(
 			endDate = endOfWeek(now)
 	}
 
-	// Get basic call statistics from voice sessions (VAPI data)
+	// Get basic call statistics from voice sessions
 	const voiceSessionStats = await db
 		.select({
 			totalCalls: count(voiceSessions.id),
@@ -230,7 +230,7 @@ export async function getCallAnalytics(
 				: 0
 	}))
 
-	// Get daily call volume from voice sessions (VAPI data)
+	// Get daily call volume from voice sessions
 	const dailyVoiceStats = await db
 		.select({
 			date: sql<string>`DATE(${voiceSessions.startTime})`,

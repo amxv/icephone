@@ -18,11 +18,24 @@ import {
 	Zap,
 	Download
 } from "lucide-react"
-import {
-	getToolUsageStats,
-	getUserToolStats,
-	getSystemHealth
-} from "@/app/api/vapi/tools/analytics"
+type ToolUsageStat = {
+	toolName: string
+	totalCalls: number
+	successRate: number
+	averageExecutionTime: number
+	errorCount: number
+}
+
+type SystemHealth = {
+	totalToolCalls: number
+	overallSuccessRate: number
+	averageResponseTime: number
+	activeUsers: number
+	slowQueries: Array<{
+		toolName: string
+		averageTime: number
+	}>
+}
 
 // Tool icon mapping
 const TOOL_ICONS = {
@@ -41,14 +54,14 @@ const TOOL_ICONS = {
 }
 
 async function ToolUsageStatsCard() {
-	const stats = await getToolUsageStats()
+	const stats: ToolUsageStat[] = []
 
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
 					<Activity className="h-5 w-5" />
-					Vapi Tool Usage Statistics
+					Tool Usage Statistics
 				</CardTitle>
 			</CardHeader>
 			<CardContent>
@@ -115,7 +128,13 @@ async function ToolUsageStatsCard() {
 }
 
 async function SystemHealthCard() {
-	const health = await getSystemHealth()
+	const health: SystemHealth = {
+		totalToolCalls: 0,
+		overallSuccessRate: 0,
+		averageResponseTime: 0,
+		activeUsers: 0,
+		slowQueries: []
+	}
 
 	return (
 		<Card className="rounded-3xl border border-border bg-card/40 backdrop-blur-sm shadow-sm">
@@ -256,8 +275,7 @@ export default function AdminAnalyticsPage() {
 						Platform Analytics
 					</h1>
 					<p className="text-muted-foreground">
-						Comprehensive analytics including Vapi tools usage,
-						performance monitoring, and system health
+						Platform-wide analytics and system health insights
 					</p>
 				</div>
 				<Button variant="outline" className="rounded-2xl">

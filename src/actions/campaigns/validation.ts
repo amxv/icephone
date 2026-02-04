@@ -26,8 +26,7 @@ export async function validateCampaignConfiguration(
 				.select({
 					id: voiceAgents.id,
 					name: voiceAgents.name,
-					status: voiceAgents.status,
-					phoneNumberId: voiceAgents.phoneNumberId
+					status: voiceAgents.status
 				})
 				.from(voiceAgents)
 				.where(
@@ -47,13 +46,6 @@ export async function validateCampaignConfiguration(
 				if (agent.status !== "active") {
 					conflicts.push(
 						`Voice agent "${agent.name}" is not active (current status: ${agent.status})`
-					)
-				}
-
-				// Check if voice agent has a phone number assigned
-				if (!agent.phoneNumberId) {
-					conflicts.push(
-						`Voice agent "${agent.name}" does not have a phone number assigned`
 					)
 				}
 

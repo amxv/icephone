@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db_ws } from "@/db"
-import { callQueue, leads, voiceAgents } from "@/db/schema"
-import { eq, and, lte, sql } from "drizzle-orm"
+import { callQueue } from "@/db/schema"
+import { eq, and, sql } from "drizzle-orm"
 
 // Simple authentication for background processing
 async function authenticateRequest(request: NextRequest): Promise<boolean> {
@@ -228,234 +228,32 @@ export async function GET(request: NextRequest) {
 
 // Direct queue processing function that doesn't require auth context
 async function processUserCallQueueDirect(
-	userId: string,
-	batchSize: number = 5
+	_userId: string,
+	_batchSize: number = 5
 ) {
-	try {
-		// Get next batch of calls ready to process
-		const queueEntries = await db_ws
-			.select({
-				id: callQueue.id,
-				leadId: callQueue.leadId,
-				voiceAgentId: callQueue.voiceAgentId,
-				priority: callQueue.priority,
-				scheduledTime: callQueue.scheduledTime,
-				instructions: callQueue.instructions,
-				phoneNumber: callQueue.phoneNumber,
-				retryCount: callQueue.retryCount,
-				maxRetries: callQueue.maxRetries,
-				lead: {
-					id: leads.id,
-					name: leads.name,
-					phone: leads.phone
-				}
-			})
-			.from(callQueue)
-			.leftJoin(leads, eq(callQueue.leadId, leads.id))
-			.where(
-				and(
-					eq(callQueue.userId, userId),
-					eq(callQueue.status, "pending"),
-					sql`(${callQueue.scheduledTime} IS NULL OR ${callQueue.scheduledTime} <= NOW())`
-				)
-			)
-			.orderBy(
-				sql`${callQueue.priority} DESC NULLS LAST`,
-				sql`${callQueue.scheduledTime} ASC NULLS FIRST`,
-				callQueue.createdAt
-			)
-			.limit(batchSize)
+	const callExecutionEnabled =
+		process.env.CALL_EXECUTION_ENABLED === "true"
 
-		if (queueEntries.length === 0) {
-			return {
-				success: true,
-				data: { processed: 0, message: "No calls ready to process" },
-				error: null
-			}
-		}
-
-		console.log(
-			`📞 Processing ${queueEntries.length} calls for user ${userId}`
-		)
-
-		const results = []
-
-		// Process each queue entry
-		for (const entry of queueEntries) {
-			if (!entry.lead || !entry.lead.phone) {
-				// Mark as failed - no phone number
-				await updateCallQueueStatus(entry.id, "failed", {
-					lastError: "No phone number available",
-					completedAt: new Date()
-				})
-				results.push({
-					queueId: entry.id,
-					status: "failed",
-					reason: "No phone number"
-				})
-				continue
-			}
-
-			try {
-				// Mark as calling (processing)
-				await updateCallQueueStatus(entry.id, "calling", {
-					startedAt: new Date()
-				})
-
-				// Get voice agent details - required for calls
-				if (!entry.voiceAgentId) {
-					throw new Error("No voice agent specified for call")
-				}
-
-				const voiceAgent = await db_ws
-					.select({
-						id: voiceAgents.id,
-						phoneNumberId: voiceAgents.phoneNumberId,
-						status: voiceAgents.status
-					})
-					.from(voiceAgents)
-					.where(
-						and(
-							eq(voiceAgents.id, entry.voiceAgentId),
-							eq(voiceAgents.userId, userId)
-						)
-					)
-					.limit(1)
-
-				if (!voiceAgent.length || voiceAgent[0].status !== "active") {
-					throw new Error("Voice agent not found or inactive")
-				}
-
-				const phoneNumberId = voiceAgent[0].phoneNumberId
-				if (!phoneNumberId) {
-					throw new Error("Voice agent has no phone number assigned")
-				}
-
-				// Import and use the voice agent system (background processor version)
-				const { initiateOutboundCallForBackgroundProcessor } =
-					await import("@/actions/voice-agents")
-
-				// Determine phone number to use
-				const callPhoneNumber = entry.phoneNumber || entry.lead.phone
-
-				// Initiate the outbound call
-				const callResult =
-					await initiateOutboundCallForBackgroundProcessor(userId, {
-						fromPhoneNumberId: phoneNumberId,
-						toPhoneNumber: callPhoneNumber,
-						agentId: entry.voiceAgentId,
-						leadId: entry.leadId,
-						metadata: {
-							queueId: entry.id,
-							instructions: entry.instructions,
-							leadCommunicationContext: true
-						}
-					})
-
-				if (callResult.success && callResult.data) {
-					// Call initiated successfully
-					const sessionId =
-						"session" in callResult.data
-							? callResult.data.session?.id
-							: callResult.data.id
-
-					await updateCallQueueStatus(entry.id, "completed", {
-						completedAt: new Date(),
-						callResult: {
-							sessionId,
-							status: "initiated",
-							outcome: "call_started"
-						}
-					})
-
-					results.push({
-						queueId: entry.id,
-						status: "success",
-						sessionId
-					})
-				} else {
-					// Call failed to initiate
-					const retryCount = entry.retryCount ?? 0
-					const maxRetries = entry.maxRetries ?? 3
-					const shouldRetry = retryCount < maxRetries
-
-					if (shouldRetry) {
-						// Schedule retry with exponential backoff
-						const retryTime = new Date()
-						retryTime.setMinutes(
-							retryTime.getMinutes() + (retryCount + 1) * 30
-						)
-
-						await updateCallQueueStatus(entry.id, "pending", {
-							retryCount: retryCount + 1,
-							scheduledTime: retryTime,
-							lastError:
-								callResult.error || "Call initiation failed"
-						})
-
-						results.push({
-							queueId: entry.id,
-							status: "retry_scheduled",
-							retryTime,
-							error: callResult.error
-						})
-					} else {
-						// Max retries exceeded
-						await updateCallQueueStatus(entry.id, "failed", {
-							completedAt: new Date(),
-							lastError:
-								callResult.error || "Max retries exceeded"
-						})
-
-						results.push({
-							queueId: entry.id,
-							status: "failed",
-							reason: callResult.error || "Max retries exceeded"
-						})
-					}
-				}
-			} catch (error) {
-				console.error(
-					`Error processing queue entry ${entry.id}:`,
-					error
-				)
-
-				// Mark as failed
-				await updateCallQueueStatus(entry.id, "failed", {
-					completedAt: new Date(),
-					lastError:
-						error instanceof Error ? error.message : "Unknown error"
-				})
-
-				results.push({
-					queueId: entry.id,
-					status: "failed",
-					reason:
-						error instanceof Error ? error.message : "Unknown error"
-				})
-			}
-		}
-
+	if (!callExecutionEnabled) {
 		return {
 			success: true,
 			data: {
-				processed: results.length,
-				results,
-				successful: results.filter((r) => r.status === "success")
-					.length,
-				failed: results.filter((r) => r.status === "failed").length,
-				retries: results.filter((r) => r.status === "retry_scheduled")
-					.length
+				processed: 0,
+				results: [],
+				successful: 0,
+				failed: 0,
+				retries: 0,
+				message:
+					"Call execution is disabled (telephony deferred in this phase)."
 			},
 			error: null
 		}
-	} catch (error) {
-		console.error("Error processing user call queue:", error)
-		return {
-			success: false,
-			error: "Failed to process call queue",
-			data: null
-		}
+	}
+
+	return {
+		success: false,
+		error: "Call execution is not implemented yet.",
+		data: null
 	}
 }
 

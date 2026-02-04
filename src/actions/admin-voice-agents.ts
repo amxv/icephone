@@ -8,11 +8,7 @@ import {
 	voicePresets,
 	adminSettings
 } from "@/db/schema"
-import type {
-	VoiceAgent,
-	VoiceAgentStatus,
-	VoiceAgentWithPhoneNumber
-} from "@/types"
+import type { VoiceAgent, VoiceAgentStatus } from "@/types"
 import { currentUser } from "@clerk/nextjs/server"
 import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
 

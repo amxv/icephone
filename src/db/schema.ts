@@ -366,7 +366,7 @@ export const voicePresets = pgTable(
 		language: voicePresetLanguageEnum("language").notNull(),
 		gender: voicePresetGenderEnum("gender").notNull(),
 		description: text("description").notNull(), // Description for business users
-		// VAPI provider configuration (hidden from users)
+		// Provider configuration (hidden from users)
 		vapiVoiceId: varchar("vapi_voice_id", { length: 255 }).notNull(), // ElevenLabs voice ID, etc.
 		vapiProvider: varchar("vapi_provider", { length: 50 }).notNull(), // "elevenlabs", "playht", "cartesia"
 		vapiModel: varchar("vapi_model", { length: 100 }), // Provider-specific model
@@ -633,7 +633,7 @@ export const voiceSessions = pgTable(
 	"voice_sessions",
 	{
 		id: serial("id").primaryKey(),
-		sessionId: varchar("session_id", { length: 255 }).unique().notNull(), // Vapi AI session ID
+		sessionId: varchar("session_id", { length: 255 }).unique().notNull(), // Voice session ID
 		agentId: integer("agent_id")
 			.notNull()
 			.references(() => voiceAgents.id),
@@ -986,13 +986,13 @@ export const adminSettings = pgTable(
 	]
 )
 
-// Tool Calls table - tracks all Vapi tool API calls for monitoring and analytics
+// Tool Calls table - tracks tool API calls for monitoring and analytics
 export const toolCalls = pgTable(
 	"tool_calls",
 	{
 		id: serial("id").primaryKey(),
-		toolCallId: varchar("tool_call_id", { length: 255 }).notNull(), // Vapi tool call ID
-		callId: varchar("call_id", { length: 255 }), // Vapi call ID
+		toolCallId: varchar("tool_call_id", { length: 255 }).notNull(), // Tool call ID
+		callId: varchar("call_id", { length: 255 }), // Call ID
 		sessionId: varchar("session_id", { length: 255 }), // Voice session ID
 		toolName: varchar("tool_name", { length: 100 }).notNull(), // e.g., 'updateLeadScore', 'sendFollowUpEmail'
 		parameters: jsonb("parameters").$type<Record<string, unknown>>(), // Tool call parameters
@@ -1036,7 +1036,7 @@ export const tasks = pgTable(
 		createdBy: varchar("created_by", { length: 255 }).notNull(), // User ID who created
 		notes: text("notes"), // Additional notes or completion notes
 		metadata: jsonb("metadata").$type<{
-			source?: string // e.g., 'vapi_tool', 'manual', 'automation'
+			source?: string // e.g., 'tool', 'manual', 'automation'
 			toolCallId?: string
 			callId?: string
 			sessionId?: string
@@ -1067,7 +1067,7 @@ export const leadInteractions = pgTable(
 			.notNull()
 			.references(() => leads.id, { onDelete: "cascade" }),
 		interactionType: varchar("interaction_type", { length: 100 }).notNull(), // e.g., 'score_update', 'note_added', 'email_sent', 'status_change'
-		source: varchar("source", { length: 100 }).notNull(), // e.g., 'vapi_tool', 'manual', 'automation'
+		source: varchar("source", { length: 100 }).notNull(), // e.g., 'tool', 'manual', 'automation'
 		sourceId: varchar("source_id", { length: 255 }), // Reference to source (tool call ID, user ID, etc.)
 		oldValue: jsonb("old_value").$type<Record<string, unknown>>(), // Previous value before interaction
 		newValue: jsonb("new_value").$type<Record<string, unknown>>(), // New value after interaction

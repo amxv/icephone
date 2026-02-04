@@ -128,7 +128,7 @@ export async function getAgentRoleByName(
 
 /**
  * Apply agent role configuration to an existing voice agent
- * This maps the business role to technical VAPI configuration
+ * This maps the business role to technical voice configuration
  * @param agentId - Voice agent ID
  * @param roleId - Agent role ID
  * @returns Success status

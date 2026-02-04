@@ -1,14 +1,13 @@
 "use server"
 
 import { auth } from "@clerk/nextjs/server"
-import { and, desc, eq, lte, sql } from "drizzle-orm"
+import { and, eq, lte, sql } from "drizzle-orm"
 
 import { db_ws } from "@/db"
 import {
 	campaigns,
 	campaignLeads,
 	campaignQueue,
-	leads,
 	voiceAgents
 } from "@/db/schema"
 
@@ -75,8 +74,7 @@ export async function startCampaign(campaignId: number) {
 			.select({
 				id: voiceAgents.id,
 				name: voiceAgents.name,
-				status: voiceAgents.status,
-				phoneNumberId: voiceAgents.phoneNumberId
+				status: voiceAgents.status
 			})
 			.from(voiceAgents)
 			.where(
@@ -99,14 +97,6 @@ export async function startCampaign(campaignId: number) {
 			return {
 				success: false,
 				error: `Voice agent "${voiceAgent[0].name}" is not active`,
-				data: null
-			}
-		}
-
-		if (!voiceAgent[0].phoneNumberId) {
-			return {
-				success: false,
-				error: `Voice agent "${voiceAgent[0].name}" does not have a phone number assigned`,
 				data: null
 			}
 		}
@@ -394,7 +384,7 @@ export async function stopCampaign(campaignId: number) {
 // Process next batch of calls in queue
 export async function processNextQueueBatch(
 	campaignId: number,
-	batchSize: number = 5
+	_batchSize: number = 5
 ) {
 	try {
 		const { userId } = await auth()
@@ -435,7 +425,7 @@ export async function processNextQueueBatch(
 			}
 		}
 
-		// Get voice agent and phone number details
+		// Get voice agent details
 		if (!campaignData.voiceAgentId) {
 			return {
 				success: false,
@@ -447,7 +437,7 @@ export async function processNextQueueBatch(
 		const voiceAgent = await db_ws
 			.select({
 				id: voiceAgents.id,
-				phoneNumberId: voiceAgents.phoneNumberId
+				status: voiceAgents.status
 			})
 			.from(voiceAgents)
 			.where(
@@ -466,210 +456,37 @@ export async function processNextQueueBatch(
 			}
 		}
 
-		// Get next batch of queued calls, ordered by priority and scheduled time
-		const queueEntries = await db_ws
-			.select({
-				id: campaignQueue.id,
-				campaignLeadId: campaignQueue.campaignLeadId,
-				priority: campaignQueue.priority,
-				scheduledTime: campaignQueue.scheduledTime,
-				retryCount: campaignQueue.retryCount,
-				maxRetries: campaignQueue.maxRetries,
-				campaignLead: {
-					leadId: campaignLeads.leadId
-				},
-				lead: {
-					id: leads.id,
-					name: leads.name,
-					phone: leads.phone
-				}
-			})
-			.from(campaignQueue)
-			.leftJoin(
-				campaignLeads,
-				eq(campaignQueue.campaignLeadId, campaignLeads.id)
-			)
-			.leftJoin(leads, eq(campaignLeads.leadId, leads.id))
-			.where(
-				and(
-					eq(campaignQueue.campaignId, campaignId),
-					eq(campaignQueue.userId, userId),
-					eq(campaignQueue.status, "queued"),
-					lte(campaignQueue.scheduledTime, new Date())
-				)
-			)
-			.orderBy(desc(campaignQueue.priority), campaignQueue.scheduledTime)
-			.limit(batchSize)
+		if (voiceAgent[0].status !== "active") {
+			return {
+				success: false,
+				error: "Voice agent is not active",
+				data: null
+			}
+		}
 
-		if (queueEntries.length === 0) {
+		const callExecutionEnabled =
+			process.env.CALL_EXECUTION_ENABLED === "true"
+
+		if (!callExecutionEnabled) {
 			return {
 				success: true,
-				data: { processed: 0, message: "No calls ready to process" },
+				data: {
+					processed: 0,
+					results: [],
+					successful: 0,
+					failed: 0,
+					retries: 0,
+					message:
+						"Call execution is disabled (telephony deferred in this phase)."
+				},
 				error: null
 			}
 		}
 
-		const results = []
-
-		// Process each queue entry
-		for (const entry of queueEntries) {
-			if (!entry.lead || !entry.lead.phone) {
-				// Mark as failed - no phone number
-				await updateQueueEntryStatus(entry.id, "failed", {
-					lastError: "No phone number available",
-					completedAt: new Date()
-				})
-				results.push({
-					queueId: entry.id,
-					status: "failed",
-					reason: "No phone number"
-				})
-				continue
-			}
-
-			try {
-				// Mark as processing
-				await updateQueueEntryStatus(entry.id, "processing", {
-					startedAt: new Date()
-				})
-
-				// Import the initiateOutboundCall function
-				const { initiateOutboundCall } = await import("../voice-agents")
-
-				// Initiate the outbound call using existing voice agent infrastructure
-				const phoneNumberId = voiceAgent[0].phoneNumberId
-				if (!phoneNumberId) {
-					throw new Error("Voice agent has no phone number assigned")
-				}
-
-				const callResult = await initiateOutboundCall({
-					fromPhoneNumberId: phoneNumberId,
-					toPhoneNumber: entry.lead.phone,
-					agentId: voiceAgent[0].id,
-					leadId: entry.lead.id,
-					metadata: {
-						campaignId,
-						queueId: entry.id,
-						campaignLeadId: entry.campaignLeadId,
-						campaignContext: true
-					}
-				})
-
-				if (callResult.success && callResult.data) {
-					// Call initiated successfully - callResult.data has the session info
-					const sessionId =
-						"session" in callResult.data
-							? callResult.data.session?.id
-							: callResult.data.id
-
-					await updateQueueEntryStatus(entry.id, "completed", {
-						completedAt: new Date(),
-						callResult: {
-							sessionId,
-							status: "initiated"
-						}
-					})
-
-					// Update campaign lead status
-					await db_ws
-						.update(campaignLeads)
-						.set({
-							status: "attempted",
-							lastAttemptAt: new Date(),
-							attemptCount: sql`${campaignLeads.attemptCount} + 1`,
-							updatedAt: new Date()
-						})
-						.where(eq(campaignLeads.id, entry.campaignLeadId))
-
-					results.push({
-						queueId: entry.id,
-						status: "success",
-						sessionId
-					})
-				} else {
-					// Call failed to initiate
-					const retryCount = entry.retryCount ?? 0
-					const maxRetries = entry.maxRetries ?? 3
-					const shouldRetry = retryCount < maxRetries
-
-					if (shouldRetry) {
-						// Schedule retry
-						const retryTime = new Date()
-						retryTime.setMinutes(
-							retryTime.getMinutes() + (retryCount + 1) * 30
-						) // Exponential backoff
-
-						await updateQueueEntryStatus(entry.id, "queued", {
-							retryCount: retryCount + 1,
-							scheduledTime: retryTime,
-							lastError: callResult.error || "Unknown error"
-						})
-
-						results.push({
-							queueId: entry.id,
-							status: "retry_scheduled",
-							retryTime
-						})
-					} else {
-						// Max retries exceeded
-						await updateQueueEntryStatus(entry.id, "failed", {
-							completedAt: new Date(),
-							lastError:
-								callResult.error || "Max retries exceeded"
-						})
-
-						// Update campaign lead status
-						await db_ws
-							.update(campaignLeads)
-							.set({
-								status: "failed",
-								lastAttemptAt: new Date(),
-								attemptCount: sql`${campaignLeads.attemptCount} + 1`,
-								updatedAt: new Date()
-							})
-							.where(eq(campaignLeads.id, entry.campaignLeadId))
-
-						results.push({
-							queueId: entry.id,
-							status: "failed",
-							reason: callResult.error
-						})
-					}
-				}
-			} catch (error) {
-				console.error(
-					`Error processing queue entry ${entry.id}:`,
-					error
-				)
-
-				// Mark as failed
-				await updateQueueEntryStatus(entry.id, "failed", {
-					completedAt: new Date(),
-					lastError:
-						error instanceof Error ? error.message : "Unknown error"
-				})
-
-				results.push({
-					queueId: entry.id,
-					status: "failed",
-					reason:
-						error instanceof Error ? error.message : "Unknown error"
-				})
-			}
-		}
-
 		return {
-			success: true,
-			data: {
-				processed: results.length,
-				results,
-				successful: results.filter((r) => r.status === "success")
-					.length,
-				failed: results.filter((r) => r.status === "failed").length,
-				retries: results.filter((r) => r.status === "retry_scheduled")
-					.length
-			},
-			error: null
+			success: false,
+			error: "Call execution is not implemented yet.",
+			data: null
 		}
 	} catch (error) {
 		console.error("Error processing queue batch:", error)
@@ -1100,8 +917,7 @@ async function startCampaignDirect(campaignId: number, userId: string) {
 			.select({
 				id: voiceAgents.id,
 				name: voiceAgents.name,
-				status: voiceAgents.status,
-				phoneNumberId: voiceAgents.phoneNumberId
+				status: voiceAgents.status
 			})
 			.from(voiceAgents)
 			.where(
@@ -1124,14 +940,6 @@ async function startCampaignDirect(campaignId: number, userId: string) {
 			return {
 				success: false,
 				error: `Voice agent "${voiceAgent[0].name}" is not active`,
-				data: null
-			}
-		}
-
-		if (!voiceAgent[0].phoneNumberId) {
-			return {
-				success: false,
-				error: `Voice agent "${voiceAgent[0].name}" does not have a phone number assigned`,
 				data: null
 			}
 		}
