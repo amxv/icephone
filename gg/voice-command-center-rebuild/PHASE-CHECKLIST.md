@@ -296,3 +296,10 @@ Examples:
 - [x] Ensure voice-configuration updates merge with existing retry/timing/goal settings
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-42: voice config merge`
+
+### Phase 43 — Campaign Caller ID Routing Controls
+- [x] Add campaign-level outbound caller ID selection to campaign voice configuration UI
+- [x] Persist selected outbound number in campaign voice configuration settings
+- [x] Propagate campaign-level caller ID selection into generated `call_queue` entries for mass calling
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-43: campaign caller id controls`

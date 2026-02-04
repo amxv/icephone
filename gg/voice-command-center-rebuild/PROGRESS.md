@@ -531,3 +531,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-42: voice config merge`
 - Notes/blockers:
   - None.
+
+---
+
+## Phase 43 — Campaign Caller ID Routing Controls
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Added campaign-level outbound caller-ID controls so async/mass campaign calls can use a specific team number. Extended campaign voice configuration with an outbound-number selector (active team numbers + auto mode), persisted that setting, and wired campaign queue batch generation to write selected caller-ID metadata into each `call_queue` entry. Queue processing now reuses explicit campaign caller-ID configuration through existing metadata-based routing.
+- Files changed:
+  - Updated: `src/components/campaign-voice-configuration.tsx`, `src/actions/campaigns/voice-integration.ts`, `src/actions/campaigns/execution.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-43: campaign caller id controls`
+- Notes/blockers:
+  - Caller-ID options currently rely on team-managed imported numbers; provider-side procurement/search remains a follow-up phase.

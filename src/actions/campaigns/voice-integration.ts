@@ -20,6 +20,7 @@ type ExtendedCampaignSettings = CampaignSettingsType & {
 // Interface for campaign-specific voice configuration
 export interface CampaignVoiceConfiguration {
 	campaignSpecificPrompt?: string
+	outboundPhoneNumberId?: number | null
 	leadPersonalizationRules?: {
 		includeLeadName: boolean
 		includeLeadScore: boolean

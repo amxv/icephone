@@ -13,6 +13,7 @@ import {
 	campaignRuns,
 	callQueue,
 	leads,
+	teamPhoneNumbers,
 	voiceAgents
 } from "@/db/schema"
 
@@ -97,6 +98,26 @@ function isWithinBusinessHours(
 		console.warn("Failed to evaluate business hours:", error)
 		return true
 	}
+}
+
+function getCampaignOutboundPhoneNumberId(
+	campaignSettings: Record<string, unknown> | null | undefined
+) {
+	const voiceConfiguration = (
+		campaignSettings as
+			| {
+					voiceConfiguration?: {
+						outboundPhoneNumberId?: unknown
+					}
+			  }
+			| null
+	)?.voiceConfiguration
+	const outboundPhoneNumberId = voiceConfiguration?.outboundPhoneNumberId
+	return typeof outboundPhoneNumberId === "number" &&
+		Number.isInteger(outboundPhoneNumberId) &&
+		outboundPhoneNumberId > 0
+		? outboundPhoneNumberId
+		: null
 }
 
 async function requeueFailedCampaignEntries(
@@ -731,6 +752,35 @@ export async function processNextQueueBatchDirect(
 			}
 		}
 
+		const configuredOutboundPhoneNumberId = getCampaignOutboundPhoneNumberId(
+			campaignData.campaignSettings as Record<string, unknown> | null
+		)
+		let configuredOutboundPhoneNumber: {
+			id: number
+			phoneNumber: string
+			provider: "mock" | "twilio" | "telnyx" | "vonage"
+		} | null = null
+
+		if (configuredOutboundPhoneNumberId) {
+			const selectedOutboundNumbers = await db_ws
+				.select({
+					id: teamPhoneNumbers.id,
+					phoneNumber: teamPhoneNumbers.phoneNumber,
+					provider: teamPhoneNumbers.provider
+				})
+				.from(teamPhoneNumbers)
+				.where(
+					and(
+						eq(teamPhoneNumbers.id, configuredOutboundPhoneNumberId),
+						eq(teamPhoneNumbers.teamId, teamId),
+						eq(teamPhoneNumbers.status, "active")
+					)
+				)
+				.limit(1)
+
+			configuredOutboundPhoneNumber = selectedOutboundNumbers[0] || null
+		}
+
 		const queueEntries = await db_ws
 			.select({
 				queueId: campaignQueue.id,
@@ -800,6 +850,18 @@ export async function processNextQueueBatchDirect(
 						priority: entry.priority ?? 0,
 						scheduledTime: entry.scheduledTime,
 						status: "pending" as const,
+						metadata: configuredOutboundPhoneNumber
+							? {
+									callConfiguration: {
+										outboundPhoneNumberId:
+											configuredOutboundPhoneNumber.id,
+										outboundPhoneNumber:
+											configuredOutboundPhoneNumber.phoneNumber,
+										outboundProvider:
+											configuredOutboundPhoneNumber.provider
+									}
+								}
+							: {},
 						userId
 					}))
 				)
