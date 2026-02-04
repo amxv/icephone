@@ -1,10 +1,11 @@
-import { createHmac } from "node:crypto"
+import { createHash, createHmac } from "node:crypto"
 import type {
 	TelephonyNormalizedWebhookEvent,
 	TelephonyWebhookAdapter,
 	TelephonyWebhookRequest
 } from "@/lib/telephony/types"
 import {
+	constantTimeEqual,
 	computeWebhookDedupeKey,
 	parseFormObject,
 	parseJsonObject,
@@ -37,7 +38,22 @@ function buildTwilioSignatureBase(
 			.join("")}`
 	}
 
-	return `${requestUrl}${rawBody}`
+	return requestUrl
+}
+
+function hasValidTwilioJsonBodyHash(requestUrl: string, rawBody: string) {
+	try {
+		const parsedUrl = new URL(requestUrl)
+		const bodyHash = parsedUrl.searchParams.get("bodySHA256")
+		if (!bodyHash) {
+			return false
+		}
+
+		const computedHash = createHash("sha256").update(rawBody).digest("hex")
+		return constantTimeEqual(computedHash.toLowerCase(), bodyHash.toLowerCase())
+	} catch {
+		return false
+	}
 }
 
 export const twilioWebhookAdapter: TelephonyWebhookAdapter = {
@@ -49,6 +65,13 @@ export const twilioWebhookAdapter: TelephonyWebhookAdapter = {
 			return false
 		}
 
+		const contentType = input.headers.get("content-type") || ""
+		if (contentType.includes("application/json")) {
+			if (!hasValidTwilioJsonBodyHash(input.requestUrl, input.rawBody)) {
+				return false
+			}
+		}
+
 		const signatureBase = buildTwilioSignatureBase(
 			input.requestUrl,
 			input.rawBody,
@@ -58,7 +81,7 @@ export const twilioWebhookAdapter: TelephonyWebhookAdapter = {
 			.update(signatureBase)
 			.digest("base64")
 
-		return expectedSignature === signature
+		return constantTimeEqual(expectedSignature, signature)
 	},
 	normalizeEvents(input) {
 		const payload = parsePayload(input.rawBody, input.headers)

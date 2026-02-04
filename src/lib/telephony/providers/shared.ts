@@ -42,21 +42,35 @@ export function resolveTelephonyWebhookUrl(provider: string) {
 export function normalizeCallLifecycleStatus(
 	status: string | null | undefined
 ): TelephonyCallLifecycleStatus {
-	const normalized = (status || "").toLowerCase()
+	const normalized = (status || "").trim().toLowerCase()
 	switch (normalized) {
 		case "queued":
+		case "initiated":
+		case "started":
+			return "queued"
 		case "ringing":
+			return "ringing"
 		case "in_progress":
-		case "completed":
-		case "failed":
-		case "busy":
-		case "no_answer":
-		case "canceled":
-			return normalized
 		case "in-progress":
+		case "answered":
+		case "human":
+		case "machine":
 			return "in_progress"
+		case "completed":
+		case "hangup":
+		case "disconnected":
+			return "completed"
+		case "failed":
+		case "rejected":
+			return "failed"
+		case "busy":
+			return "busy"
+		case "no_answer":
 		case "no-answer":
+		case "unanswered":
+		case "timeout":
 			return "no_answer"
+		case "canceled":
 		case "cancelled":
 			return "canceled"
 		default:

@@ -3,11 +3,18 @@ import { db_ws } from "@/db"
 import { calls, telephonyCalls, telephonyEvents } from "@/db/schema"
 import { upsertCallRecording } from "@/lib/telephony/recordings"
 import { normalizeCallLifecycleStatus } from "@/lib/telephony/providers/shared"
+import type { TelephonyCallLifecycleStatus } from "@/lib/telephony/types"
 import { getTelephonyWebhookAdapter } from "@/lib/telephony/webhooks"
 import { and, eq } from "drizzle-orm"
 
-function mapTelephonyStatusToCallStatus(status: string | null) {
-	switch ((status || "").toLowerCase()) {
+function mapTelephonyStatusToCallStatus(status: TelephonyCallLifecycleStatus) {
+	switch (status) {
+		case "queued":
+			return "queued"
+		case "ringing":
+			return "ringing"
+		case "in_progress":
+			return "in_progress"
 		case "completed":
 			return "completed"
 		case "failed":
@@ -16,15 +23,36 @@ function mapTelephonyStatusToCallStatus(status: string | null) {
 			return "busy"
 		case "no_answer":
 			return "no_answer"
-		case "ringing":
-			return "ringing"
-		case "in_progress":
-			return "in_progress"
 		case "canceled":
 			return "cancelled"
 		default:
 			return null
 	}
+}
+
+function isTerminalTelephonyStatus(status: TelephonyCallLifecycleStatus) {
+	return (
+		status === "completed" ||
+		status === "failed" ||
+		status === "busy" ||
+		status === "no_answer" ||
+		status === "canceled"
+	)
+}
+
+function shouldApplyCallLifecycleStatus(event: {
+	eventType: string
+	providerRecordingId: string | null
+	recordingUrl: string | null
+}) {
+	const eventType = event.eventType.toLowerCase()
+	if (event.providerRecordingId || event.recordingUrl) {
+		return false
+	}
+	if (eventType.includes("recording") || eventType === "record") {
+		return false
+	}
+	return true
 }
 
 function resolveRecordingStatus(event: {
@@ -160,7 +188,9 @@ export async function POST(
 			continue
 		}
 
-		const telephonyStatus = normalizeCallLifecycleStatus(event.status)
+		const telephonyStatus = shouldApplyCallLifecycleStatus(event)
+			? normalizeCallLifecycleStatus(event.status)
+			: "unknown"
 		const mergedTelephonyMetadata = {
 			...((matchedTelephonyCall.metadata as Record<string, unknown>) ||
 				{}),
@@ -171,7 +201,6 @@ export async function POST(
 		}
 
 		const telephonyUpdate: Partial<typeof telephonyCalls.$inferInsert> = {
-			status: telephonyStatus,
 			duration: event.durationSeconds ?? undefined,
 			recordingUrl: event.recordingUrl || undefined,
 			recordingStatus:
@@ -182,14 +211,11 @@ export async function POST(
 			metadata: mergedTelephonyMetadata,
 			updatedAt: now
 		}
+		if (telephonyStatus !== "unknown") {
+			telephonyUpdate.status = telephonyStatus
+		}
 
-		if (
-			telephonyStatus === "completed" ||
-			telephonyStatus === "failed" ||
-			telephonyStatus === "busy" ||
-			telephonyStatus === "no_answer" ||
-			telephonyStatus === "canceled"
-		) {
+		if (isTerminalTelephonyStatus(telephonyStatus)) {
 			telephonyUpdate.endedAt = event.occurredAt || now
 		}
 
@@ -233,9 +259,10 @@ export async function POST(
 					updatedAt: now
 				}
 
-				const mappedCallStatus = mapTelephonyStatusToCallStatus(
-					event.status
-				)
+				const mappedCallStatus =
+					telephonyStatus === "unknown"
+						? null
+						: mapTelephonyStatusToCallStatus(telephonyStatus)
 				if (mappedCallStatus) {
 					callUpdate.status = mappedCallStatus
 				}
@@ -248,13 +275,7 @@ export async function POST(
 					callUpdate.recordingUrl = event.recordingUrl
 				}
 
-				if (
-					telephonyStatus === "completed" ||
-					telephonyStatus === "failed" ||
-					telephonyStatus === "busy" ||
-					telephonyStatus === "no_answer" ||
-					telephonyStatus === "canceled"
-				) {
+				if (isTerminalTelephonyStatus(telephonyStatus)) {
 					callUpdate.endTime = event.occurredAt || now
 				}
 

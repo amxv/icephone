@@ -23,6 +23,7 @@ function base64UrlEncode(input: Buffer) {
 function verifyVonageJwt(rawToken: string, rawBody: string) {
 	const secret =
 		process.env.VONAGE_WEBHOOK_SIGNATURE_SECRET?.trim() ||
+		process.env.VONAGE_SIGNATURE_SECRET?.trim() ||
 		process.env.VONAGE_API_SIGNATURE_SECRET?.trim() ||
 		process.env.VONAGE_APPLICATION_SECRET?.trim()
 
@@ -47,9 +48,19 @@ function verifyVonageJwt(rawToken: string, rawBody: string) {
 	}
 
 	try {
+		const header = JSON.parse(
+			base64UrlDecode(encodedHeader).toString("utf8")
+		) as Record<string, unknown>
 		const payload = JSON.parse(
 			base64UrlDecode(encodedPayload).toString("utf8")
 		) as Record<string, unknown>
+
+		if (header.alg !== "HS256") {
+			return false
+		}
+		if (typeof payload.iss === "string" && payload.iss !== "Vonage") {
+			return false
+		}
 
 		if (
 			typeof payload.exp === "number" &&
@@ -62,7 +73,12 @@ function verifyVonageJwt(rawToken: string, rawBody: string) {
 			const expectedHash = createHash("sha256")
 				.update(rawBody)
 				.digest("hex")
-			if (expectedHash !== payload.payload_hash.toLowerCase()) {
+			if (
+				!constantTimeEqual(
+					expectedHash.toLowerCase(),
+					payload.payload_hash.toLowerCase()
+				)
+			) {
 				return false
 			}
 		}

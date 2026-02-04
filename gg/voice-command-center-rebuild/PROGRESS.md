@@ -639,3 +639,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-51: analytics recent-call coverage`
 - Notes/blockers:
   - Deduplication is session-ID based; records without `sessionId` are kept as independent events.
+
+---
+
+## Phase 52 — Telephony Provider Spec Conformance Audit
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Audited telephony provider webhook handling against official Twilio, Telnyx, and Vonage docs and tightened backend conformance. Twilio webhook signature validation now handles JSON callbacks with `bodySHA256` verification semantics, status normalization now maps additional documented provider states (including `started`, `answered`, `unanswered`, `timeout`, and `rejected`), and webhook ingestion no longer allows recording callbacks to overwrite call lifecycle status. Also aligned Twilio call dispatch to send explicit repeated `StatusCallbackEvent` values per API guidance.
+- Files changed:
+  - Updated: `src/lib/telephony/webhooks/twilio.ts`, `src/lib/telephony/providers/shared.ts`, `src/app/api/telephony/webhooks/[provider]/route.ts`, `src/lib/telephony/providers/twilio.ts`, `src/lib/telephony/webhooks/vonage.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-52: telephony spec conformance audit`
+- Notes/blockers:
+  - Vonage signed webhook validation remains HS256 shared-secret based (per signed-webhook docs). If teams use multiple signature secrets keyed by `api_key`, we should add key-resolution support in a follow-up phase.

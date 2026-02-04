@@ -359,3 +359,13 @@ Examples:
 - [x] Preserve existing analytics dashboard payload shape while increasing coverage
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-51: analytics recent-call coverage`
+
+### Phase 52 — Telephony Provider Spec Conformance Audit
+- [x] Re-audit Twilio/Telnyx/Vonage webhook + status handling against official provider docs using WebContext
+- [x] Fix Twilio signature verification for JSON callbacks (`bodySHA256`) and keep form signature validation behavior
+- [x] Expand lifecycle status normalization for documented provider statuses (e.g. `started`, `answered`, `unanswered`, `timeout`, `rejected`)
+- [x] Prevent recording callbacks from overwriting call lifecycle state in webhook ingestion
+- [x] Align Twilio call creation callback event parameters with API guidance (explicit `StatusCallbackEvent` entries)
+- [x] Run `bun run typecheck` and `bun run lint`
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-52: telephony spec conformance audit`

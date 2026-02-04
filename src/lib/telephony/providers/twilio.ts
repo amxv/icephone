@@ -96,10 +96,10 @@ export const twilioTelephonyExecutionProvider: TelephonyExecutionProvider = {
 		if (config.statusCallbackUrl) {
 			form.set("StatusCallback", config.statusCallbackUrl)
 			form.set("StatusCallbackMethod", "POST")
-			form.set(
-				"StatusCallbackEvent",
-				"initiated ringing answered completed"
-			)
+			form.append("StatusCallbackEvent", "initiated")
+			form.append("StatusCallbackEvent", "ringing")
+			form.append("StatusCallbackEvent", "answered")
+			form.append("StatusCallbackEvent", "completed")
 		}
 
 		if (config.recordCalls) {
