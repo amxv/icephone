@@ -133,7 +133,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
   - Added: `src/lib/openai/realtime-tools.ts`
   - Updated: `src/app/api/voice/session/route.ts`, `src/hooks/use-realtime-voice-session.ts`
 - Tests/commands run: `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
-- Commit:
+- Commit: `phase-10: realtime tools` (`578eacf`)
 - Notes/blockers:
 
 ---
