@@ -21,10 +21,23 @@ const SettingsContext = createContext<SettingsContextType | undefined>(
 
 // Default settings values
 const DEFAULT_ROWS_PER_PAGE = 10
+const ALLOWED_ROWS_PER_PAGE = [5, 10, 20, 50, 100] as const
 const DEFAULT_DENSE_MODE = false
 const DEFAULT_EMAIL_NOTIFICATIONS = true
 const DEFAULT_IN_APP_NOTIFICATIONS = true
 const DEFAULT_WEEKLY_DIGEST = false
+
+function normalizeRowsPerPage(value: unknown): number {
+	const parsed =
+		typeof value === "number"
+			? value
+			: Number.parseInt(String(value || ""), 10)
+	return ALLOWED_ROWS_PER_PAGE.includes(
+		parsed as (typeof ALLOWED_ROWS_PER_PAGE)[number]
+	)
+		? parsed
+		: DEFAULT_ROWS_PER_PAGE
+}
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
 	const [tableRowsPerPage, setTableRowsPerPageState] = useState(
@@ -46,7 +59,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 		try {
 			const savedRowsPerPage = localStorage.getItem("tableRowsPerPage")
 			if (savedRowsPerPage) {
-				setTableRowsPerPageState(Number(savedRowsPerPage))
+				setTableRowsPerPageState(
+					normalizeRowsPerPage(savedRowsPerPage)
+				)
 			}
 			const savedDenseMode = localStorage.getItem("tableDenseMode")
 			if (savedDenseMode !== null) {
@@ -85,9 +100,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
 	// Save settings to localStorage when they change
 	const setTableRowsPerPage = (rowsPerPage: number) => {
-		setTableRowsPerPageState(rowsPerPage)
+		const normalizedRowsPerPage = normalizeRowsPerPage(rowsPerPage)
+		setTableRowsPerPageState(normalizedRowsPerPage)
 		try {
-			localStorage.setItem("tableRowsPerPage", rowsPerPage.toString())
+			localStorage.setItem(
+				"tableRowsPerPage",
+				normalizedRowsPerPage.toString()
+			)
 		} catch (error) {
 			console.error("Failed to save settings to localStorage:", error)
 		}

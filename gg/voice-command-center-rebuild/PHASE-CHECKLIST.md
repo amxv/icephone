@@ -345,3 +345,10 @@ Examples:
 - [x] Align analytics dashboard recent-call typing with nullable agent IDs
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-49: analytics recent-call ids`
+
+### Phase 50 — Settings Input Hardening
+- [x] Validate/sanitize persisted `tableRowsPerPage` values against supported options
+- [x] Normalize rows-per-page writes to prevent invalid local storage state drift
+- [x] Re-run quality gates after settings hardening
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-50: settings input hardening`

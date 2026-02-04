@@ -615,3 +615,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-49: analytics recent-call ids`
 - Notes/blockers:
   - None.
+
+---
+
+## Phase 50 — Settings Input Hardening
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Hardened settings persistence by normalizing `tableRowsPerPage` values to an allowed set (`5, 10, 20, 50, 100`). This prevents invalid local-storage values from breaking table pagination defaults across screens and keeps writes/reads consistent after manual storage edits or stale migrations.
+- Files changed:
+  - Updated: `src/contexts/settings-context.tsx`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-50: settings input hardening`
+- Notes/blockers:
+  - None.
