@@ -97,7 +97,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
   - Added: `src/lib/calcom.ts`
   - Updated: `src/actions/appointmentActions.ts`, `src/actions/lead-communication.ts`
 - Tests/commands run: None.
-- Commit:
+- Commit: `407e26b` (phase-7: cal.com appointments)
 - Notes/blockers:
 
 ---
