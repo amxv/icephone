@@ -144,7 +144,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `src/actions/campaigns/execution.ts`, `src/actions/campaigns/queue.ts`, `src/app/api/campaigns/process/route.ts`.
 - Tests/commands run: `bun run typecheck`, `bunx biome check --write --unsafe .`, `bun run lint`
-- Commit:
+- Commit: `phase-11: async scheduling` (`81cb494`)
 - Notes/blockers:
 
 ---
