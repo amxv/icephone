@@ -352,7 +352,7 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Files changed:
   - Updated: `src/actions/voice-agents.ts`, `src/types.ts`, `src/components/voice-agents-page-client.tsx`
 - Tests/commands run: `bun run typecheck`, `bun run lint`
-- Commit:
+- Commit: `86b214d` (`phase-28: agent performance data`)
 - Notes/blockers:
   - None.
 

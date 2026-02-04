@@ -201,7 +201,7 @@ Examples:
 - [x] Replace remaining voice-agent card performance placeholder with real per-agent call totals
 - [x] Add backend aggregation for per-agent call totals in `getVoiceAgents`
 - [x] Update `PROGRESS.md`
-- [ ] Commit: `phase-28: agent performance data`
+- [x] Commit: `phase-28: agent performance data`
 
 ### Phase 29 — Final Validation + PR Sync II
 - [x] Run `bun run typecheck` and `bun run lint`
