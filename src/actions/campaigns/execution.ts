@@ -12,6 +12,7 @@ import {
 	campaignQueue,
 	campaignRuns,
 	callQueue,
+	communicationLogs,
 	leads,
 	teamPhoneNumbers,
 	voiceAgents
@@ -622,6 +623,7 @@ export async function processNextQueueBatchDirect(
 		const campaign = await db_ws
 			.select({
 				id: campaigns.id,
+				name: campaigns.name,
 				status: campaigns.status,
 				voiceAgentId: campaigns.voiceAgentId,
 				campaignSettings: campaigns.campaignSettings
@@ -866,6 +868,37 @@ export async function processNextQueueBatchDirect(
 					}))
 				)
 				.returning({ id: callQueue.id })
+
+			const communicationLogPayload: typeof communicationLogs.$inferInsert[] =
+				[]
+			for (const [index, entry] of queueEntries.entries()) {
+				const queuedCallId = queuedCalls[index]?.id
+				if (!queuedCallId) continue
+
+				communicationLogPayload.push({
+					leadId: entry.leadId,
+					type: "outgoing",
+					method: "call",
+					status: "pending",
+					details: {
+						voiceAgentId: campaignData.voiceAgentId || undefined,
+						outboundPhoneNumberId:
+							configuredOutboundPhoneNumber?.id,
+						outboundPhoneNumber:
+							configuredOutboundPhoneNumber?.phoneNumber,
+						outboundProvider:
+							configuredOutboundPhoneNumber?.provider
+					},
+					relatedRecordId: queuedCallId,
+					relatedRecordType: "call_queue",
+					notes: `Campaign queued call for ${campaignData.name}`,
+					userId
+				})
+			}
+
+			if (communicationLogPayload.length > 0) {
+				await tx.insert(communicationLogs).values(communicationLogPayload)
+			}
 
 			const callIdMap = queueEntries.map((entry, index) => ({
 				queueId: entry.queueId,

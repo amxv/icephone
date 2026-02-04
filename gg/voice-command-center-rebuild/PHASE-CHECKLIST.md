@@ -303,3 +303,10 @@ Examples:
 - [x] Propagate campaign-level caller ID selection into generated `call_queue` entries for mass calling
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-43: campaign caller id controls`
+
+### Phase 44 — Communication Timeline Integrity For Queue Calls
+- [x] Ensure campaign-generated queue calls create `communication_logs` entries (not only manual scheduled calls)
+- [x] Synchronize communication log status/details when queue processor updates queue entry outcomes
+- [x] Keep lead communication timelines consistent across manual and campaign queue call flows
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-44: queue communication sync`

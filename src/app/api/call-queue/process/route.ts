@@ -3,6 +3,7 @@ import { db_ws } from "@/db"
 import {
 	callQueue,
 	calls,
+	communicationLogs,
 	leads,
 	teamPhoneNumbers,
 	telephonyCalls
@@ -720,9 +721,62 @@ async function updateCallQueueStatus(
 		...updates
 	}
 
-	return await db_ws
+	const updatedQueueRows = await db_ws
 		.update(callQueue)
 		.set(updateData)
 		.where(eq(callQueue.id, queueId))
 		.returning()
+
+	const communicationStatus =
+		status === "completed"
+			? "delivered"
+			: status === "failed" || status === "cancelled"
+				? "failed"
+				: "pending"
+	const relatedLogs = await db_ws
+		.select({
+			id: communicationLogs.id,
+			details: communicationLogs.details
+		})
+		.from(communicationLogs)
+		.where(
+			and(
+				eq(communicationLogs.relatedRecordId, queueId),
+				eq(communicationLogs.relatedRecordType, "call_queue")
+			)
+		)
+
+	if (relatedLogs.length > 0) {
+		const now = new Date()
+		const durationRaw = updates.callResult?.duration
+		const duration =
+			typeof durationRaw === "number" && Number.isFinite(durationRaw)
+				? durationRaw
+				: undefined
+		const outcomeRaw = updates.callResult?.outcome
+		const outcome =
+			typeof outcomeRaw === "string" && outcomeRaw.length > 0
+				? outcomeRaw
+				: undefined
+
+		for (const log of relatedLogs) {
+			await db_ws
+				.update(communicationLogs)
+				.set({
+					status: communicationStatus,
+					details: {
+						...(log.details || {}),
+						...(duration !== undefined ? { duration } : {}),
+						...(outcome ? { outcome } : {}),
+						...(updates.lastError
+							? { errorMessage: updates.lastError }
+							: {})
+					},
+					updatedAt: now
+				})
+				.where(eq(communicationLogs.id, log.id))
+		}
+	}
+
+	return updatedQueueRows
 }

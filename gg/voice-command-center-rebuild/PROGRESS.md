@@ -543,3 +543,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-43: campaign caller id controls`
 - Notes/blockers:
   - Caller-ID options currently rely on team-managed imported numbers; provider-side procurement/search remains a follow-up phase.
+
+---
+
+## Phase 44 — Communication Timeline Integrity For Queue Calls
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Closed a CRM timeline consistency gap by aligning campaign queue execution with communication logging semantics. Campaign-generated `call_queue` rows now create corresponding `communication_logs` entries (like manual scheduling), and queue processor status transitions now propagate to communication logs with updated status/outcome/error details. This keeps lead timelines and operational audit trails accurate across both manual and campaign-driven call flows.
+- Files changed:
+  - Updated: `src/actions/campaigns/execution.ts`, `src/app/api/call-queue/process/route.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-44: queue communication sync`
+- Notes/blockers:
+  - Queue-to-log sync currently updates by `relatedRecordId` + `relatedRecordType = call_queue`; this intentionally supports both manual and campaign queue paths.
