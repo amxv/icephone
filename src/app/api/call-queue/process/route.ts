@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db_ws } from "@/db"
 import { callQueue, calls, leads, telephonyCalls } from "@/db/schema"
-import { resolveTeamOutboundPhoneNumber } from "@/lib/telephony/outbound-number"
+import {
+	resolveTeamOutboundPhoneNumber,
+	resolveTeamTelephonyProvider
+} from "@/lib/telephony/outbound-number"
 import { getTelephonyExecutionProvider } from "@/lib/telephony/providers"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
@@ -268,9 +271,8 @@ async function processTeamCallQueueDirect(
 	batchSize: number = 5
 ) {
 	const callExecutionEnabled = process.env.CALL_EXECUTION_ENABLED === "true"
-	const executionProvider = getTelephonyExecutionProvider(
-		process.env.CALL_EXECUTION_PROVIDER
-	)
+	const configuredExecutionProvider =
+		process.env.CALL_EXECUTION_PROVIDER?.trim() || null
 
 	if (!callExecutionEnabled) {
 		return {
@@ -355,11 +357,35 @@ async function processTeamCallQueueDirect(
 	let successful = 0
 	let failed = 0
 	let retries = 0
+	const providersUsed = new Set<string>()
+	const providerCache = new Map<string, string>()
 	const outboundNumberCache = new Map<string, string | null>()
 
 	for (const entry of queueEntries) {
 		try {
 			const assignedAgentId = entry.agentId || entry.voiceAgentId || null
+			const providerCacheKey = `${assignedAgentId || "default"}`
+			let resolvedProvider = providerCache.get(providerCacheKey)
+			if (!resolvedProvider) {
+				const teamProvider = await resolveTeamTelephonyProvider({
+					teamId,
+					agentId: assignedAgentId,
+					preferredProvider:
+						configuredExecutionProvider === "twilio" ||
+						configuredExecutionProvider === "telnyx" ||
+						configuredExecutionProvider === "vonage" ||
+						configuredExecutionProvider === "mock"
+							? configuredExecutionProvider
+							: null
+				})
+				resolvedProvider = configuredExecutionProvider || teamProvider
+				providerCache.set(providerCacheKey, resolvedProvider)
+			}
+
+			const executionProvider =
+				getTelephonyExecutionProvider(resolvedProvider)
+			providersUsed.add(executionProvider.name)
+
 			const outboundNumberCacheKey = `${executionProvider.name}:${assignedAgentId || "default"}`
 			let fromPhoneNumber = outboundNumberCache.get(
 				outboundNumberCacheKey
@@ -584,7 +610,10 @@ async function processTeamCallQueueDirect(
 			successful,
 			failed,
 			retries,
-			message: `Calls processed with ${executionProvider.name} execution provider.`
+			message:
+				providersUsed.size > 1
+					? `Calls processed with providers: ${Array.from(providersUsed).join(", ")}.`
+					: `Calls processed with ${Array.from(providersUsed)[0] || "mock"} execution provider.`
 		},
 		error: null
 	}

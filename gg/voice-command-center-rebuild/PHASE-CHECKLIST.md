@@ -269,3 +269,10 @@ Examples:
 - [x] Persist selected outbound number into call/telephony metadata for audit and debugging
 - [x] Update `PROGRESS.md`
 - [x] Commit: `phase-38: outbound caller id routing`
+
+### Phase 39 — Auto Provider Routing From Team Numbers
+- [x] Auto-select execution provider from active team phone numbers when env provider is not forced
+- [x] Preserve `CALL_EXECUTION_PROVIDER` as explicit override path for controlled rollouts
+- [x] Keep agent-assigned/default-number fallback ordering deterministic
+- [x] Update `PROGRESS.md`
+- [x] Commit: `phase-39: auto provider routing`

@@ -483,3 +483,15 @@ This file must be updated after **every phase**. Keep notes concise but specific
 - Commit: `phase-38: outbound caller id routing`
 - Notes/blockers:
   - Telephony provider runtime now supports DB-driven outbound caller IDs; next stage can add provider-side number provisioning/search sync.
+
+---
+
+## Phase 39 — Auto Provider Routing From Team Numbers
+- Status: [ ] Not started [ ] In progress [x] Done
+- Summary: Enhanced queue execution provider routing so backend can automatically choose telephony provider per team/agent from active phone number assignments when `CALL_EXECUTION_PROVIDER` is not pinned. Added provider resolution helper with agent/default fallback priority, wired dynamic provider selection in queue processing, and kept explicit env override behavior for forced single-provider runs.
+- Files changed:
+  - Updated: `src/lib/telephony/outbound-number.ts`, `src/app/api/call-queue/process/route.ts`, `gg/voice-command-center-rebuild/PROGRESS.md`, `gg/voice-command-center-rebuild/PHASE-CHECKLIST.md`
+- Tests/commands run: `bun run typecheck`, `bun run lint`
+- Commit: `phase-39: auto provider routing`
+- Notes/blockers:
+  - This phase routes call dispatch by available team numbers; provider inventory/procurement sync APIs remain a separate follow-up.

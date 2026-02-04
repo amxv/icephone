@@ -52,3 +52,70 @@ export async function resolveTeamOutboundPhoneNumber(
 
 	return rows[0]?.phoneNumber || null
 }
+
+type ResolveTelephonyProviderParams = {
+	teamId: string
+	agentId?: number | null
+	preferredProvider?: TelephonyProvider | null
+}
+
+export async function resolveTeamTelephonyProvider(
+	params: ResolveTelephonyProviderParams
+): Promise<TelephonyProvider> {
+	const rows = await db_ws
+		.select({
+			provider: teamPhoneNumbers.provider,
+			isDefaultOutbound: teamPhoneNumbers.isDefaultOutbound,
+			assignedAgentId: teamPhoneNumbers.assignedAgentId
+		})
+		.from(teamPhoneNumbers)
+		.where(
+			and(
+				eq(teamPhoneNumbers.teamId, params.teamId),
+				eq(teamPhoneNumbers.status, "active")
+			)
+		)
+		.orderBy(
+			desc(teamPhoneNumbers.isDefaultOutbound),
+			desc(teamPhoneNumbers.updatedAt)
+		)
+
+	if (!rows.length) {
+		return params.preferredProvider || "mock"
+	}
+
+	const byPreferredProvider = params.preferredProvider
+		? rows.filter((row) => row.provider === params.preferredProvider)
+		: rows
+
+	const assignedRow = byPreferredProvider.find(
+		(row) =>
+			params.agentId &&
+			row.assignedAgentId &&
+			row.assignedAgentId === params.agentId
+	)
+	if (assignedRow) {
+		return assignedRow.provider
+	}
+
+	const defaultRow = byPreferredProvider.find((row) => row.isDefaultOutbound)
+	if (defaultRow) {
+		return defaultRow.provider
+	}
+
+	if (byPreferredProvider.length) {
+		return byPreferredProvider[0].provider
+	}
+
+	const assignedAnyProvider = rows.find(
+		(row) =>
+			params.agentId &&
+			row.assignedAgentId &&
+			row.assignedAgentId === params.agentId
+	)
+	if (assignedAnyProvider) {
+		return assignedAnyProvider.provider
+	}
+
+	return rows[0]?.provider || params.preferredProvider || "mock"
+}
