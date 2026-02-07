@@ -22,6 +22,7 @@ interface VoicePreviewProps {
 	onSelect?: (preset: VoicePreset) => void
 	showPlayButton?: boolean
 	compact?: boolean
+	onPlayStart?: (stopFn: () => void) => void
 }
 
 export function VoicePreview({
@@ -29,7 +30,8 @@ export function VoicePreview({
 	isSelected = false,
 	onSelect,
 	showPlayButton = true,
-	compact = false
+	compact = false,
+	onPlayStart
 }: VoicePreviewProps) {
 	const [isPlaying, setIsPlaying] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
@@ -48,6 +50,7 @@ export function VoicePreview({
 			return
 		}
 
+		onPlayStart?.(stopPreview)
 		setIsLoading(true)
 
 		try {
@@ -357,6 +360,14 @@ export function VoicePreviewGrid({
 	compact = false,
 	columns = 2
 }: VoicePreviewGridProps) {
+	const stopCurrentRef = useRef<(() => void) | null>(null)
+
+	const handlePlayStart = (stopFn: () => void) => {
+		if (stopCurrentRef.current) {
+			stopCurrentRef.current()
+		}
+		stopCurrentRef.current = stopFn
+	}
 	if (isLoading) {
 		return (
 			<div
@@ -409,6 +420,7 @@ export function VoicePreviewGrid({
 					isSelected={selectedVoice?.id === preset.id}
 					onSelect={onVoiceSelect}
 					compact={compact}
+					onPlayStart={handlePlayStart}
 				/>
 			))}
 		</div>
