@@ -113,7 +113,7 @@ export const MobileSidebar = ({
 		<>
 			<div
 				className={cn(
-					"h-10 px-4 py-4 flex flex-row md:hidden items-center bg-white dark:bg-neutral-800 w-full"
+					"h-10 px-4 py-4 flex flex-row md:hidden items-center bg-background dark:bg-neutral-800 w-full"
 				)}
 				{...props}
 			>
@@ -123,8 +123,18 @@ export const MobileSidebar = ({
 						onClick={() => setOpen(!open)}
 					/>
 				</div>
-				<AnimatePresence>
-					{open && (
+			</div>
+			<AnimatePresence>
+				{open && (
+					<>
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							transition={{ duration: 0.2 }}
+							className="fixed inset-0 bg-black/50 z-[99] md:hidden"
+							onClick={() => setOpen(false)}
+						/>
 						<motion.div
 							initial={{ x: "-100%", opacity: 0 }}
 							animate={{ x: 0, opacity: 1 }}
@@ -134,22 +144,22 @@ export const MobileSidebar = ({
 								ease: "easeInOut"
 							}}
 							className={cn(
-								"fixed h-full w-full inset-0 bg-white dark:bg-neutral-900 p-10 z-[100] flex flex-col justify-between",
+								"fixed inset-y-0 left-0 w-[280px] bg-background dark:bg-neutral-900 z-[100] flex flex-col justify-between p-6 pt-10 rounded-r-2xl shadow-xl md:hidden",
 								className
 							)}
 						>
 							<button
 								type="button"
-								className="absolute right-10 top-10 z-50 text-black dark:text-white cursor-pointer bg-transparent border-none p-0 m-0"
-								onClick={() => setOpen(!open)}
+								className="absolute right-4 top-4 z-50 text-black dark:text-white cursor-pointer bg-transparent border-none p-0 m-0"
+								onClick={() => setOpen(false)}
 							>
 								<X />
 							</button>
 							{children}
 						</motion.div>
-					)}
-				</AnimatePresence>
-			</div>
+					</>
+				)}
+			</AnimatePresence>
 		</>
 	)
 }
@@ -163,7 +173,7 @@ export const SidebarLink = ({
 	className?: string
 	props?: LinkProps
 }) => {
-	const { open, animate } = useSidebar()
+	const { open, setOpen, animate } = useSidebar()
 	const pathname = usePathname()
 
 	// Check if current path starts with the link path
@@ -174,6 +184,7 @@ export const SidebarLink = ({
 	return (
 		<Link
 			href={link.href}
+			onClick={() => setOpen(false)}
 			className={cn(
 				"flex items-center justify-start gap-4 group/sidebar py-3 px-2.5 rounded-2xl transition-all duration-200 hover:bg-white hover:border hover:border-primary/60 dark:hover:bg-neutral-700 dark:hover:border-neutral-600 border border-transparent",
 				isActive &&
