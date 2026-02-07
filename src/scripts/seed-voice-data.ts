@@ -1,5 +1,6 @@
 import { db_ws as db } from "@/db"
 import { agentRoles, voicePresets } from "@/db/schema"
+import { eq } from "drizzle-orm"
 
 // Voice Presets Data - Business-friendly voice configurations
 const voicePresetsData = [
@@ -14,7 +15,7 @@ const voicePresetsData = [
 		vapiVoiceId: "alloy",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/professional-en.mp3",
 		isDefault: true,
 		sortOrder: 1
 	},
@@ -27,7 +28,7 @@ const voicePresetsData = [
 		vapiVoiceId: "marin",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/friendly-en.mp3",
 		isDefault: false,
 		sortOrder: 2
 	},
@@ -41,7 +42,7 @@ const voicePresetsData = [
 		vapiVoiceId: "shimmer",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/warm-en.mp3",
 		isDefault: false,
 		sortOrder: 3
 	},
@@ -54,7 +55,7 @@ const voicePresetsData = [
 		vapiVoiceId: "ash",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/confident-en.mp3",
 		isDefault: false,
 		sortOrder: 4
 	},
@@ -67,7 +68,7 @@ const voicePresetsData = [
 		vapiVoiceId: "coral",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/energetic-en.mp3",
 		isDefault: false,
 		sortOrder: 5
 	},
@@ -83,7 +84,7 @@ const voicePresetsData = [
 		vapiVoiceId: "echo",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/carlos-profesional-es.mp3",
 		isDefault: true,
 		sortOrder: 1
 	},
@@ -96,7 +97,7 @@ const voicePresetsData = [
 		vapiVoiceId: "verse",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/maria-amigable-es.mp3",
 		isDefault: false,
 		sortOrder: 2
 	},
@@ -112,7 +113,7 @@ const voicePresetsData = [
 		vapiVoiceId: "sage",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/pierre-professionnel-fr.mp3",
 		isDefault: true,
 		sortOrder: 1
 	},
@@ -126,7 +127,7 @@ const voicePresetsData = [
 		vapiVoiceId: "ballad",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/sophie-chaleureuse-fr.mp3",
 		isDefault: false,
 		sortOrder: 2
 	},
@@ -142,7 +143,7 @@ const voicePresetsData = [
 		vapiVoiceId: "echo",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/hans-professionell-de.mp3",
 		isDefault: true,
 		sortOrder: 1
 	},
@@ -155,7 +156,7 @@ const voicePresetsData = [
 		vapiVoiceId: "shimmer",
 		vapiProvider: "openai",
 		vapiModel: "gpt-realtime-mini-2025-12-15",
-		sampleAudioUrl: null,
+		sampleAudioUrl: "/audio/voices/anna-freundlich-de.mp3",
 		isDefault: false,
 		sortOrder: 2
 	}
@@ -637,6 +638,17 @@ async function seedVoiceData() {
 				await db.insert(voicePresets).values(preset)
 				console.log(
 					`  ✅ Added voice preset: ${preset.displayName} (${preset.language})`
+				)
+			} else if (
+				preset.sampleAudioUrl &&
+				existing.sampleAudioUrl !== preset.sampleAudioUrl
+			) {
+				await db
+					.update(voicePresets)
+					.set({ sampleAudioUrl: preset.sampleAudioUrl })
+					.where(eq(voicePresets.codename, preset.codename))
+				console.log(
+					`  🔊 Updated sample audio for: ${preset.displayName}`
 				)
 			} else {
 				console.log(
