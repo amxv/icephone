@@ -35,6 +35,7 @@ import {
 	Timer,
 	Target,
 	TrendingDown,
+	Play,
 } from "lucide-react"
 import { motion, type Variants } from "motion/react"
 
@@ -93,6 +94,51 @@ function FadeUp({
 		>
 			{children}
 		</motion.div>
+	)
+}
+
+// ─── Hero Video (click-to-play, lazy-loaded) ────────────────────────
+
+function HeroVideo() {
+	const videoRef = useRef<HTMLVideoElement>(null)
+	const [playing, setPlaying] = useState(false)
+
+	function handlePlay() {
+		const v = videoRef.current
+		if (!v) return
+		if (playing) {
+			v.pause()
+			setPlaying(false)
+		} else {
+			v.play()
+			setPlaying(true)
+		}
+	}
+
+	return (
+		<div
+			className="mt-10 w-full max-w-3xl mx-auto rounded-2xl overflow-hidden border border-white/[0.06] relative cursor-pointer group"
+			onClick={handlePlay}
+		>
+			<video
+				ref={videoRef}
+				muted
+				loop
+				playsInline
+				preload="none"
+				poster="/icephone-hero-poster.webp"
+				className="w-full h-auto block"
+				src="/icephone-hero.mp4"
+				onEnded={() => setPlaying(false)}
+			/>
+			{!playing && (
+				<div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+					<div className="w-16 h-16 rounded-full bg-amber-400/90 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform">
+						<Play className="w-7 h-7 text-[#0c0013] ml-1" fill="#0c0013" />
+					</div>
+				</div>
+			)}
+		</div>
 	)
 }
 
@@ -207,6 +253,9 @@ export function LandingPage() {
 						</p>
 					</FadeUp>
 					<FadeUp delay={2}>
+						<HeroVideo />
+					</FadeUp>
+					<FadeUp delay={3}>
 						<div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
 							<Link
 								href="/sign-in"
