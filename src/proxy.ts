@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
 
 const PUBLIC_ROUTES = [
+	/^\/$/,
 	/^\/sign-in(\/.*)?$/,
 	/^\/sign-up(\/.*)?$/,
 	/^\/api\/auth(\/.*)?$/,

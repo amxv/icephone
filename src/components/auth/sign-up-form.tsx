@@ -40,7 +40,7 @@ export function SignUpForm() {
 			}
 
 			await ensureDefaultTeam()
-			router.push("/")
+			router.push("/dashboard")
 		} catch (err) {
 			console.error("Sign up error:", err)
 			toast.error("Failed to sign up")

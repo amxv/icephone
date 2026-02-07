@@ -38,7 +38,7 @@ export function SignInForm() {
 			}
 
 			await ensureDefaultTeam()
-			router.push("/")
+			router.push("/dashboard")
 		} catch (err) {
 			console.error("Sign in error:", err)
 			toast.error("Failed to sign in")

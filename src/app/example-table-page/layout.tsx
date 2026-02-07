@@ -6,7 +6,7 @@ export default function ExamplePageLayout({
 }: { children: React.ReactNode }) {
 	// Prevent rendering in production
 	if (process.env.NODE_ENV === "production") {
-		redirect("/")
+		redirect("/dashboard")
 	}
 
 	return (
