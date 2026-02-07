@@ -73,7 +73,7 @@ const voicePresetsData = [
 		sortOrder: 5
 	},
 
-	// Spanish Voices (2 voices)
+	// Spanish Voices (4 voices)
 	{
 		codename: "carlos-profesional",
 		displayName: "Carlos Profesional",
@@ -101,8 +101,36 @@ const voicePresetsData = [
 		isDefault: false,
 		sortOrder: 2
 	},
+	{
+		codename: "confiado",
+		displayName: "Confiado",
+		language: "es" as const,
+		gender: "male" as const,
+		description:
+			"Voz segura y persuasiva, ideal para ventas y negociaciones",
+		vapiVoiceId: "ash",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/confiado-es.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "calida",
+		displayName: "Cálida",
+		language: "es" as const,
+		gender: "female" as const,
+		description:
+			"Voz empática y reconfortante, perfecta para soporte y acompañamiento",
+		vapiVoiceId: "shimmer",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/calida-es.mp3",
+		isDefault: false,
+		sortOrder: 4
+	},
 
-	// French Voices (2 voices)
+	// French Voices (4 voices)
 	{
 		codename: "pierre-professionnel",
 		displayName: "Pierre Professionnel",
@@ -131,8 +159,36 @@ const voicePresetsData = [
 		isDefault: false,
 		sortOrder: 2
 	},
+	{
+		codename: "dynamique",
+		displayName: "Dynamique",
+		language: "fr" as const,
+		gender: "female" as const,
+		description:
+			"Voix énergique et enthousiaste, parfaite pour l'engagement commercial",
+		vapiVoiceId: "coral",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/dynamique-fr.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "assure",
+		displayName: "Assuré",
+		language: "fr" as const,
+		gender: "male" as const,
+		description:
+			"Voix confiante et persuasive, idéale pour la vente et le conseil",
+		vapiVoiceId: "ash",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/assure-fr.mp3",
+		isDefault: false,
+		sortOrder: 4
+	},
 
-	// German Voices (2 voices)
+	// German Voices (4 voices)
 	{
 		codename: "hans-professionell",
 		displayName: "Hans Professionell",
@@ -159,10 +215,367 @@ const voicePresetsData = [
 		sampleAudioUrl: "/audio/voices/anna-freundlich-de.mp3",
 		isDefault: false,
 		sortOrder: 2
-	}
+	},
+	{
+		codename: "freundlich-de",
+		displayName: "Liebenswürdig",
+		language: "de" as const,
+		gender: "female" as const,
+		description:
+			"Herzliche und zugängliche Stimme, großartig für Kundengespräche",
+		vapiVoiceId: "marin",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/freundlich-de.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "bestimmt",
+		displayName: "Bestimmt",
+		language: "de" as const,
+		gender: "male" as const,
+		description:
+			"Überzeugende und selbstbewusste Stimme, perfekt für Vertrieb",
+		vapiVoiceId: "ash",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/bestimmt-de.mp3",
+		isDefault: false,
+		sortOrder: 4
+	},
 
-	// Note: Additional languages (Italian, Portuguese, Chinese, Hindi, Arabic, Japanese)
-	// can be added later as needed - focusing on major languages first
+	// Italian Voices (4 voices)
+	{
+		codename: "professionale-it",
+		displayName: "Marco Professionale",
+		language: "it" as const,
+		gender: "male" as const,
+		description:
+			"Voce professionale e autorevole, perfetta per comunicazioni formali",
+		vapiVoiceId: "alloy",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/professionale-it.mp3",
+		isDefault: true,
+		sortOrder: 1
+	},
+	{
+		codename: "amichevole-it",
+		displayName: "Giulia Amichevole",
+		language: "it" as const,
+		gender: "female" as const,
+		description:
+			"Voce amichevole e accogliente, ideale per il servizio clienti",
+		vapiVoiceId: "marin",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/amichevole-it.mp3",
+		isDefault: false,
+		sortOrder: 2
+	},
+	{
+		codename: "sicuro-it",
+		displayName: "Luca Sicuro",
+		language: "it" as const,
+		gender: "male" as const,
+		description:
+			"Voce sicura e persuasiva, perfetta per vendite e trattative",
+		vapiVoiceId: "ash",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/sicuro-it.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "calorosa-it",
+		displayName: "Elena Calorosa",
+		language: "it" as const,
+		gender: "female" as const,
+		description:
+			"Voce calorosa ed empatica, ideale per supporto e assistenza",
+		vapiVoiceId: "coral",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/calorosa-it.mp3",
+		isDefault: false,
+		sortOrder: 4
+	},
+
+	// Portuguese Voices (4 voices)
+	{
+		codename: "profissional-pt",
+		displayName: "Pedro Profissional",
+		language: "pt" as const,
+		gender: "male" as const,
+		description:
+			"Voz profissional e confiável, perfeita para comunicações formais",
+		vapiVoiceId: "echo",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/profissional-pt.mp3",
+		isDefault: true,
+		sortOrder: 1
+	},
+	{
+		codename: "simpatica-pt",
+		displayName: "Ana Simpática",
+		language: "pt" as const,
+		gender: "female" as const,
+		description:
+			"Voz simpática e acolhedora, ideal para atendimento ao cliente",
+		vapiVoiceId: "shimmer",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/simpatica-pt.mp3",
+		isDefault: false,
+		sortOrder: 2
+	},
+	{
+		codename: "energetica-pt",
+		displayName: "Clara Energética",
+		language: "pt" as const,
+		gender: "female" as const,
+		description:
+			"Voz animada e entusiasmada, ótima para engajamento e vendas",
+		vapiVoiceId: "coral",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/energetica-pt.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "tranquilo-pt",
+		displayName: "Rafael Tranquilo",
+		language: "pt" as const,
+		gender: "male" as const,
+		description:
+			"Voz calma e ponderada, perfeita para suporte e acompanhamento",
+		vapiVoiceId: "sage",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/tranquilo-pt.mp3",
+		isDefault: false,
+		sortOrder: 4
+	},
+
+	// Chinese Voices (4 voices)
+	{
+		codename: "zhuanye-zh",
+		displayName: "专业 (Professional)",
+		language: "zh" as const,
+		gender: "male" as const,
+		description: "专业且权威的语气，适合正式商务沟通",
+		vapiVoiceId: "alloy",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/zhuanye-zh.mp3",
+		isDefault: true,
+		sortOrder: 1
+	},
+	{
+		codename: "qinqie-zh",
+		displayName: "亲切 (Friendly)",
+		language: "zh" as const,
+		gender: "female" as const,
+		description: "温暖且亲切的语气，适合客户服务",
+		vapiVoiceId: "marin",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/qinqie-zh.mp3",
+		isDefault: false,
+		sortOrder: 2
+	},
+	{
+		codename: "zixin-zh",
+		displayName: "自信 (Confident)",
+		language: "zh" as const,
+		gender: "male" as const,
+		description: "自信且有说服力的语气，适合销售和谈判",
+		vapiVoiceId: "ash",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/zixin-zh.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "wenrou-zh",
+		displayName: "温柔 (Warm)",
+		language: "zh" as const,
+		gender: "female" as const,
+		description: "温柔且体贴的语气，适合关怀和支持",
+		vapiVoiceId: "shimmer",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/wenrou-zh.mp3",
+		isDefault: false,
+		sortOrder: 4
+	},
+
+	// Hindi Voices (4 voices)
+	{
+		codename: "vyavsayik-hi",
+		displayName: "व्यावसायिक (Professional)",
+		language: "hi" as const,
+		gender: "male" as const,
+		description: "पेशेवर और विश्वसनीय स्वर, औपचारिक संवाद के लिए उपयुक्त",
+		vapiVoiceId: "echo",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/vyavsayik-hi.mp3",
+		isDefault: true,
+		sortOrder: 1
+	},
+	{
+		codename: "milansar-hi",
+		displayName: "मिलनसार (Friendly)",
+		language: "hi" as const,
+		gender: "female" as const,
+		description: "मिलनसार और सुलभ स्वर, ग्राहक सेवा के लिए आदर्श",
+		vapiVoiceId: "verse",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/milansar-hi.mp3",
+		isDefault: false,
+		sortOrder: 2
+	},
+	{
+		codename: "sneh-hi",
+		displayName: "स्नेही (Warm)",
+		language: "hi" as const,
+		gender: "female" as const,
+		description: "सहानुभूतिपूर्ण और देखभाल करने वाला स्वर, सहायता के लिए उपयुक्त",
+		vapiVoiceId: "shimmer",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/sneh-hi.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "vishwas-hi",
+		displayName: "विश्वसनीय (Confident)",
+		language: "hi" as const,
+		gender: "male" as const,
+		description: "आत्मविश्वासी और प्रेरक स्वर, बिक्री के लिए उत्कृष्ट",
+		vapiVoiceId: "sage",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/vishwas-hi.mp3",
+		isDefault: false,
+		sortOrder: 4
+	},
+
+	// Arabic Voices (4 voices)
+	{
+		codename: "mihani-ar",
+		displayName: "مهني (Professional)",
+		language: "ar" as const,
+		gender: "male" as const,
+		description: "صوت مهني وموثوق، مثالي للتواصل الرسمي",
+		vapiVoiceId: "alloy",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/mihani-ar.mp3",
+		isDefault: true,
+		sortOrder: 1
+	},
+	{
+		codename: "hanuna-ar",
+		displayName: "حنونة (Warm)",
+		language: "ar" as const,
+		gender: "female" as const,
+		description: "صوت دافئ ومرحب، مثالي لخدمة العملاء",
+		vapiVoiceId: "marin",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/hanuna-ar.mp3",
+		isDefault: false,
+		sortOrder: 2
+	},
+	{
+		codename: "wathiq-ar",
+		displayName: "واثق (Confident)",
+		language: "ar" as const,
+		gender: "male" as const,
+		description: "صوت واثق ومقنع، مثالي للمبيعات والتفاوض",
+		vapiVoiceId: "ash",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/wathiq-ar.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "dafi-ar",
+		displayName: "دافعة (Energetic)",
+		language: "ar" as const,
+		gender: "female" as const,
+		description: "صوت حيوي ومتحمس، رائع للتفاعل والمشاركة",
+		vapiVoiceId: "coral",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/dafi-ar.mp3",
+		isDefault: false,
+		sortOrder: 4
+	},
+
+	// Japanese Voices (4 voices)
+	{
+		codename: "teinei-ja",
+		displayName: "丁寧 (Polite)",
+		language: "ja" as const,
+		gender: "male" as const,
+		description: "丁寧でプロフェッショナルな声、フォーマルな対応に最適",
+		vapiVoiceId: "sage",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/teinei-ja.mp3",
+		isDefault: true,
+		sortOrder: 1
+	},
+	{
+		codename: "shinsetsu-ja",
+		displayName: "親切 (Kind)",
+		language: "ja" as const,
+		gender: "female" as const,
+		description: "親切で温かみのある声、カスタマーサービスに最適",
+		vapiVoiceId: "shimmer",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/shinsetsu-ja.mp3",
+		isDefault: false,
+		sortOrder: 2
+	},
+	{
+		codename: "ochitsuki-ja",
+		displayName: "落ち着き (Calm)",
+		language: "ja" as const,
+		gender: "female" as const,
+		description: "落ち着いた穏やかな声、サポートや相談に最適",
+		vapiVoiceId: "ballad",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/ochitsuki-ja.mp3",
+		isDefault: false,
+		sortOrder: 3
+	},
+	{
+		codename: "kakushin-ja",
+		displayName: "確信 (Assured)",
+		language: "ja" as const,
+		gender: "male" as const,
+		description: "自信に満ちた説得力のある声、営業や提案に最適",
+		vapiVoiceId: "alloy",
+		vapiProvider: "openai",
+		vapiModel: "gpt-realtime-mini-2025-12-15",
+		sampleAudioUrl: "/audio/voices/kakushin-ja.mp3",
+		isDefault: false,
+		sortOrder: 4
+	}
 ]
 
 // Agent Roles Data - Pre-built business role configurations
