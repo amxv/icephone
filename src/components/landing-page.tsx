@@ -96,39 +96,18 @@ function FadeUp({
 	)
 }
 
-// ─── Integration logos via logo.dev ──────────────────────────────────
+// ─── Integration logos ───────────────────────────────────────────────
 
 const INTEGRATIONS = [
-	{ name: "Twilio", domain: "twilio.com" },
-	{ name: "Telnyx", domain: "telnyx.com" },
-	{ name: "Vonage", domain: "vonage.com" },
-	{ name: "HubSpot", domain: "hubspot.com" },
-	{ name: "Salesforce", domain: "salesforce.com" },
-	{ name: "GoHighLevel", domain: "gohighlevel.com" },
-	{ name: "Pipedrive", domain: "pipedrive.com" },
-	{ name: "Cal.com", domain: "cal.com" },
+	{ name: "Twilio", logo: "/logos/twilio.png" },
+	{ name: "Telnyx", logo: "/logos/telnyx.png" },
+	{ name: "Vonage", logo: "/logos/vonage.png" },
+	{ name: "HubSpot", logo: "/logos/hubspot.png" },
+	{ name: "Salesforce", logo: "/logos/salesforce.png" },
+	{ name: "GoHighLevel", logo: "/logos/gohighlevel.png" },
+	{ name: "Pipedrive", logo: "/logos/pipedrive.png" },
+	{ name: "Cal.com", logo: "/logos/calcom.png" },
 ]
-
-function IntegrationLogo({ name, domain }: { name: string; domain: string }) {
-	const [failed, setFailed] = useState(false)
-	if (failed) {
-		return (
-			<span className="text-sm font-medium text-white/60 px-3 py-1.5 border border-white/10 rounded-lg">
-				{name}
-			</span>
-		)
-	}
-	return (
-		<img
-			src={`https://img.logo.dev/${domain}?token=pk_a]JFGDjXQA2qCpF8t3Iz7w&size=60&format=png`}
-			alt={name}
-			width={28}
-			height={28}
-			className="h-7 w-7 rounded object-contain opacity-70 hover:opacity-100 transition-opacity"
-			onError={() => setFailed(true)}
-		/>
-	)
-}
 
 // ─── FAQ Accordion ───────────────────────────────────────────────────
 
@@ -258,10 +237,16 @@ export function LandingPage() {
 						<div className="flex flex-wrap items-center justify-center gap-6">
 							{INTEGRATIONS.map((i) => (
 								<div
-									key={i.domain}
+									key={i.name}
 									className="flex items-center gap-2"
 								>
-									<IntegrationLogo {...i} />
+									<img
+										src={i.logo}
+										alt={i.name}
+										width={28}
+										height={28}
+										className="h-7 w-7 rounded object-contain opacity-70 hover:opacity-100 transition-opacity"
+									/>
 									<span className="text-sm text-white/40">{i.name}</span>
 								</div>
 							))}
