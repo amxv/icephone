@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
 import { useAuthUser } from "@/lib/auth/use-auth-user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -28,7 +27,6 @@ function getInitials(name: string | null, email?: string) {
 }
 
 export function UserMenu() {
-	const router = useRouter()
 	const { user, isAuthenticated } = useAuthUser()
 	const [isSigningOut, setIsSigningOut] = useState(false)
 
@@ -40,10 +38,9 @@ export function UserMenu() {
 		setIsSigningOut(true)
 		try {
 			await authClient.signOut()
-			router.push("/sign-in")
+			window.location.href = "/sign-in"
 		} catch (error) {
 			console.error("Failed to sign out", error)
-		} finally {
 			setIsSigningOut(false)
 		}
 	}
@@ -68,7 +65,10 @@ export function UserMenu() {
 					{user.name || user.email}
 				</DropdownMenuItem>
 				<DropdownMenuItem
-					onClick={handleSignOut}
+					onSelect={(e) => {
+						e.preventDefault()
+						handleSignOut()
+					}}
 					disabled={isSigningOut}
 				>
 					{isSigningOut ? "Signing out..." : "Sign out"}
