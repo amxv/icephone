@@ -1,0 +1,26 @@
+{
+  "name": "icephone-video",
+  "private": true,
+  "scripts": {
+    "dev": "bunx remotion studio",
+    "build": "bunx remotion render IcePhoneVideo",
+    "upgrade": "bunx remotion upgrade"
+  },
+  "dependencies": {
+    "remotion": "^4.0.0",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/transitions": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/fonts": "^4.0.0",
+    "@remotion/tailwind-v4": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}
