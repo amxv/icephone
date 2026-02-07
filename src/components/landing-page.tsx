@@ -301,7 +301,7 @@ export function LandingPage() {
 							{
 								num: "02",
 								title: "Connect your phones and CRM.",
-								desc: "Bring your own numbers from Twilio, Telnyx, or Vonage. Sync leads from HubSpot, Salesforce, GoHighLevel, or Pipedrive. Link your Cal.com calendar so agents can book meetings in real time.",
+								desc: "We provision phone numbers for you, or connect your existing Twilio, Telnyx, or Vonage account. Sync leads from HubSpot, Salesforce, GoHighLevel, or Pipedrive. Link your Cal.com calendar so agents can book meetings in real time.",
 								icon: Phone,
 							},
 							{
@@ -486,7 +486,7 @@ export function LandingPage() {
 					</FadeUp>
 					<FadeUp delay={1}>
 						<p className="text-center text-white/45 max-w-2xl mx-auto mb-16">
-							IcePhone connects to the telephony providers, CRMs, and calendar tools your team already depends on. No rip-and-replace. No migration headaches.
+							We handle telephony setup for you, or connect to providers and CRMs your team already uses. No rip-and-replace. No migration headaches.
 						</p>
 					</FadeUp>
 					<div className="grid md:grid-cols-3 gap-8">
@@ -494,7 +494,7 @@ export function LandingPage() {
 							{
 								title: "Telephony",
 								names: "Twilio, Telnyx, Vonage",
-								desc: "Bring your own numbers, keep your existing configuration. Inbound and outbound calls, status webhooks, and call recording all work out of the box.",
+								desc: "We can provision numbers for you, or you can connect your existing accounts. Inbound and outbound calls, status webhooks, and call recording all work out of the box.",
 							},
 							{
 								title: "CRMs",
@@ -571,7 +571,7 @@ export function LandingPage() {
 							{[
 								{
 									q: "Do I need my own phone numbers?",
-									a: "Yes. IcePhone connects to your existing Twilio, Telnyx, or Vonage account. You bring the phone numbers; IcePhone provides the AI agents that use them.",
+									a: "No. IcePhone can provision phone numbers for you as part of setup. If you already have numbers on Twilio, Telnyx, or Vonage, you can connect those too — we support both options.",
 								},
 								{
 									q: "Can agents handle both inbound and outbound calls?",
