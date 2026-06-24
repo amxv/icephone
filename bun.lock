@@ -1,8 +1,9 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "clerk-nextjs-app-quickstart",
+      "name": "icephone",
       "dependencies": {
         "@ai-sdk/anthropic": "^1.2.12",
         "@ai-sdk/google": "^1.2.19",

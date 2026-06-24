@@ -4,11 +4,17 @@ import { nanoid } from "nanoid"
 import { db_ws } from "@/db"
 import * as schema from "@/db/schema"
 import { sendEmail } from "@/lib/email"
+import {
+	getEnv,
+	isNextBuildPhase,
+	requireEnv,
+	resolveAuthBaseUrl
+} from "@/lib/env"
 
-const baseURL =
-	process.env.BETTER_AUTH_URL ||
-	process.env.NEXT_PUBLIC_BETTER_AUTH_URL ||
-	"http://localhost:3000"
+const baseURL = resolveAuthBaseUrl()
+const betterAuthSecret = isNextBuildPhase()
+	? getEnv("BETTER_AUTH_SECRET") || "build-only-better-auth-secret"
+	: requireEnv("BETTER_AUTH_SECRET")
 
 export const auth = betterAuth({
 	advanced: {
@@ -103,14 +109,14 @@ export const auth = betterAuth({
 		expiresIn: 60 * 60 * 24 * 7,
 		updateAge: 60 * 60 * 24
 	},
-	secret: process.env.BETTER_AUTH_SECRET || "",
+	secret: betterAuthSecret,
 	baseURL,
 	trustedOrigins: [
 		baseURL,
 		"http://localhost:3000",
-		process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
-		process.env.VERCEL_BRANCH_URL
-			? `https://${process.env.VERCEL_BRANCH_URL}`
+		getEnv("VERCEL_URL") ? `https://${getEnv("VERCEL_URL")}` : null,
+		getEnv("VERCEL_BRANCH_URL")
+			? `https://${getEnv("VERCEL_BRANCH_URL")}`
 			: null
 	].filter(Boolean) as string[]
 })

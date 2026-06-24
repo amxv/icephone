@@ -2,6 +2,7 @@ import type {
 	QueueEntryForExecution,
 	TelephonyCallLifecycleStatus
 } from "@/lib/telephony/types"
+import { resolveAppBaseUrl } from "@/lib/env"
 
 function trimToNull(value: string | null | undefined) {
 	if (!value) {
@@ -24,11 +25,7 @@ export function resolveQueuePhoneNumber(queueEntry: QueueEntryForExecution) {
 }
 
 export function resolvePublicBaseUrl() {
-	return (
-		trimToNull(process.env.APP_BASE_URL) ||
-		trimToNull(process.env.NEXT_PUBLIC_APP_URL) ||
-		null
-	)
+	return resolveAppBaseUrl()
 }
 
 export function resolveTelephonyWebhookUrl(provider: string) {

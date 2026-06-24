@@ -84,9 +84,7 @@ export function SignInForm() {
 						className="w-full"
 						disabled={isLoading}
 					>
-						{isLoading && (
-							<Loader2 className="animate-spin" />
-						)}
+						{isLoading && <Loader2 className="animate-spin" />}
 						{isLoading ? "Signing in..." : "Sign in"}
 					</Button>
 				</form>

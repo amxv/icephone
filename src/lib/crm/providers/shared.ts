@@ -1,8 +1,10 @@
 import type { CRMCallSyncInput } from "@/lib/crm/types"
+import { resolveAppDisplayName } from "@/lib/env"
 
 export function buildCallNoteBody(input: CRMCallSyncInput) {
+	const appName = resolveAppDisplayName()
 	const lines = [
-		`IcePhone call sync (${input.callId})`,
+		`${appName} call sync (${input.callId})`,
 		`Timestamp: ${input.callTimestamp.toISOString()}`,
 		input.status ? `Status: ${input.status}` : null,
 		input.disposition ? `Disposition: ${input.disposition}` : null,

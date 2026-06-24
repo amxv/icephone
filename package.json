@@ -1,6 +1,8 @@
 {
-	"name": "clerk-nextjs-app-quickstart",
+	"name": "icephone",
 	"version": "0.1.0",
+	"description": "AI voice agent command center with CRM, campaign automation, and multi-provider telephony integrations.",
+	"license": "Apache-2.0",
 	"private": true,
 	"scripts": {
 		"dev": "( : > logs/server.log && FORCE_COLOR=1 next dev 2>&1 ) | tee >(perl -pe 's/\\x1B\\[[0-9;]*[a-zA-Z]//g; $|=1' | while IFS= read -r line; do printf \"[%s] %s\\n\" \"$(date +'%Y-%m-%d %H:%M:%S')\" \"$line\" >> logs/server.log; done)",
@@ -9,8 +11,9 @@
 		"start:log": "~/logdev next start",
 		"build": "next build",
 		"start": "next start",
-		"lint": "eslint \"src/**/*.{jsx,tsx}\"",
-		"check": "bun typecheck && bunx biome check --write --unsafe . && bun run lint",
+		"lint": "eslint .",
+		"check": "bun run typecheck && bunx biome check . && bun run lint",
+		"check:release": "bun run check && bun run build",
 		"clean-next": "rm -rf .next",
 		"reinstall-deps": "rm -rf node_modules && bun install",
 		"db:seed": "bun run src/scripts/seed-voice-data.ts",

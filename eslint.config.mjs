@@ -7,12 +7,7 @@ import tseslint from "typescript-eslint"
 
 export default defineConfig([
 	{
-		files: [
-			"src/**/*.{jsx,tsx}"
-			// You can add more specific paths if needed, e.g., "src/components/**/*.{jsx,tsx}", "src/app/**/*.{jsx,tsx}"
-		],
 		ignores: [
-			// Combined ignore patterns from biome.json
 			"dist/**/*",
 			"node_modules/**/*",
 			"public/**/*",
@@ -21,8 +16,16 @@ export default defineConfig([
 			".next/**/*",
 			".open-next/**/*",
 			"cloudflare-env.d.ts",
+			"next-env.d.ts",
 			"**/*.md"
-			// Add any other ESLint-specific ignores if necessary
+		]
+	},
+	{
+		files: [
+			"src/**/*.{js,jsx,ts,tsx}",
+			"scripts/**/*.{js,mjs,ts}",
+			"video/**/*.{js,jsx,ts,tsx}",
+			"*.{js,mjs,ts}"
 		],
 		languageOptions: {
 			parser: tseslint.parser,

@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      APP_NAME: IcePhone
+      APP_URL: http://localhost:3000
+      APP_BASE_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_NON_PAYMENT_DISABLED: "false"
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-secret-value
+      DEV_DB_URL: postgres://postgres:postgres@127.0.0.1:5432/icephone_dev
+      PROD_DB_URL: postgres://postgres:postgres@127.0.0.1:5432/icephone_prod
+      RESEND_API_KEY: re_test_placeholder
+      EMAIL_FROM_NAME: IcePhone
+      EMAIL_FROM_ADDRESS: oss@example.com
+      OPENAI_API_KEY: sk-test-placeholder
+      OPENAI_REALTIME_VOICE: alloy
+      ANTHROPIC_API_KEY: anthropic-test-placeholder
+      GOOGLE_GENERATIVE_AI_API_KEY: google-test-placeholder
+      VOYAGE_API_KEY: voyage-test-placeholder
+      R2_ACCOUNT_ID: r2-account
+      R2_ACCESS_KEY_ID: r2-access-key
+      R2_SECRET_ACCESS_KEY: r2-secret
+      R2_BUCKET_NAME: icephone
+      CALCOM_API_BASE_URL: https://api.cal.com/v1
+      CALCOM_API_KEY: calcom-test-placeholder
+      CALCOM_EVENT_TYPE_ID: "1"
+      CALCOM_EVENT_TYPE_SLUG: demo
+      CALCOM_TEAM_SLUG: team
+      CALCOM_USERNAME: icephone
+      CALCOM_ORGANIZATION_SLUG: icephone
+      CALCOM_DEFAULT_TIMEZONE: UTC
+      CALL_QUEUE_PROCESSOR_SECRET: queue-secret
+      CAMPAIGN_PROCESSOR_SECRET: campaign-secret
+      CALL_EXECUTION_ENABLED: "false"
+      CALL_EXECUTION_PROVIDER: mock
+      TWILIO_ACCOUNT_SID: twilio-account
+      TWILIO_AUTH_TOKEN: twilio-token
+      TWILIO_FROM_NUMBER: "+15555550100"
+      TWILIO_OUTBOUND_TWIML_URL: http://localhost:3000/api/twilio/outbound
+      TWILIO_STATUS_CALLBACK_URL: http://localhost:3000/api/telephony/webhooks/twilio
+      TWILIO_RECORD_CALLS: "false"
+      TELNYX_API_KEY: telnyx-key
+      TELNYX_CONNECTION_ID: telnyx-connection
+      TELNYX_FROM_NUMBER: "+15555550101"
+      TELNYX_WEBHOOK_URL: http://localhost:3000/api/telephony/webhooks/telnyx
+      TELNYX_PUBLIC_KEY: telnyx-public
+      TELNYX_API_PUBLIC_KEY: telnyx-public
+      VONAGE_APPLICATION_ID: vonage-app
+      VONAGE_PRIVATE_KEY: private-key
+      VONAGE_FROM_NUMBER: "+15555550102"
+      VONAGE_ANSWER_URL: http://localhost:3000/api/telephony/webhooks/vonage/answer
+      VONAGE_EVENT_URL: http://localhost:3000/api/telephony/webhooks/vonage
+      VONAGE_WEBHOOK_SIGNATURE_SECRET: vonage-secret
+      VONAGE_SIGNATURE_SECRET: vonage-secret
+      VONAGE_API_SIGNATURE_SECRET: vonage-secret
+      VONAGE_APPLICATION_SECRET: vonage-secret
+      TELEPHONY_WEBHOOK_ALLOW_UNSIGNED: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run verification suite
+        run: bun run check
+
+      - name: Build application
+        run: bun run build

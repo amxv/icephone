@@ -3,6 +3,7 @@
 import { db_ws } from "@/db"
 import { callQueue, communicationLogs } from "@/db/schema"
 import { requireTeam } from "@/lib/auth/session"
+import { resolveAppBaseUrl } from "@/lib/env"
 import { and, eq, inArray } from "drizzle-orm"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -15,11 +16,7 @@ const processSchema = z.object({
 })
 
 function resolveBaseUrl(requestHeaders: Headers) {
-	const envBaseUrl =
-		process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-		process.env.APP_URL?.trim() ||
-		process.env.BETTER_AUTH_URL?.trim() ||
-		null
+	const envBaseUrl = resolveAppBaseUrl()
 	if (envBaseUrl) {
 		return envBaseUrl.replace(/\/+$/, "")
 	}

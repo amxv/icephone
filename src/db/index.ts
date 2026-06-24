@@ -1,9 +1,6 @@
 import { Pool } from "@neondatabase/serverless"
-import { config } from "dotenv"
 import { drizzle } from "drizzle-orm/neon-serverless"
 import * as schema from "./schema"
-
-config({ path: ".env.local" }) // or .env.local
 
 const connectionString =
 	process.env.NODE_ENV === "production"

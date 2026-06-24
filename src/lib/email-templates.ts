@@ -1,8 +1,23 @@
+import { resolveAppDisplayName } from "@/lib/env"
+
+function escapeHtml(value: string) {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;")
+}
+
 export function generateFollowUpEmailTemplate(
 	leadName: string,
 	content: string,
 	templateType: "follow_up" | "appointment_reminder" | "custom" = "follow_up"
 ): string {
+	const appName = resolveAppDisplayName()
+	const safeLeadName = escapeHtml(leadName)
+	const safeLines = content.split("\n").map((line) => escapeHtml(line))
+
 	const baseStyles = `
     <style>
       body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
@@ -17,17 +32,17 @@ export function generateFollowUpEmailTemplate(
 	const templates = {
 		follow_up: {
 			title: "Follow-up from our conversation",
-			greeting: `Hi ${leadName},`,
+			greeting: `Hi ${safeLeadName},`,
 			intro: "Thank you for taking the time to speak with us. We wanted to follow up on our conversation and provide you with some additional information."
 		},
 		appointment_reminder: {
 			title: "Appointment Reminder",
-			greeting: `Hi ${leadName},`,
+			greeting: `Hi ${safeLeadName},`,
 			intro: "This is a friendly reminder about your upcoming appointment with us."
 		},
 		custom: {
-			title: "Message from IcePhone CRM",
-			greeting: `Hi ${leadName},`,
+			title: `Message from ${appName}`,
+			greeting: `Hi ${safeLeadName},`,
 			intro: ""
 		}
 	}
@@ -52,16 +67,15 @@ export function generateFollowUpEmailTemplate(
           <p style="font-size: 16px; margin-bottom: 20px;">${template.greeting}</p>
           ${template.intro ? `<p style="margin-bottom: 20px;">${template.intro}</p>` : ""}
           <div style="margin: 25px 0; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
-            ${content
-				.split("\n")
+            ${safeLines
 				.map((line) => `<p style="margin: 10px 0;">${line}</p>`)
 				.join("")}
           </div>
           <p style="margin-top: 30px;">If you have any questions or need further assistance, please don't hesitate to reach out to us.</p>
-          <p style="margin-bottom: 0;">Best regards,<br><strong>The IcePhone CRM Team</strong></p>
+          <p style="margin-bottom: 0;">Best regards,<br><strong>The ${appName} Team</strong></p>
         </div>
         <div class="footer">
-          <p>This email was sent by IcePhone CRM. If you no longer wish to receive these emails, please contact us.</p>
+          <p>This email was sent by ${appName}. If you no longer wish to receive these emails, please contact us.</p>
         </div>
       </div>
     </body>

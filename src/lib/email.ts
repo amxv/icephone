@@ -1,4 +1,5 @@
 import { Resend } from "resend"
+import { getEnv, resolveAppDisplayName } from "@/lib/env"
 
 // Initialize function that works in both development and production
 async function getResendClient(): Promise<Resend> {
@@ -23,10 +24,16 @@ export interface SendEmailOptions {
 
 export async function sendEmail(options: SendEmailOptions) {
 	const resend = await getResendClient()
+	const fromAddress = getEnv("EMAIL_FROM_ADDRESS")
+	const fromName = getEnv("EMAIL_FROM_NAME") || resolveAppDisplayName()
 
 	try {
 		const response = await resend.emails.send({
-			from: options.from || "IcePhone CRM <noreply@icephone.com>",
+			from:
+				options.from ||
+				(fromAddress
+					? `${fromName} <${fromAddress}>`
+					: `${fromName} <onboarding@resend.dev>`),
 			to: options.to,
 			subject: options.subject,
 			html: options.html,

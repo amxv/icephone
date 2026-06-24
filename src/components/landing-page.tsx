@@ -35,7 +35,7 @@ import {
 	Timer,
 	Target,
 	TrendingDown,
-	Play,
+	Play
 } from "lucide-react"
 import { motion, type Variants } from "motion/react"
 
@@ -69,14 +69,14 @@ const fadeUp: Variants = {
 	visible: (i: number = 0) => ({
 		opacity: 1,
 		y: 0,
-		transition: { duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] },
-	}),
+		transition: { duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }
+	})
 }
 
 function FadeUp({
 	children,
 	delay = 0,
-	className = "",
+	className = ""
 }: {
 	children: React.ReactNode
 	delay?: number
@@ -115,10 +115,21 @@ function HeroVideo() {
 		}
 	}
 
+	function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+		if (event.key === "Enter" || event.key === " ") {
+			event.preventDefault()
+			handlePlay()
+		}
+	}
+
 	return (
 		<div
 			className="mt-10 w-full max-w-3xl mx-auto rounded-2xl overflow-hidden border border-white/[0.06] relative cursor-pointer group"
 			onClick={handlePlay}
+			onKeyDown={handleKeyDown}
+			role="button"
+			tabIndex={0}
+			aria-label={playing ? "Pause hero video" : "Play hero video"}
 		>
 			<video
 				ref={videoRef}
@@ -134,7 +145,10 @@ function HeroVideo() {
 			{!playing && (
 				<div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
 					<div className="w-16 h-16 rounded-full bg-amber-400/90 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform">
-						<Play className="w-7 h-7 text-[#0c0013] ml-1" fill="#0c0013" />
+						<Play
+							className="w-7 h-7 text-[#0c0013] ml-1"
+							fill="#0c0013"
+						/>
 					</div>
 				</div>
 			)}
@@ -152,7 +166,7 @@ const INTEGRATIONS = [
 	{ name: "Salesforce", logo: "/logos/salesforce.png" },
 	{ name: "GoHighLevel", logo: "/logos/gohighlevel.png" },
 	{ name: "Pipedrive", logo: "/logos/pipedrive.png" },
-	{ name: "Cal.com", logo: "/logos/calcom.png" },
+	{ name: "Cal.com", logo: "/logos/calcom.png" }
 ]
 
 // ─── FAQ Accordion ───────────────────────────────────────────────────
@@ -162,10 +176,13 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 	return (
 		<div className="border-b border-white/10">
 			<button
+				type="button"
 				onClick={() => setOpen(!open)}
 				className="w-full flex items-center justify-between py-5 text-left cursor-pointer"
 			>
-				<span className="text-base font-medium text-white pr-4">{q}</span>
+				<span className="text-base font-medium text-white pr-4">
+					{q}
+				</span>
 				<ChevronDown
 					className={`h-5 w-5 text-amber-400/70 shrink-0 transition-transform duration-300 ${
 						open ? "rotate-180" : ""
@@ -231,7 +248,7 @@ export function LandingPage() {
 				className="fixed inset-0 pointer-events-none opacity-[0.03]"
 				style={{
 					backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-					backgroundRepeat: "repeat",
+					backgroundRepeat: "repeat"
 				}}
 			/>
 
@@ -244,12 +261,17 @@ export function LandingPage() {
 						<h1 className="text-5xl sm:text-6xl md:text-7xl font-[family-name:var(--font-instrument-serif)] font-normal tracking-tight leading-[1.1] text-white">
 							Your AI workforce
 							<br />
-							<span className="text-amber-300/90">for the phones.</span>
+							<span className="text-amber-300/90">
+								for the phones.
+							</span>
 						</h1>
 					</FadeUp>
 					<FadeUp delay={1}>
 						<p className="mt-6 text-lg sm:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed">
-							Deploy voice agents that make and take real phone calls — qualifying leads, booking appointments, following up on payments, and handling support — so your team can focus on closing.
+							Deploy voice agents that make and take real phone
+							calls — qualifying leads, booking appointments,
+							following up on payments, and handling support — so
+							your team can focus on closing.
 						</p>
 					</FadeUp>
 					<FadeUp delay={2}>
@@ -296,7 +318,9 @@ export function LandingPage() {
 										height={28}
 										className="h-7 w-7 rounded object-contain opacity-70 hover:opacity-100 transition-opacity"
 									/>
-									<span className="text-sm text-white/40">{i.name}</span>
+									<span className="text-sm text-white/40">
+										{i.name}
+									</span>
 								</div>
 							))}
 						</div>
@@ -310,22 +334,29 @@ export function LandingPage() {
 					<FadeUp>
 						<h2 className="text-3xl sm:text-4xl font-[family-name:var(--font-instrument-serif)] leading-tight text-white">
 							Phones are still where deals happen.{" "}
-							<span className="text-white/40">But nobody wants to work them.</span>
+							<span className="text-white/40">
+								But nobody wants to work them.
+							</span>
 						</h2>
 					</FadeUp>
 					<FadeUp delay={1}>
 						<p className="mt-6 text-base text-white/50 leading-relaxed">
-							Your reps spend hours dialing through lead lists, leaving voicemails, and chasing callbacks. Inbound calls go to voicemail after hours. Follow-ups slip through the cracks.
+							Your reps spend hours dialing through lead lists,
+							leaving voicemails, and chasing callbacks. Inbound
+							calls go to voicemail after hours. Follow-ups slip
+							through the cracks.
 						</p>
 					</FadeUp>
 					<FadeUp delay={2}>
 						<p className="mt-4 text-base text-white/50 leading-relaxed">
-							The result: cold leads, missed revenue, and a team that hates the phone.
+							The result: cold leads, missed revenue, and a team
+							that hates the phone.
 						</p>
 					</FadeUp>
 					<FadeUp delay={3}>
 						<p className="mt-4 text-base text-white/70 font-medium">
-							You could hire more people. Or you could deploy agents that never miss a shift.
+							You could hire more people. Or you could deploy
+							agents that never miss a shift.
 						</p>
 					</FadeUp>
 				</div>
@@ -345,20 +376,20 @@ export function LandingPage() {
 								num: "01",
 								title: "Build your agent.",
 								desc: "Pick a role template — cold calling, support, collections, appointment setting, onboarding, or retention — then customize the voice, personality, and conversation style. Test it live from your browser before a single call goes out.",
-								icon: Bot,
+								icon: Bot
 							},
 							{
 								num: "02",
 								title: "Connect your phones and CRM.",
 								desc: "We provision phone numbers for you, or connect your existing Twilio, Telnyx, or Vonage account. Sync leads from HubSpot, Salesforce, GoHighLevel, or Pipedrive. Link your Cal.com calendar so agents can book meetings in real time.",
-								icon: Phone,
+								icon: Phone
 							},
 							{
 								num: "03",
 								title: "Launch and monitor.",
 								desc: "Start a campaign, set your calling schedule and retry rules, and let IcePhone work through the list. Every call is transcribed, summarized, and scored for sentiment — all visible from a single dashboard.",
-								icon: Rocket,
-							},
+								icon: Rocket
+							}
 						].map((step, idx) => (
 							<FadeUp key={step.num} delay={idx}>
 								<div className="group relative p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-amber-400/20 hover:bg-white/[0.03] transition-all duration-300">
@@ -394,33 +425,37 @@ export function LandingPage() {
 							{
 								icon: TrendingUp,
 								title: "Scale outreach without scaling headcount.",
-								desc: "Run hundreds of outbound calls a day with a single campaign. Set daily caps, calling hours, retry logic, and priority levels — the system handles the rest.",
+								desc: "Run hundreds of outbound calls a day with a single campaign. Set daily caps, calling hours, retry logic, and priority levels — the system handles the rest."
 							},
 							{
 								icon: Search,
 								title: "Every call becomes searchable data.",
-								desc: "Every conversation is transcribed in real time, summarized by AI, and tagged with sentiment. Search across call history, filter by outcome, and export reports.",
+								desc: "Every conversation is transcribed in real time, summarized by AI, and tagged with sentiment. Search across call history, filter by outcome, and export reports."
 							},
 							{
 								icon: BookOpen,
 								title: "Your agents know your business.",
-								desc: "Upload product docs, policy manuals, and FAQs to the knowledge base. During a live call, your voice agent searches that library and references specific answers.",
+								desc: "Upload product docs, policy manuals, and FAQs to the knowledge base. During a live call, your voice agent searches that library and references specific answers."
 							},
 							{
 								icon: GitBranch,
 								title: "Leads move through the pipeline on their own.",
-								desc: "Calls trigger automatic status updates, follow-up scheduling, and score adjustments. Drag leads across deal stages on a visual pipeline board.",
+								desc: "Calls trigger automatic status updates, follow-up scheduling, and score adjustments. Drag leads across deal stages on a visual pipeline board."
 							},
 							{
 								icon: LayoutDashboard,
 								title: "One dashboard for everything.",
-								desc: "Calls, leads, campaigns, appointments, agents, and analytics — all in one place. No more toggling between a dialer, a CRM, a calendar, and a spreadsheet.",
-							},
+								desc: "Calls, leads, campaigns, appointments, agents, and analytics — all in one place. No more toggling between a dialer, a CRM, a calendar, and a spreadsheet."
+							}
 						].map((b, idx) => (
 							<FadeUp
 								key={b.title}
 								delay={idx}
-								className={idx === 4 ? "sm:col-span-2 lg:col-span-1" : ""}
+								className={
+									idx === 4
+										? "sm:col-span-2 lg:col-span-1"
+										: ""
+								}
 							>
 								<div className="h-full p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-amber-400/20 transition-colors duration-300">
 									<b.icon className="h-5 w-5 text-amber-400/60 mb-4" />
@@ -450,33 +485,33 @@ export function LandingPage() {
 							{
 								icon: Users,
 								title: "Sales Outreach",
-								desc: "Deploy agents to work through lead lists, qualify prospects, and book meetings — at volume, with consistency, every day.",
+								desc: "Deploy agents to work through lead lists, qualify prospects, and book meetings — at volume, with consistency, every day."
 							},
 							{
 								icon: Calendar,
 								title: "Appointment Setting",
-								desc: "Let your agent handle the back-and-forth of scheduling. It checks live calendar availability on Cal.com and confirms bookings during the call.",
+								desc: "Let your agent handle the back-and-forth of scheduling. It checks live calendar availability on Cal.com and confirms bookings during the call."
 							},
 							{
 								icon: Headset,
 								title: "Inbound Support",
-								desc: "Route incoming calls to agents that pull answers from your knowledge base, resolve common issues, and transfer to a human when needed.",
+								desc: "Route incoming calls to agents that pull answers from your knowledge base, resolve common issues, and transfer to a human when needed."
 							},
 							{
 								icon: Landmark,
 								title: "Collections",
-								desc: "Run compliant follow-up calls with structured outcomes — intent-to-pay, promise-to-pay, callback requested — tracked and reported automatically.",
+								desc: "Run compliant follow-up calls with structured outcomes — intent-to-pay, promise-to-pay, callback requested — tracked and reported automatically."
 							},
 							{
 								icon: UserPlus,
 								title: "Onboarding",
-								desc: "Walk new customers through setup, activation, and first-value milestones with patient, step-by-step guidance.",
+								desc: "Walk new customers through setup, activation, and first-value milestones with patient, step-by-step guidance."
 							},
 							{
 								icon: RefreshCw,
 								title: "Retention",
-								desc: "Reach customers before their contract expires. Review the value delivered, address concerns, and secure renewals proactively.",
-							},
+								desc: "Reach customers before their contract expires. Review the value delivered, address concerns, and secure renewals proactively."
+							}
 						].map((uc, idx) => (
 							<FadeUp key={uc.title} delay={idx}>
 								<div className="h-full p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-amber-400/20 transition-colors duration-300">
@@ -504,20 +539,46 @@ export function LandingPage() {
 					</FadeUp>
 					<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
 						{[
-							{ icon: FileText, label: "6 pre-built role templates" },
-							{ icon: Globe, label: "10 languages, dozens of voices" },
-							{ icon: Megaphone, label: "Campaign automation engine" },
-							{ icon: Database, label: "Built-in CRM with pipeline board" },
-							{ icon: MonitorPlay, label: "Live agent testing from the browser" },
-							{ icon: Webhook, label: "Custom webhook functions" },
-							{ icon: PhoneForwarded, label: "Call transfer to humans" },
-							{ icon: Clock, label: "Business hours enforcement" },
-							{ icon: ShieldCheck, label: "Audit logging" },
+							{
+								icon: FileText,
+								label: "6 pre-built role templates"
+							},
+							{
+								icon: Globe,
+								label: "10 languages, dozens of voices"
+							},
+							{
+								icon: Megaphone,
+								label: "Campaign automation engine"
+							},
+							{
+								icon: Database,
+								label: "Built-in CRM with pipeline board"
+							},
+							{
+								icon: MonitorPlay,
+								label: "Live agent testing from the browser"
+							},
+							{
+								icon: Webhook,
+								label: "Custom webhook functions"
+							},
+							{
+								icon: PhoneForwarded,
+								label: "Call transfer to humans"
+							},
+							{
+								icon: Clock,
+								label: "Business hours enforcement"
+							},
+							{ icon: ShieldCheck, label: "Audit logging" }
 						].map((f, idx) => (
 							<FadeUp key={f.label} delay={idx * 0.5}>
 								<div className="flex items-center gap-3 p-4 rounded-xl border border-white/[0.06] bg-white/[0.015] hover:border-amber-400/15 transition-colors duration-300">
 									<f.icon className="h-4 w-4 text-amber-400/50 shrink-0" />
-									<span className="text-sm text-white/70">{f.label}</span>
+									<span className="text-sm text-white/70">
+										{f.label}
+									</span>
 								</div>
 							</FadeUp>
 						))}
@@ -535,7 +596,9 @@ export function LandingPage() {
 					</FadeUp>
 					<FadeUp delay={1}>
 						<p className="text-center text-white/45 max-w-2xl mx-auto mb-16">
-							We handle telephony setup for you, or connect to providers and CRMs your team already uses. No rip-and-replace. No migration headaches.
+							We handle telephony setup for you, or connect to
+							providers and CRMs your team already uses. No
+							rip-and-replace. No migration headaches.
 						</p>
 					</FadeUp>
 					<div className="grid md:grid-cols-3 gap-8">
@@ -543,25 +606,27 @@ export function LandingPage() {
 							{
 								title: "Telephony",
 								names: "Twilio, Telnyx, Vonage",
-								desc: "We can provision numbers for you, or you can connect your existing accounts. Inbound and outbound calls, status webhooks, and call recording all work out of the box.",
+								desc: "We can provision numbers for you, or you can connect your existing accounts. Inbound and outbound calls, status webhooks, and call recording all work out of the box."
 							},
 							{
 								title: "CRMs",
 								names: "HubSpot, Salesforce, GoHighLevel, Pipedrive",
-								desc: "Import leads, sync call outcomes, and maintain bidirectional record linkage so nothing falls out of sync.",
+								desc: "Import leads, sync call outcomes, and maintain bidirectional record linkage so nothing falls out of sync."
 							},
 							{
 								title: "Calendar",
 								names: "Cal.com",
-								desc: "Your voice agents check real-time availability and book appointments during live calls. Bookings appear in Cal.com automatically.",
-							},
+								desc: "Your voice agents check real-time availability and book appointments during live calls. Bookings appear in Cal.com automatically."
+							}
 						].map((cat, idx) => (
 							<FadeUp key={cat.title} delay={idx}>
 								<div className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
 									<h3 className="text-base font-semibold text-amber-300/80 mb-1">
 										{cat.title}
 									</h3>
-									<p className="text-xs text-white/30 mb-4">{cat.names}</p>
+									<p className="text-xs text-white/30 mb-4">
+										{cat.names}
+									</p>
 									<p className="text-sm text-white/45 leading-relaxed">
 										{cat.desc}
 									</p>
@@ -578,28 +643,54 @@ export function LandingPage() {
 					<FadeUp>
 						<h2 className="text-3xl sm:text-4xl font-[family-name:var(--font-instrument-serif)] text-center text-white mb-4">
 							See exactly what your agents are doing —{" "}
-							<span className="text-white/40">and whether it&apos;s working.</span>
+							<span className="text-white/40">
+								and whether it&apos;s working.
+							</span>
 						</h2>
 					</FadeUp>
 					<FadeUp delay={1}>
 						<p className="text-center text-white/45 mb-12">
-							Every call generates data. IcePhone turns that data into decisions.
+							Every call generates data. IcePhone turns that data
+							into decisions.
 						</p>
 					</FadeUp>
 					<div className="grid sm:grid-cols-2 gap-4">
 						{[
-							{ icon: BarChart3, text: "Call volume and cost tracking — total calls, duration, cost per call, broken down by agent, direction, and time period." },
-							{ icon: Heart, text: "Sentiment analysis — positive, negative, and neutral sentiment scored for every conversation." },
-							{ icon: Gauge, text: "Agent performance comparison — rank agents by calls completed, appointments booked, and conversions." },
-							{ icon: Target, text: "Lead funnel visualization — track how leads move from new to contacted to qualified to converted." },
-							{ icon: Activity, text: "Hourly and daily trends — identify peak hours, spot anomalies, and adjust calling windows." },
-							{ icon: Timer, text: "Campaign-level reporting — dedicated dashboards per campaign with health scoring and performance alerts." },
-							{ icon: TrendingDown, text: "Collection signals — intent-to-pay rate, promise-to-pay rate, connected rate." },
+							{
+								icon: BarChart3,
+								text: "Call volume and cost tracking — total calls, duration, cost per call, broken down by agent, direction, and time period."
+							},
+							{
+								icon: Heart,
+								text: "Sentiment analysis — positive, negative, and neutral sentiment scored for every conversation."
+							},
+							{
+								icon: Gauge,
+								text: "Agent performance comparison — rank agents by calls completed, appointments booked, and conversions."
+							},
+							{
+								icon: Target,
+								text: "Lead funnel visualization — track how leads move from new to contacted to qualified to converted."
+							},
+							{
+								icon: Activity,
+								text: "Hourly and daily trends — identify peak hours, spot anomalies, and adjust calling windows."
+							},
+							{
+								icon: Timer,
+								text: "Campaign-level reporting — dedicated dashboards per campaign with health scoring and performance alerts."
+							},
+							{
+								icon: TrendingDown,
+								text: "Collection signals — intent-to-pay rate, promise-to-pay rate, connected rate."
+							}
 						].map((item, idx) => (
 							<FadeUp key={idx} delay={idx * 0.5}>
 								<div className="flex items-start gap-3 p-4 rounded-xl border border-white/[0.06] bg-white/[0.015]">
 									<item.icon className="h-4 w-4 text-amber-400/50 shrink-0 mt-0.5" />
-									<p className="text-sm text-white/50 leading-relaxed">{item.text}</p>
+									<p className="text-sm text-white/50 leading-relaxed">
+										{item.text}
+									</p>
 								</div>
 							</FadeUp>
 						))}
@@ -620,36 +711,36 @@ export function LandingPage() {
 							{[
 								{
 									q: "Do I need my own phone numbers?",
-									a: "No. IcePhone can provision phone numbers for you as part of setup. If you already have numbers on Twilio, Telnyx, or Vonage, you can connect those too — we support both options.",
+									a: "No. IcePhone can provision phone numbers for you as part of setup. If you already have numbers on Twilio, Telnyx, or Vonage, you can connect those too — we support both options."
 								},
 								{
 									q: "Can agents handle both inbound and outbound calls?",
-									a: "Yes. Configure agents for outbound campaigns, inbound support, or both. Each agent can be assigned to specific phone numbers and use cases.",
+									a: "Yes. Configure agents for outbound campaigns, inbound support, or both. Each agent can be assigned to specific phone numbers and use cases."
 								},
 								{
 									q: "How does the knowledge base work?",
-									a: "Upload documents — PDFs, web pages, Google Docs, Word files, text files, or images — and IcePhone processes them into a searchable library. During a call, your agent searches that library to find relevant answers and cites specific sources in its responses.",
+									a: "Upload documents — PDFs, web pages, Google Docs, Word files, text files, or images — and IcePhone processes them into a searchable library. During a call, your agent searches that library to find relevant answers and cites specific sources in its responses."
 								},
 								{
 									q: "Can agents book appointments during a call?",
-									a: "Yes, with Cal.com integration. The agent checks real-time calendar availability, offers time slots, and confirms the booking — all within the conversation.",
+									a: "Yes, with Cal.com integration. The agent checks real-time calendar availability, offers time slots, and confirms the booking — all within the conversation."
 								},
 								{
 									q: "What happens if the agent can't handle a call?",
-									a: "You can configure call transfer rules with specific phone numbers and instructions. The agent will hand off to a human when it hits its limits.",
+									a: "You can configure call transfer rules with specific phone numbers and instructions. The agent will hand off to a human when it hits its limits."
 								},
 								{
 									q: "How many languages are supported?",
-									a: "Voice agents are available in 10 languages: English, Spanish, French, German, Italian, Portuguese, Chinese, Hindi, Arabic, and Japanese.",
+									a: "Voice agents are available in 10 languages: English, Spanish, French, German, Italian, Portuguese, Chinese, Hindi, Arabic, and Japanese."
 								},
 								{
 									q: "Is my data isolated from other teams?",
-									a: "Yes. IcePhone uses a multi-tenant architecture with team-based data isolation. Your leads, agents, campaigns, knowledge bases, and call records are completely separated from other organizations.",
+									a: "Yes. IcePhone uses a multi-tenant architecture with team-based data isolation. Your leads, agents, campaigns, knowledge bases, and call records are completely separated from other organizations."
 								},
 								{
 									q: "Can I test an agent before deploying it?",
-									a: "Yes. The platform includes browser-based test calls where you can talk to your agent in real time, see the live transcription, and evaluate its performance — no phone line needed.",
-								},
+									a: "Yes. The platform includes browser-based test calls where you can talk to your agent in real time, see the live transcription, and evaluate its performance — no phone line needed."
+								}
 							].map((faq) => (
 								<FAQItem key={faq.q} {...faq} />
 							))}
@@ -668,7 +759,10 @@ export function LandingPage() {
 					</FadeUp>
 					<FadeUp delay={1}>
 						<p className="text-base text-white/50 max-w-2xl mx-auto mb-10 leading-relaxed">
-							IcePhone gives you AI voice agents that qualify leads, book meetings, handle support, and follow up on payments — around the clock, in 10 languages, across every phone line you operate.
+							IcePhone gives you AI voice agents that qualify
+							leads, book meetings, handle support, and follow up
+							on payments — around the clock, in 10 languages,
+							across every phone line you operate.
 						</p>
 					</FadeUp>
 					<FadeUp delay={2}>
@@ -695,7 +789,8 @@ export function LandingPage() {
 				<div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
 					<Logo lightMode={false} width={60} height={24} />
 					<p className="text-xs text-white/25">
-						&copy; {new Date().getFullYear()} IcePhone. All rights reserved.
+						&copy; {new Date().getFullYear()} IcePhone. All rights
+						reserved.
 					</p>
 					<Link
 						href="/sign-in"
