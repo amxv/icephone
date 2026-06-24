@@ -8,14 +8,28 @@ This repository is open source under the Apache 2.0 license and is intended for 
 
 IcePhone is an AI voice operations app for teams that live on the phone. It combines configurable voice agents, calling workflows, CRM data, scheduling, and reporting into one self-hosted system so outbound and inbound phone operations can run from a single codebase.
 
+At a high level, the app is built for organizations that need to automate high-volume phone communication without splitting voice operations, lead management, scheduling, and reporting across separate systems. It supports use cases such as cold outreach, lead qualification, appointment setting, support, onboarding, retention, and collections.
+
+Rather than treating AI calling as a standalone demo or a thin wrapper around a voice model, IcePhone is structured like an operational system. Voice agents live alongside lead data, campaign controls, appointment workflows, phone number management, queue processing, and post-call analysis. That means the same application can be used to design an agent, test it in realtime, assign it to a campaign, place calls through a configured provider, review outcomes, update lead state, schedule follow-ups, and inspect transcripts and summaries afterward.
+
+The project is also designed to be practical for self-hosted teams. It supports mock and real telephony modes, optional integrations instead of one mandatory vendor stack, explicit execution controls for protected processing routes, and a setup model where core app functionality can be brought up first and additional providers can be layered on as needed. For teams evaluating the codebase, the important point is that IcePhone is not just a UI shell around calling APIs; it is a broader application for managing the lifecycle of AI-driven phone operations.
+
 Main feature areas:
 
-- AI voice agents with role templates, realtime voice sessions, and configurable call behavior
-- Campaign automation with queue processing, retry rules, business hours, and execution controls
-- Built-in CRM workflows for leads, pipelines, communication history, and follow-up actions
-- Appointment scheduling and calendar integration with Cal.com
-- Multi-provider telephony support for Twilio, Telnyx, and Vonage, plus a safe mock fallback
-- Knowledge base, analytics, and integration hooks for AI, storage, email, and custom workflows
+- AI voice agents.
+  Create multiple voice agents with configurable prompts, personalities, first messages, call behavior, business hours, voicemail handling, transfer logic, custom vocabulary, and model settings. Agents can be tailored for different business functions instead of forcing one generic assistant across every workflow. The app also includes role-oriented starting points for common scenarios like support, cold calling, collections, appointment setting, onboarding, and retention, which makes it easier to get to a working baseline before customizing prompts and behavior in detail.
+- Realtime testing and conversation intelligence.
+  Test agents directly in the browser with realtime voice sessions, live transcripts, listening/speaking state, and post-call summaries. Calls can capture transcripts, sentiment, tool usage, recordings, and other operational details for later review. This makes the app useful not only for deployment, but also for iteration: teams can quickly validate prompt changes, tool behavior, and conversation flow before turning an agent loose in real calling workflows.
+- Campaign automation and queue processing.
+  Run outbound campaigns with lifecycle states, scheduling, retry rules, business-hour enforcement, per-lead context, campaign-specific prompt tuning, and queue-based execution. Campaigns are more than a list of phone numbers: they carry their own operating constraints, context, and success definitions, which lets teams separate one outreach motion from another. The system also supports controlled call execution with explicit enablement and provider selection, so live outbound behavior is gated rather than happening implicitly.
+- Built-in CRM and lead workflows.
+  Manage leads, scores, stages, notes, assignments, communication history, and follow-up actions from one place. The app includes lead detail views, pipeline-style workflow management, bulk import paths, and CRM-oriented activity tracking tied directly to calling operations. Instead of pushing call outcomes into a separate system after the fact, IcePhone keeps the operational context and the customer record close together, which is important for workflows where calling, qualification, follow-up, and conversion all affect one another.
+- Scheduling and appointment management.
+  Create and manage appointments, attach them to leads, and integrate with Cal.com for booking, rescheduling, and cancellation workflows. Voice agents can also schedule appointments during live conversations when scheduling is configured. That makes the platform suitable for teams where the desired outcome of a call is not just a conversation, but a concrete next step such as a demo, consultation, or callback window.
+- Telephony and phone number operations.
+  Connect Twilio, Telnyx, or Vonage for live telephony, manage outbound numbers, track provider-specific call metadata, validate webhooks, and handle recordings. The codebase includes the provider plumbing needed for production-style call flows, while still allowing local work to proceed safely when no live provider is configured. In that case, the app can fall back to a mock telephony mode so contributors can explore the product without accidentally initiating real outbound activity.
+- Knowledge, analytics, and extensibility.
+  Agents can search a knowledge base during conversations, trigger webhook-backed functions, and work alongside integrations for AI providers, storage, email, and other supporting services. The broader platform also includes analytics and reporting surfaces for calls and campaigns, so the app can function as both an execution layer and an operations review layer. For teams extending the system, this matters because the architecture already expects external services, provider-specific behavior, and tool-enabled conversations rather than assuming every workflow is hard-coded into one narrow path.
 
 Detailed feature breakdown: [docs/feature-capability-overview.md](docs/feature-capability-overview.md)
 
