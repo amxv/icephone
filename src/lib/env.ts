@@ -11,6 +11,15 @@ export function getEnv(name: string) {
 	return trimToNull(process.env[name])
 }
 
+export function isEnvEnabled(name: string, defaultValue = false) {
+	const value = getEnv(name)
+	if (!value) {
+		return defaultValue
+	}
+
+	return value === "true"
+}
+
 export function requireEnv(name: string) {
 	const value = getEnv(name)
 	if (!value) {
@@ -40,4 +49,8 @@ export function resolveAuthBaseUrl() {
 
 export function resolveAppDisplayName() {
 	return getEnv("APP_NAME") || "IcePhone"
+}
+
+export function isSignUpEnabled() {
+	return isEnvEnabled("NEXT_PUBLIC_SIGN_UP_ENABLED", false)
 }

@@ -6,6 +6,7 @@ import * as schema from "@/db/schema"
 import { sendEmail } from "@/lib/email"
 import {
 	getEnv,
+	isSignUpEnabled,
 	isNextBuildPhase,
 	requireEnv,
 	resolveAuthBaseUrl
@@ -49,7 +50,7 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 		requireEmailVerification: false,
-		disableSignUp: process.env.NEXT_PUBLIC_NON_PAYMENT_DISABLED === "true",
+		disableSignUp: !isSignUpEnabled(),
 		sendResetPassword: async ({ user, url }) => {
 			const subject = "Reset your password"
 			const html = `
