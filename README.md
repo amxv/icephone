@@ -4,6 +4,21 @@ IcePhone is a Next.js application for running AI voice agents with built-in CRM 
 
 This repository is open source under the Apache 2.0 license and is intended for self-hosted deployments. The package remains `private` because this repo is shipped as an application, not as an npm library.
 
+## Overview
+
+IcePhone is an AI voice operations app for teams that live on the phone. It combines configurable voice agents, calling workflows, CRM data, scheduling, and reporting into one self-hosted system so outbound and inbound phone operations can run from a single codebase.
+
+Main feature areas:
+
+- AI voice agents with role templates, realtime voice sessions, and configurable call behavior
+- Campaign automation with queue processing, retry rules, business hours, and execution controls
+- Built-in CRM workflows for leads, pipelines, communication history, and follow-up actions
+- Appointment scheduling and calendar integration with Cal.com
+- Multi-provider telephony support for Twilio, Telnyx, and Vonage, plus a safe mock fallback
+- Knowledge base, analytics, and integration hooks for AI, storage, email, and custom workflows
+
+Detailed feature breakdown: [docs/feature-capability-overview.md](docs/feature-capability-overview.md)
+
 ## What is included
 
 - Better Auth based authentication and team-scoped access control
